@@ -1,5 +1,4 @@
 import { Session, STORAGE_KEY } from "./types"
-import { generateSeedData } from "./seed"
 
 /** Read from localStorage (fast, synchronous cache) */
 export function loadSessionsLocal(): Session[] {
@@ -18,7 +17,7 @@ function saveLocal(sessions: Session[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
 
-/** Load sessions: try KV first, fall back to localStorage, seed if empty */
+/** Load sessions from KV, fall back to localStorage */
 export async function loadSessions(): Promise<Session[]> {
   try {
     const res = await fetch("/api/sessions")
@@ -33,27 +32,15 @@ export async function loadSessions(): Promise<Session[]> {
     // Network/KV unavailable — fall through to localStorage
   }
 
-  // Fall back to localStorage
-  const local = loadSessionsLocal()
-  if (local.length > 0) return local
-
-  // Nothing anywhere — seed
-  const seed = generateSeedData()
-  saveLocal(seed)
-  // Try to persist seed to KV in background
-  saveSessions(seed)
-  return seed
+  return loadSessionsLocal()
 }
 
 /** Save sessions to both localStorage (sync) and KV (async, best-effort) */
 export function saveSessions(sessions: Session[]): void {
   saveLocal(sessions)
-  // Fire-and-forget KV save
   fetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(sessions),
-  }).catch(() => {
-    // KV unavailable — localStorage is still the source of truth
-  })
+  }).catch(() => {})
 }
