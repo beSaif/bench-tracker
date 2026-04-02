@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Session } from "@/lib/types"
-import { loadSessions, saveSessions } from "@/lib/storage"
+import { loadSessions, loadSessionsLocal, saveSessions } from "@/lib/storage"
 import { prescribeNext } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM } from "@/lib/e1rm"
@@ -72,9 +72,16 @@ export default function Page() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const loaded = loadSessions()
-    setSessions(loaded)
+    // Show localStorage data immediately, then sync from KV
+    const local = loadSessionsLocal()
+    if (local.length > 0) {
+      setSessions(local)
+    }
     setMounted(true)
+
+    loadSessions().then((data) => {
+      setSessions(data)
+    })
   }, [])
 
   function handleStartLogging(session: Session) {
