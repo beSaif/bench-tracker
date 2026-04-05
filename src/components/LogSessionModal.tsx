@@ -8,6 +8,7 @@ interface LogSessionModalProps {
   session: Session
   onConfirm: (session: Session) => void
   onClose: () => void
+  mode?: "log" | "edit"
 }
 
 interface EditableSet extends BenchSet {
@@ -25,7 +26,7 @@ function toEditable(set: BenchSet): EditableSet {
   }
 }
 
-export default function LogSessionModal({ session, onConfirm, onClose }: LogSessionModalProps) {
+export default function LogSessionModal({ session, onConfirm, onClose, mode = "log" }: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
   const [bwStr, setBwStr] = useState(session.bw != null ? String(session.bw) : "")
   const [coachNote, setCoachNote] = useState(session.coachNote)
@@ -64,7 +65,7 @@ export default function LogSessionModal({ session, onConfirm, onClose }: LogSess
     const finalSession: Session = {
       ...session,
       confirmed: true,
-      date: new Date().toISOString(),
+      date: mode === "edit" ? session.date : new Date().toISOString(),
       bw: !isNaN(bw) && bw > 0 ? bw : session.bw,
       coachNote,
       sets: sets.map(({ _kgStr: _, _repsStr: __, _rpeStr: ___, ...rest }) => rest),
@@ -81,7 +82,7 @@ export default function LogSessionModal({ session, onConfirm, onClose }: LogSess
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-base font-semibold text-[#111111]">
-            Log Session {String(session.id).padStart(2, "0")}
+            {mode === "edit" ? "Edit" : "Log"} Session {String(session.id).padStart(2, "0")}
           </h2>
           <button
             onClick={onClose}
@@ -219,7 +220,7 @@ export default function LogSessionModal({ session, onConfirm, onClose }: LogSess
           onClick={handleConfirm}
           className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
         >
-          Confirm Session
+          {mode === "edit" ? "Save Changes" : "Confirm Session"}
         </button>
       </div>
     </div>

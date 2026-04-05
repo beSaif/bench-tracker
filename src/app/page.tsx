@@ -69,6 +69,7 @@ function createUpcomingSession(sessions: Session[]): Session {
 export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
+  const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -108,6 +109,36 @@ export default function Page() {
 
   function handleCloseModal() {
     setLoggingSession(null)
+  }
+
+  function handleEditSession(session: Session) {
+    setEditingSession(JSON.parse(JSON.stringify(session)))
+  }
+
+  function handleSaveEdit(updatedSession: Session) {
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === updatedSession.id ? updatedSession : s
+      )
+      saveSessions(updated)
+      return updated
+    })
+    setEditingSession(null)
+  }
+
+  function handleUnlogSession(session: Session) {
+    if (!window.confirm(`Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`)) return
+    setSessions((prev) => {
+      const remaining = prev.filter((s) => s.confirmed && s.id !== session.id)
+      const newUpcoming = createUpcomingSession(remaining)
+      const final = [...remaining, newUpcoming].sort((a, b) => {
+        if (!a.confirmed) return -1
+        if (!b.confirmed) return 1
+        return new Date(b.date!).getTime() - new Date(a.date!).getTime()
+      })
+      saveSessions(final)
+      return final
+    })
   }
 
   if (!mounted) {
@@ -164,7 +195,12 @@ export default function Page() {
             />
           )}
           {confirmedSorted.map((s) => (
-            <SessionCard key={s.id} session={s} />
+            <SessionCard
+              key={s.id}
+              session={s}
+              onEdit={handleEditSession}
+              onUnlog={handleUnlogSession}
+            />
           ))}
         </div>
       </main>
@@ -175,6 +211,16 @@ export default function Page() {
           session={loggingSession}
           onConfirm={handleConfirmSession}
           onClose={handleCloseModal}
+        />
+      )}
+
+      {/* Edit Session Modal */}
+      {editingSession && (
+        <LogSessionModal
+          session={editingSession}
+          mode="edit"
+          onConfirm={handleSaveEdit}
+          onClose={() => setEditingSession(null)}
         />
       )}
     </>

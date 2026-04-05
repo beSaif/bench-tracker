@@ -5,6 +5,8 @@ import { Session, BenchSet } from "@/lib/types"
 interface SessionCardProps {
   session: Session
   onStartLogging?: (session: Session) => void
+  onEdit?: (session: Session) => void
+  onUnlog?: (session: Session) => void
 }
 
 function formatDate(iso: string): string {
@@ -56,7 +58,7 @@ function getWorkingWeight(session: Session): number | null {
   return first?.kg ?? null
 }
 
-export default function SessionCard({ session, onStartLogging }: SessionCardProps) {
+export default function SessionCard({ session, onStartLogging, onEdit, onUnlog }: SessionCardProps) {
   const isUpcoming = !session.confirmed
   const e1rm = getSessionE1RM(session)
   const workingWeight = getWorkingWeight(session)
@@ -64,24 +66,24 @@ export default function SessionCard({ session, onStartLogging }: SessionCardProp
   const cardBorder = isUpcoming
     ? "border-dashed border-[#e0c8cb]"
     : "border-solid border-[#e8e8e8]"
-
+  const cardBg = isUpcoming ? "bg-[#fdf5f6]" : "bg-white"
   const headerColor = isUpcoming ? "text-[#7a1f2e]" : "text-[#111111]"
 
   return (
-    <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder}`}>
+    <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
       {/* Card Header */}
       <div className="px-4 pt-4 pb-3">
-        <div className="flex items-baseline justify-between mb-1">
+        <div className="flex items-center justify-between mb-1">
           <span className={`text-sm font-semibold ${headerColor}`}>
             Session {String(session.id).padStart(2, "0")} · {session.type}
           </span>
-          <span className="text-xs text-[#aaaaaa]">
-            {isUpcoming ? (
-              <em>Upcoming</em>
-            ) : session.date ? (
-              formatDate(session.date)
-            ) : null}
-          </span>
+          {isUpcoming ? (
+            <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e] text-white rounded-full px-2 py-0.5">
+              Up next
+            </span>
+          ) : session.date ? (
+            <span className="text-xs text-[#aaaaaa]">{formatDate(session.date)}</span>
+          ) : null}
         </div>
         {session.bw && (
           <span className="text-xs text-[#777777]">{session.bw}kg BW</span>
@@ -110,7 +112,7 @@ export default function SessionCard({ session, onStartLogging }: SessionCardProp
       )}
 
       {/* Card Footer */}
-      <div className="bg-[#fdf5f6] px-4 py-3 flex items-center justify-between">
+      <div className={`${isUpcoming ? "bg-[#f5e6e8]" : "bg-[#fdf5f6]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex gap-4">
           {workingWeight && (
             <span className="text-xs text-[#777777]">
@@ -132,6 +134,26 @@ export default function SessionCard({ session, onStartLogging }: SessionCardProp
           >
             Log Session
           </button>
+        )}
+        {!isUpcoming && (onEdit || onUnlog) && (
+          <div className="flex gap-2">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(session)}
+                className="text-xs font-semibold text-[#7a1f2e] border border-[#7a1f2e] rounded-lg px-3 py-1.5 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {onUnlog && (
+              <button
+                onClick={() => onUnlog(session)}
+                className="text-xs font-semibold text-[#aaaaaa] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
+              >
+                Unlog
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
