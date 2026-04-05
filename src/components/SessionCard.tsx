@@ -5,6 +5,8 @@ import { Session, BenchSet } from "@/lib/types"
 interface SessionCardProps {
   session: Session
   onStartLogging?: (session: Session) => void
+  onEdit?: (session: Session) => void
+  onUnlog?: (session: Session) => void
 }
 
 function formatDate(iso: string): string {
@@ -56,7 +58,7 @@ function getWorkingWeight(session: Session): number | null {
   return first?.kg ?? null
 }
 
-export default function SessionCard({ session, onStartLogging }: SessionCardProps) {
+export default function SessionCard({ session, onStartLogging, onEdit, onUnlog }: SessionCardProps) {
   const isUpcoming = !session.confirmed
   const e1rm = getSessionE1RM(session)
   const workingWeight = getWorkingWeight(session)
@@ -132,6 +134,26 @@ export default function SessionCard({ session, onStartLogging }: SessionCardProp
           >
             Log Session
           </button>
+        )}
+        {!isUpcoming && (onEdit || onUnlog) && (
+          <div className="flex gap-2">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(session)}
+                className="text-xs font-semibold text-[#7a1f2e] border border-[#7a1f2e] rounded-lg px-3 py-1.5 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {onUnlog && (
+              <button
+                onClick={() => onUnlog(session)}
+                className="text-xs font-semibold text-[#aaaaaa] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
+              >
+                Unlog
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
