@@ -66,24 +66,24 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog }
   const cardBorder = isUpcoming
     ? "border-dashed border-[#e0c8cb]"
     : "border-solid border-[#e8e8e8]"
-
+  const cardBg = isUpcoming ? "bg-[#fdf5f6]" : "bg-white"
   const headerColor = isUpcoming ? "text-[#7a1f2e]" : "text-[#111111]"
 
   return (
-    <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder}`}>
+    <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
       {/* Card Header */}
       <div className="px-4 pt-4 pb-3">
-        <div className="flex items-baseline justify-between mb-1">
+        <div className="flex items-center justify-between mb-1">
           <span className={`text-sm font-semibold ${headerColor}`}>
             Session {String(session.id).padStart(2, "0")} · {session.type}
           </span>
-          <span className="text-xs text-[#aaaaaa]">
-            {isUpcoming ? (
-              <em>Upcoming</em>
-            ) : session.date ? (
-              formatDate(session.date)
-            ) : null}
-          </span>
+          {isUpcoming ? (
+            <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e] text-white rounded-full px-2 py-0.5">
+              Up next
+            </span>
+          ) : session.date ? (
+            <span className="text-xs text-[#aaaaaa]">{formatDate(session.date)}</span>
+          ) : null}
         </div>
         {session.bw && (
           <span className="text-xs text-[#777777]">{session.bw}kg BW</span>
@@ -112,7 +112,7 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog }
       )}
 
       {/* Card Footer */}
-      <div className="bg-[#fdf5f6] px-4 py-3 flex items-center justify-between">
+      <div className={`${isUpcoming ? "bg-[#f5e6e8]" : "bg-[#fdf5f6]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex gap-4">
           {workingWeight && (
             <span className="text-xs text-[#777777]">
