@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Session, BenchSet } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
+
+const REST_DURATION = 180 // seconds
 
 interface LogSessionModalProps {
   session: Session
@@ -30,6 +32,30 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
   const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
   const [bwStr, setBwStr] = useState(session.bw != null ? String(session.bw) : "")
   const [coachNote, setCoachNote] = useState(session.coachNote)
+  const [completedSets, setCompletedSets] = useState<Set<string>>(new Set())
+  const [restActive, setRestActive] = useState(false)
+  const [restSeconds, setRestSeconds] = useState(0)
+
+  useEffect(() => {
+    if (!restActive) return
+    if (restSeconds <= 0) {
+      setRestActive(false)
+      return
+    }
+    const id = setTimeout(() => setRestSeconds((s) => s - 1), 1000)
+    return () => clearTimeout(id)
+  }, [restActive, restSeconds])
+
+  function markSetDone(setId: string) {
+    setCompletedSets((prev) => new Set([...prev, setId]))
+    setRestSeconds(REST_DURATION)
+    setRestActive(true)
+  }
+
+  function dismissRest() {
+    setRestActive(false)
+    setRestSeconds(0)
+  }
 
   function updateSet(index: number, field: "kg" | "reps" | "rpe", raw: string) {
     setSets((prev) =>
@@ -76,9 +102,29 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
   const warmups = sets.filter((s) => s.isWarmup)
   const workingSets = sets.filter((s) => !s.isWarmup)
 
+  const timerMins = Math.floor(restSeconds / 60)
+  const timerSecs = restSeconds % 60
+  const timerDisplay = `${timerMins}:${String(timerSecs).padStart(2, "0")}`
+
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
       <div className="mx-auto max-w-[393px] px-4 py-6">
+        {/* Rest Timer Banner */}
+        {restActive && (
+          <div className="sticky top-2 z-10 bg-[#7a1f2e] text-white rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest font-medium opacity-70 mb-0.5">Rest</p>
+              <p className="text-2xl font-bold tabular-nums leading-none">{timerDisplay}</p>
+            </div>
+            <button
+              onClick={dismissRest}
+              className="text-white/70 hover:text-white text-sm font-medium px-2 py-1"
+            >
+              Skip
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-base font-semibold text-[#111111]">
@@ -136,13 +182,18 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
             Working Sets
           </p>
           <div className="space-y-4">
-            {workingSets.map((set, wi) => {
+            {workingSets.map((set) => {
               const globalIndex = sets.findIndex((s) => s.id === set.id)
+              const isDone = completedSets.has(set.id)
               return (
-                <div key={set.id} className="rounded-xl border border-[#e8e8e8] p-3">
+                <div
+                  key={set.id}
+                  className={`rounded-xl border p-3 transition-colors ${isDone ? "border-[#7a1f2e]/25 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"}`}
+                >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-[#111111]">
                       Set {set.id}
+                      {isDone && <span className="ml-1.5 text-[#7a1f2e]">✓</span>}
                     </span>
                     {set.e1rm != null && (
                       <span className="text-xs font-semibold text-[#7a1f2e]">
@@ -195,6 +246,17 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
                       />
                     </div>
                   </div>
+                  <button
+                    onClick={() => markSetDone(set.id)}
+                    disabled={isDone}
+                    className={`mt-3 w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
+                      isDone
+                        ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                        : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
+                    }`}
+                  >
+                    Done
+                  </button>
                 </div>
               )
             })}
