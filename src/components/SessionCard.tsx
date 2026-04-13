@@ -22,17 +22,6 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-function getSessionE1RM(session: Session): number | null {
-  const working = session.sets.filter((s) => !s.isWarmup)
-  const e1rms = working.map((s) => s.e1rm).filter((v): v is number => v != null)
-  if (e1rms.length === 0) return null
-  return Math.max(...e1rms)
-}
-
-function getWorkingWeight(session: Session): number | null {
-  const first = session.sets.find((s) => !s.isWarmup)
-  return first?.kg ?? null
-}
 
 function BenchSummaryLine({ session }: { session: Session }) {
   const working = session.sets.filter((s) => !s.isWarmup)
@@ -64,8 +53,6 @@ function BenchSummaryLine({ session }: { session: Session }) {
 
 export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, onUpdateMuscleGroups }: SessionCardProps) {
   const isUpcoming = !session.confirmed
-  const e1rm = getSessionE1RM(session)
-  const workingWeight = getWorkingWeight(session)
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [selectedGroups, setSelectedGroups] = useState<MuscleGroup[]>(
@@ -121,19 +108,6 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
         summaryBody
       )}
 
-      {/* Selected muscle group tags — upcoming only, picker closed */}
-      {isUpcoming && !pickerOpen && session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0 && (
-        <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-          {session.selectedMuscleGroups.map((g) => (
-            <span
-              key={g}
-              className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e]/10 text-[#7a1f2e] rounded-full px-2 py-0.5"
-            >
-              {MUSCLE_GROUP_LABEL[g]}
-            </span>
-          ))}
-        </div>
-      )}
 
       {/* Muscle group picker panel — upcoming only */}
       {isUpcoming && pickerOpen && (
@@ -182,18 +156,20 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
 
       {/* Card Footer */}
       <div className={`${isUpcoming ? "bg-[#f5e6e8]" : "bg-[#fdf5f6]"} px-4 py-3 flex items-center justify-between`}>
-        <div className="flex gap-4">
-          {workingWeight && (
-            <span className="text-xs text-[#777777]">
-              <span className="font-semibold text-[#7a1f2e]">{workingWeight}kg</span>
-              {" "}working
-            </span>
-          )}
-          {e1rm && (
-            <span className="text-xs text-[#777777]">
-              e1RM <span className="font-semibold text-[#7a1f2e]">{e1rm}kg</span>
-            </span>
-          )}
+        <div className="flex flex-wrap gap-1.5">
+          {(() => {
+            const muscles = isUpcoming
+              ? (session.selectedMuscleGroups ?? [])
+              : (session.extraWorkouts?.map((w) => w.muscle) ?? [])
+            return muscles.map((g) => (
+              <span
+                key={g}
+                className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e]/10 text-[#7a1f2e] rounded-full px-2 py-0.5"
+              >
+                {MUSCLE_GROUP_LABEL[g]}
+              </span>
+            ))
+          })()}
         </div>
 
         {isUpcoming && (
