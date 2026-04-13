@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Session,
   BenchSet,
@@ -110,8 +110,9 @@ export default function LogSessionModal({
   const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
   const [coachNote, setCoachNote] = useState(session.coachNote)
   const [completedSets, setCompletedSets] = useState<Set<string>>(new Set())
-  const [restActive, setRestActive] = useState(false)
+  const [restEndTime, setRestEndTime] = useState<number | null>(null)
   const [restSeconds, setRestSeconds] = useState(0)
+  const restActive = restEndTime !== null
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
     () => initExtraWorkoutState(session)
   )
@@ -149,26 +150,46 @@ export default function LogSessionModal({
   ).length
   const allDone = carouselItems.length > 0 && completedCount === carouselItems.length
 
+  // Keep a ref so the interval callback always sees the current length
+  const carouselLengthRef = useRef(carouselItems.length)
+  carouselLengthRef.current = carouselItems.length
+
   useEffect(() => {
-    if (!restActive) return
-    if (restSeconds <= 0) {
-      setRestActive(false)
-      setCurrentSetIndex((prev) => Math.min(prev + 1, carouselItems.length - 1))
-      return
+    if (restEndTime === null) return
+
+    function tick() {
+      const remaining = Math.max(0, Math.ceil((restEndTime! - Date.now()) / 1000))
+      setRestSeconds(remaining)
+      if (remaining <= 0) {
+        setRestEndTime(null)
+        setCurrentSetIndex((prev) => Math.min(prev + 1, carouselLengthRef.current - 1))
+      }
     }
-    const id = setTimeout(() => setRestSeconds((s) => s - 1), 1000)
-    return () => clearTimeout(id)
-  }, [restActive, restSeconds])
+
+    tick() // sync immediately on start
+    const id = setInterval(tick, 500) // poll at 2 Hz for smooth display
+
+    // Snap display the moment the tab becomes visible again
+    function onVisibilityChange() {
+      if (!document.hidden) tick()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
+    return () => {
+      clearInterval(id)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
+  }, [restEndTime])
 
   function markSetDone(key: string) {
     if (completedSets.has(key)) return
     setCompletedSets((prev) => new Set([...prev, key]))
+    setRestEndTime(Date.now() + REST_DURATION * 1000)
     setRestSeconds(REST_DURATION)
-    setRestActive(true)
   }
 
   function dismissRest() {
-    setRestActive(false)
+    setRestEndTime(null)
     setRestSeconds(0)
     setCurrentSetIndex((prev) => {
       for (let i = prev + 1; i < carouselItems.length; i++) {
