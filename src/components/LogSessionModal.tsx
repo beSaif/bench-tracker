@@ -108,11 +108,17 @@ export default function LogSessionModal({
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
     () => initExtraWorkoutState(session)
   )
+  const [currentSetIndex, setCurrentSetIndex] = useState(0)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+
+  const warmups = sets.filter((s) => s.isWarmup)
+  const workingSets = sets.filter((s) => !s.isWarmup)
 
   useEffect(() => {
     if (!restActive) return
     if (restSeconds <= 0) {
       setRestActive(false)
+      setCurrentSetIndex((prev) => Math.min(prev + 1, workingSets.length - 1))
       return
     }
     const id = setTimeout(() => setRestSeconds((s) => s - 1), 1000)
@@ -120,6 +126,7 @@ export default function LogSessionModal({
   }, [restActive, restSeconds])
 
   function markSetDone(setId: string) {
+    if (completedSets.has(setId)) return
     setCompletedSets((prev) => new Set([...prev, setId]))
     setRestSeconds(REST_DURATION)
     setRestActive(true)
@@ -128,6 +135,20 @@ export default function LogSessionModal({
   function dismissRest() {
     setRestActive(false)
     setRestSeconds(0)
+    setCurrentSetIndex((prev) => {
+      for (let i = prev + 1; i < workingSets.length; i++) {
+        if (!completedSets.has(workingSets[i].id)) return i
+      }
+      return Math.min(prev + 1, workingSets.length - 1)
+    })
+  }
+
+  function navigatePrev() {
+    setCurrentSetIndex((p) => Math.max(p - 1, 0))
+  }
+
+  function navigateNext() {
+    setCurrentSetIndex((p) => Math.min(p + 1, workingSets.length - 1))
   }
 
   function updateSet(index: number, field: "kg" | "reps" | "rpe", raw: string) {
@@ -209,32 +230,47 @@ export default function LogSessionModal({
     onConfirm(finalSession)
   }
 
-  const warmups = sets.filter((s) => s.isWarmup)
-  const workingSets = sets.filter((s) => !s.isWarmup)
   const selectedGroups = session.selectedMuscleGroups ?? []
 
   const timerMins = Math.floor(restSeconds / 60)
   const timerSecs = restSeconds % 60
   const timerDisplay = `${timerMins}:${String(timerSecs).padStart(2, "0")}`
 
+  const currentSet = workingSets[currentSetIndex]
+  const currentGlobalIndex = sets.findIndex((s) => s.id === currentSet?.id)
+  const nextSet = workingSets[currentSetIndex + 1] ?? null
+
+  // Full-screen rest timer
+  if (restActive) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
+        <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
+          Rest
+        </p>
+        <p className="text-[96px] font-bold tabular-nums leading-none text-white">
+          {timerDisplay}
+        </p>
+        {nextSet ? (
+          <p className="mt-6 text-sm text-white/50">
+            Next: {nextSet.id} &middot; {nextSet.kg}kg &times; {nextSet.reps}
+          </p>
+        ) : (
+          <p className="mt-6 text-sm text-white/50">Last set — great work</p>
+        )}
+        <button
+          onClick={dismissRest}
+          className="mt-10 px-8 py-3 rounded-full border border-white/25 text-white/75
+                     text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
+        >
+          Skip
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
       <div className="mx-auto max-w-[393px] px-4 py-6">
-        {/* Rest Timer Banner */}
-        {restActive && (
-          <div className="sticky top-2 z-10 bg-[#7a1f2e] text-white rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest font-medium opacity-70 mb-0.5">Rest</p>
-              <p className="text-2xl font-bold tabular-nums leading-none">{timerDisplay}</p>
-            </div>
-            <button
-              onClick={dismissRest}
-              className="text-white/70 hover:text-white text-sm font-medium px-2 py-1"
-            >
-              Skip
-            </button>
-          </div>
-        )}
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -267,112 +303,173 @@ export default function LogSessionModal({
           />
         </div>
 
-        {/* Warm-up Sets */}
-        <div className="mb-5">
-          <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-2">
-            Warm-up Sets
-          </p>
-          <div className="space-y-1">
-            {warmups.map((set) => (
-              <div
-                key={set.id}
-                className="grid grid-cols-[2rem_2.5rem_4.5rem_3.5rem] gap-x-3 py-1 text-sm text-[#aaaaaa]"
-              >
-                <span className="font-medium">{set.id}</span>
-                <span>{set.kg}kg</span>
-                <span>{set.reps} reps</span>
-                <span className="text-right">—</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Working Sets */}
-        <div className="mb-5">
-          <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
-            Working Sets
-          </p>
-          <div className="space-y-4">
-            {workingSets.map((set) => {
-              const globalIndex = sets.findIndex((s) => s.id === set.id)
-              const isDone = completedSets.has(set.id)
-              return (
-                <div
+        {/* Warm-up Pills */}
+        {warmups.length > 0 && (
+          <div className="mb-6">
+            <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-2">
+              Warm-up
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {warmups.map((set) => (
+                <span
                   key={set.id}
-                  className={`rounded-xl border p-3 transition-colors ${isDone ? "border-[#7a1f2e]/25 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#e8e8e8] px-3 py-1 text-xs text-[#aaaaaa]"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-[#111111]">
-                      Set {set.id}
-                      {isDone && <span className="ml-1.5 text-[#7a1f2e]">✓</span>}
-                    </span>
-                    {set.e1rm != null && (
-                      <span className="text-xs font-semibold text-[#7a1f2e]">
-                        e1RM {set.e1rm}kg
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
-                        kg
-                      </label>
-                      <input
-                        type="number"
-                        step="2.5"
-                        min="20"
-                        max="300"
-                        value={set._kgStr}
-                        onChange={(e) => updateSet(globalIndex, "kg", e.target.value)}
-                        className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
-                        Reps
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        max="20"
-                        value={set._repsStr}
-                        onChange={(e) => updateSet(globalIndex, "reps", e.target.value)}
-                        className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
-                        RPE
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="1"
-                        max="10"
-                        value={set._rpeStr}
-                        onChange={(e) => updateSet(globalIndex, "rpe", e.target.value)}
-                        placeholder="—"
-                        className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => markSetDone(set.id)}
-                    disabled={isDone}
-                    className={`mt-3 w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
-                      isDone
-                        ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
-                        : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
-                    }`}
-                  >
-                    Done
-                  </button>
-                </div>
+                  <span className="font-semibold text-[#777777]">{set.id}</span>
+                  {set.kg}kg &times; {set.reps}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Progress Dots */}
+        {workingSets.length > 0 && (
+          <div className="flex justify-center gap-2.5 mb-5">
+            {workingSets.map((set, i) => {
+              const isDone = completedSets.has(set.id)
+              const isCurrent = i === currentSetIndex && !isDone
+              return (
+                <button
+                  key={set.id}
+                  onClick={() => setCurrentSetIndex(i)}
+                  aria-label={`Go to set ${set.id}`}
+                  className={[
+                    "w-2.5 h-2.5 rounded-full transition-all",
+                    isDone
+                      ? "bg-[#7a1f2e]"
+                      : isCurrent
+                      ? "border-2 border-[#7a1f2e] bg-transparent scale-125"
+                      : "bg-[#e8e8e8]",
+                  ].join(" ")}
+                />
               )
             })}
           </div>
-        </div>
+        )}
+
+        {/* Working Set Carousel */}
+        {workingSets.length > 0 && (
+          <div
+            onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              if (touchStartX === null) return
+              const delta = e.changedTouches[0].clientX - touchStartX
+              if (delta > 50) navigatePrev()
+              else if (delta < -50) navigateNext()
+              setTouchStartX(null)
+            }}
+            className="mb-4"
+          >
+            {currentSet && (
+              <div
+                className={`rounded-2xl border-2 p-5 transition-colors ${
+                  completedSets.has(currentSet.id)
+                    ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]"
+                    : "border-[#e8e8e8]"
+                }`}
+              >
+                {/* Set label + e1RM */}
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-3xl font-bold text-[#111111] leading-none">
+                    {currentSet.id}
+                    {completedSets.has(currentSet.id) && (
+                      <span className="ml-2 text-[#7a1f2e] text-2xl">✓</span>
+                    )}
+                  </span>
+                  {currentSet.e1rm != null && (
+                    <span className="text-sm font-semibold text-[#7a1f2e]">
+                      e1RM {currentSet.e1rm}kg
+                    </span>
+                  )}
+                </div>
+
+                {/* Inputs */}
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  <div>
+                    <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
+                      kg
+                    </label>
+                    <input
+                      type="number"
+                      step="2.5"
+                      min="20"
+                      max="300"
+                      value={currentSet._kgStr}
+                      onChange={(e) => updateSet(currentGlobalIndex, "kg", e.target.value)}
+                      className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
+                      Reps
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="20"
+                      value={currentSet._repsStr}
+                      onChange={(e) => updateSet(currentGlobalIndex, "reps", e.target.value)}
+                      className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
+                      RPE
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="1"
+                      max="10"
+                      value={currentSet._rpeStr}
+                      onChange={(e) => updateSet(currentGlobalIndex, "rpe", e.target.value)}
+                      placeholder="—"
+                      className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                    />
+                  </div>
+                </div>
+
+                {/* Done Button */}
+                <button
+                  onClick={() => markSetDone(currentSet.id)}
+                  disabled={completedSets.has(currentSet.id)}
+                  className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
+                    completedSets.has(currentSet.id)
+                      ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                      : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
+                  }`}
+                >
+                  {completedSets.has(currentSet.id) ? "✓ Done" : "Done"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Prev / Next Navigation */}
+        {workingSets.length > 1 && (
+          <div className="flex items-center justify-between mb-6 px-1">
+            <button
+              onClick={navigatePrev}
+              disabled={currentSetIndex === 0}
+              className="text-sm font-semibold text-[#777777] disabled:text-[#d4d4d4] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] disabled:hover:bg-transparent transition-colors"
+            >
+              ‹ Prev
+            </button>
+            <span className="text-xs text-[#aaaaaa] tabular-nums">
+              {currentSetIndex + 1} / {workingSets.length}
+            </span>
+            <button
+              onClick={navigateNext}
+              disabled={currentSetIndex === workingSets.length - 1}
+              className="text-sm font-semibold text-[#777777] disabled:text-[#d4d4d4] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] disabled:hover:bg-transparent transition-colors"
+            >
+              Next ›
+            </button>
+          </div>
+        )}
 
         {/* Additional Muscle Group Sections */}
         {selectedGroups.length > 0 && (
@@ -390,7 +487,6 @@ export default function LogSessionModal({
                   const topSet = getTopSet(exerciseName, previousSessions)
                   return (
                     <div key={exerciseName} className="mb-4">
-                      {/* Exercise name + top set reference */}
                       <div className="flex items-baseline justify-between mb-2">
                         <p className="text-xs font-medium text-[#777777]">{exerciseName}</p>
                         {topSet && (
@@ -399,7 +495,6 @@ export default function LogSessionModal({
                           </span>
                         )}
                       </div>
-                      {/* Set rows */}
                       <div className="space-y-2">
                         {(extraState[muscle]?.[exerciseName] ?? []).map((set, i) => {
                           const extraSetId = `extra-${muscle}-${exerciseName}-${i}`
