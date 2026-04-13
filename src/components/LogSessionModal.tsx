@@ -108,7 +108,6 @@ export default function LogSessionModal({
   previousSessions = [],
 }: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
-  const [bwStr, setBwStr] = useState(session.bw != null ? String(session.bw) : "")
   const [coachNote, setCoachNote] = useState(session.coachNote)
   const [completedSets, setCompletedSets] = useState<Set<string>>(new Set())
   const [restActive, setRestActive] = useState(false)
@@ -119,13 +118,11 @@ export default function LogSessionModal({
   const [currentSetIndex, setCurrentSetIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
 
-  const warmups = sets.filter((s) => s.isWarmup)
-  const workingSets = sets.filter((s) => !s.isWarmup)
   const selectedGroups = session.selectedMuscleGroups ?? []
 
-  // Unified flat carousel — bench sets first, then all extra sets in order
+  // All bench sets (warmups first, then working), then all extra sets
   const carouselItems: CarouselItem[] = [
-    ...workingSets.map((set) => ({
+    ...sets.map((set) => ({
       type: "bench" as const,
       set,
       globalIndex: sets.findIndex((s) => s.id === set.id),
@@ -145,6 +142,7 @@ export default function LogSessionModal({
   const completedCount = carouselItems.filter((item) =>
     completedSets.has(getItemKey(item))
   ).length
+  const allDone = carouselItems.length > 0 && completedCount === carouselItems.length
 
   useEffect(() => {
     if (!restActive) return
@@ -231,8 +229,6 @@ export default function LogSessionModal({
   }
 
   function handleConfirm() {
-    const bw = parseFloat(bwStr)
-
     const extraWorkouts: ExtraWorkout[] = selectedGroups
       .filter((muscle) => extraState[muscle])
       .map((muscle) => ({
@@ -253,7 +249,6 @@ export default function LogSessionModal({
       ...session,
       confirmed: true,
       date: mode === "edit" ? session.date : new Date().toISOString(),
-      bw: !isNaN(bw) && bw > 0 ? bw : session.bw,
       coachNote,
       sets: sets.map(({ _kgStr: _, _repsStr: __, _rpeStr: ___, ...rest }) => rest),
       extraWorkouts: extraWorkouts.length > 0 ? extraWorkouts : undefined,
@@ -269,7 +264,11 @@ export default function LogSessionModal({
   const nextItem = carouselItems[currentSetIndex + 1] ?? null
 
   function getNextPreview(item: CarouselItem): string {
-    if (item.type === "bench") return `${item.set.id} · ${item.set.kg}kg × ${item.set.reps}`
+    if (item.type === "bench") {
+      return item.set.isWarmup
+        ? `${item.set.id} · ${item.set.kg}kg × ${item.set.reps} (warm-up)`
+        : `${item.set.id} · ${item.set.kg}kg × ${item.set.reps}`
+    }
     return `${item.exercise} · Set ${item.setIndex + 1}`
   }
 
@@ -319,43 +318,6 @@ export default function LogSessionModal({
           </button>
         </div>
 
-        {/* Body Weight */}
-        <div className="mb-5">
-          <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
-            Body Weight (kg)
-          </label>
-          <input
-            type="number"
-            step="0.1"
-            min="30"
-            max="200"
-            value={bwStr}
-            onChange={(e) => setBwStr(e.target.value)}
-            placeholder="54"
-            className="w-24 border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-          />
-        </div>
-
-        {/* Warm-up Pills */}
-        {warmups.length > 0 && (
-          <div className="mb-6">
-            <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-2">
-              Warm-up
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {warmups.map((set) => (
-                <span
-                  key={set.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#e8e8e8] px-3 py-1 text-xs text-[#aaaaaa]"
-                >
-                  <span className="font-semibold text-[#777777]">{set.id}</span>
-                  {set.kg}kg &times; {set.reps}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Progress Bar */}
         {carouselItems.length > 0 && (
           <div className="mb-5">
@@ -388,18 +350,20 @@ export default function LogSessionModal({
               }}
               className="mb-4"
             >
+              {/* Bench set card (warmup or working) */}
               {currentItem?.type === "bench" && (() => {
                 const item = currentItem
                 const isDone = completedSets.has(item.set.id)
+                const isWarmup = item.set.isWarmup
                 return (
                   <div
                     className={`rounded-2xl border-2 p-5 transition-colors ${
                       isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
                     }`}
                   >
-                    {/* Exercise name */}
+                    {/* Exercise label */}
                     <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
-                      Bench Press
+                      Bench Press{isWarmup ? " · Warm-up" : ""}
                     </p>
                     {/* Set label + e1RM */}
                     <div className="flex items-center justify-between mb-5">
@@ -407,58 +371,70 @@ export default function LogSessionModal({
                         {item.set.id}
                         {isDone && <span className="ml-2 text-[#7a1f2e] text-2xl">✓</span>}
                       </span>
-                      {item.set.e1rm != null && (
+                      {!isWarmup && item.set.e1rm != null && (
                         <span className="text-sm font-semibold text-[#7a1f2e]">
                           e1RM {item.set.e1rm}kg
                         </span>
                       )}
                     </div>
-                    {/* Inputs */}
-                    <div className="grid grid-cols-3 gap-3 mb-5">
-                      <div>
-                        <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                          kg
-                        </label>
-                        <input
-                          type="number"
-                          step="2.5"
-                          min="20"
-                          max="300"
-                          value={item.set._kgStr}
-                          onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
-                          className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                        />
+
+                    {isWarmup ? (
+                      /* Warmup: display-only */
+                      <div className="flex items-baseline gap-2 mb-5">
+                        <span className="text-2xl font-semibold text-[#333333]">
+                          {item.set.kg}kg
+                        </span>
+                        <span className="text-sm text-[#aaaaaa]">&times; {item.set.reps} reps</span>
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                          Reps
-                        </label>
-                        <input
-                          type="number"
-                          step="1"
-                          min="1"
-                          max="20"
-                          value={item.set._repsStr}
-                          onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
-                          className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                        />
+                    ) : (
+                      /* Working set: editable inputs */
+                      <div className="grid grid-cols-3 gap-3 mb-5">
+                        <div>
+                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
+                            kg
+                          </label>
+                          <input
+                            type="number"
+                            step="2.5"
+                            min="20"
+                            max="300"
+                            value={item.set._kgStr}
+                            onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
+                            Reps
+                          </label>
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            max="20"
+                            value={item.set._repsStr}
+                            onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
+                            RPE
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="1"
+                            max="10"
+                            value={item.set._rpeStr}
+                            onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
+                            placeholder="—"
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                          RPE
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="1"
-                          max="10"
-                          value={item.set._rpeStr}
-                          onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
-                          placeholder="—"
-                          className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                        />
-                      </div>
-                    </div>
+                    )}
+
                     <button
                       onClick={() => markSetDone(item.set.id)}
                       disabled={isDone}
@@ -474,6 +450,7 @@ export default function LogSessionModal({
                 )
               })()}
 
+              {/* Extra work card */}
               {currentItem?.type === "extra" && (() => {
                 const item = currentItem
                 const key = getItemKey(item)
@@ -486,11 +463,9 @@ export default function LogSessionModal({
                       isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
                     }`}
                   >
-                    {/* Muscle group label */}
                     <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
                       {MUSCLE_GROUP_LABEL[item.muscle]}
                     </p>
-                    {/* Exercise name + set number */}
                     <div className="flex items-start justify-between mb-5">
                       <div>
                         <p className="text-xl font-bold text-[#111111] leading-tight">
@@ -505,7 +480,6 @@ export default function LogSessionModal({
                         </span>
                       )}
                     </div>
-                    {/* Inputs */}
                     <div className="grid grid-cols-2 gap-3 mb-5">
                       <div>
                         <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
@@ -577,27 +551,30 @@ export default function LogSessionModal({
           </>
         )}
 
-        {/* Coach Note */}
-        <div className="mb-6">
-          <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
-            Session Notes
-          </label>
-          <textarea
-            value={coachNote}
-            onChange={(e) => setCoachNote(e.target.value)}
-            rows={2}
-            placeholder="How did it feel?"
-            className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
-          />
-        </div>
-
-        {/* Confirm Button */}
-        <button
-          onClick={handleConfirm}
-          className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
-        >
-          {mode === "edit" ? "Save Changes" : "Confirm Session"}
-        </button>
+        {/* Notes + Confirm — only shown after everything is done */}
+        {allDone && (
+          <>
+            <div className="h-px bg-[#e8e8e8] mb-6" />
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
+                Session Notes
+              </label>
+              <textarea
+                value={coachNote}
+                onChange={(e) => setCoachNote(e.target.value)}
+                rows={2}
+                placeholder="How did it feel?"
+                className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
+              />
+            </div>
+            <button
+              onClick={handleConfirm}
+              className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
+            >
+              {mode === "edit" ? "Save Changes" : "Confirm Session"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
