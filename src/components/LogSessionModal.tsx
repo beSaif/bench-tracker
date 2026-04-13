@@ -301,280 +301,257 @@ export default function LogSessionModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
-      <div className="mx-auto max-w-[393px] px-4 py-6">
+    <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+      <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-base font-semibold text-[#111111]">
-            {mode === "edit" ? "Edit" : "Log"} Session {String(session.id).padStart(2, "0")}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
-            aria-label="Close"
-          >
-            ×
-          </button>
+        {/* Header + Progress — pinned at top */}
+        <div className="pt-6 pb-4 shrink-0">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-semibold text-[#111111]">
+              {mode === "edit" ? "Edit" : "Log"} Session {String(session.id).padStart(2, "0")}
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          {carouselItems.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-[#aaaaaa] uppercase tracking-widest">Progress</span>
+                <span className="text-[10px] text-[#aaaaaa] tabular-nums">
+                  {completedCount} / {carouselItems.length}
+                </span>
+              </div>
+              <div className="h-1 bg-[#e8e8e8] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#7a1f2e] rounded-full transition-all duration-500"
+                  style={{ width: `${(completedCount / carouselItems.length) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Progress Bar */}
-        {carouselItems.length > 0 && (
-          <div className="mb-5">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] text-[#aaaaaa] uppercase tracking-widest">Progress</span>
-              <span className="text-[10px] text-[#aaaaaa] tabular-nums">
-                {completedCount} / {carouselItems.length}
-              </span>
-            </div>
-            <div className="h-1 bg-[#e8e8e8] rounded-full overflow-hidden">
+        {/* Centered content area */}
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-8">
+
+          {!allDone && carouselItems.length > 0 && (
+            <div className="w-full space-y-4">
+              {/* Swipeable card */}
               <div
-                className="h-full bg-[#7a1f2e] rounded-full transition-all duration-500"
-                style={{ width: `${(completedCount / carouselItems.length) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Carousel */}
-        {carouselItems.length > 0 && (
-          <>
-            <div
-              onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-              onTouchEnd={(e) => {
-                if (touchStartX === null) return
-                const delta = e.changedTouches[0].clientX - touchStartX
-                if (delta > 50) navigatePrev()
-                else if (delta < -50) navigateNext()
-                setTouchStartX(null)
-              }}
-              className="mb-4"
-            >
-              {/* Bench set card (warmup or working) */}
-              {currentItem?.type === "bench" && (() => {
-                const item = currentItem
-                const isDone = completedSets.has(item.set.id)
-                const isWarmup = item.set.isWarmup
-                return (
-                  <div
-                    className={`rounded-2xl border-2 p-5 transition-colors ${
-                      isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
-                    }`}
-                  >
-                    {/* Exercise label */}
-                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
-                      Bench Press{isWarmup ? " · Warm-up" : ""}
-                    </p>
-                    {/* Set label + e1RM */}
-                    <div className="flex items-center justify-between mb-5">
-                      <span className="text-3xl font-bold text-[#111111] leading-none">
-                        {item.set.id}
-                        {isDone && <span className="ml-2 text-[#7a1f2e] text-2xl">✓</span>}
-                      </span>
-                      {!isWarmup && item.set.e1rm != null && (
-                        <span className="text-sm font-semibold text-[#7a1f2e]">
-                          e1RM {item.set.e1rm}kg
-                        </span>
-                      )}
-                    </div>
-
-                    {isWarmup ? (
-                      /* Warmup: display-only */
-                      <div className="flex items-baseline gap-2 mb-5">
-                        <span className="text-2xl font-semibold text-[#333333]">
-                          {item.set.kg}kg
-                        </span>
-                        <span className="text-sm text-[#aaaaaa]">&times; {item.set.reps} reps</span>
-                      </div>
-                    ) : (
-                      /* Working set: editable inputs */
-                      <div className="grid grid-cols-3 gap-3 mb-5">
-                        <div>
-                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                            kg
-                          </label>
-                          <input
-                            type="number"
-                            step="2.5"
-                            min="20"
-                            max="300"
-                            value={item.set._kgStr}
-                            onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                            Reps
-                          </label>
-                          <input
-                            type="number"
-                            step="1"
-                            min="1"
-                            max="20"
-                            value={item.set._repsStr}
-                            onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                            RPE
-                          </label>
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="1"
-                            max="10"
-                            value={item.set._rpeStr}
-                            onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
-                            placeholder="—"
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => markSetDone(item.set.id)}
-                      disabled={isDone}
-                      className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
-                        isDone
-                          ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
-                          : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
+                onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+                onTouchEnd={(e) => {
+                  if (touchStartX === null) return
+                  const delta = e.changedTouches[0].clientX - touchStartX
+                  if (delta > 50) navigatePrev()
+                  else if (delta < -50) navigateNext()
+                  setTouchStartX(null)
+                }}
+              >
+                {/* Bench set card (warmup or working) */}
+                {currentItem?.type === "bench" && (() => {
+                  const item = currentItem
+                  const isDone = completedSets.has(item.set.id)
+                  const isWarmup = item.set.isWarmup
+                  return (
+                    <div
+                      className={`rounded-2xl border-2 p-5 transition-colors ${
+                        isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
                       }`}
                     >
-                      {isDone ? "✓ Done" : "Done"}
-                    </button>
-                  </div>
-                )
-              })()}
-
-              {/* Extra work card */}
-              {currentItem?.type === "extra" && (() => {
-                const item = currentItem
-                const key = getItemKey(item)
-                const isDone = completedSets.has(key)
-                const currentExtraSet = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
-                const topSet = getTopSet(item.exercise, previousSessions)
-                return (
-                  <div
-                    className={`rounded-2xl border-2 p-5 transition-colors ${
-                      isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
-                    }`}
-                  >
-                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
-                      {MUSCLE_GROUP_LABEL[item.muscle]}
-                    </p>
-                    <div className="flex items-start justify-between mb-5">
-                      <div>
-                        <p className="text-xl font-bold text-[#111111] leading-tight">
-                          {item.exercise}
-                          {isDone && <span className="ml-2 text-[#7a1f2e] text-lg">✓</span>}
-                        </p>
-                        <p className="text-xs text-[#aaaaaa] mt-0.5">Set {item.setIndex + 1}</p>
-                      </div>
-                      {topSet && (
-                        <span className="text-xs text-[#aaaaaa] mt-0.5">
-                          last: {topSet.kg}kg &times; {topSet.reps}
+                      <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
+                        Bench Press{isWarmup ? " · Warm-up" : ""}
+                      </p>
+                      <div className="flex items-center justify-between mb-5">
+                        <span className="text-3xl font-bold text-[#111111] leading-none">
+                          {item.set.id}
+                          {isDone && <span className="ml-2 text-[#7a1f2e] text-2xl">✓</span>}
                         </span>
+                        {!isWarmup && item.set.e1rm != null && (
+                          <span className="text-sm font-semibold text-[#7a1f2e]">
+                            e1RM {item.set.e1rm}kg
+                          </span>
+                        )}
+                      </div>
+
+                      {isWarmup ? (
+                        <div className="flex items-baseline gap-2 mb-5">
+                          <span className="text-2xl font-semibold text-[#333333]">
+                            {item.set.kg}kg
+                          </span>
+                          <span className="text-sm text-[#aaaaaa]">&times; {item.set.reps} reps</span>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-3 mb-5">
+                          <div>
+                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
+                            <input
+                              type="number" step="2.5" min="20" max="300"
+                              value={item.set._kgStr}
+                              onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
+                            <input
+                              type="number" step="1" min="1" max="20"
+                              value={item.set._repsStr}
+                              onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">RPE</label>
+                            <input
+                              type="number" step="0.5" min="1" max="10"
+                              value={item.set._rpeStr}
+                              onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
+                              placeholder="—"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            />
+                          </div>
+                        </div>
                       )}
+
+                      <button
+                        onClick={() => markSetDone(item.set.id)}
+                        disabled={isDone}
+                        className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
+                          isDone
+                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                            : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
+                        }`}
+                      >
+                        {isDone ? "✓ Done" : "Done"}
+                      </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mb-5">
-                      <div>
-                        <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                          kg
-                        </label>
-                        <input
-                          type="number"
-                          step="2.5"
-                          min="0"
-                          value={currentExtraSet?.kgStr ?? "0"}
-                          onChange={(e) =>
-                            updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", e.target.value)
-                          }
-                          className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">
-                          Reps
-                        </label>
-                        <input
-                          type="number"
-                          step="1"
-                          min="1"
-                          value={currentExtraSet?.repsStr ?? "10"}
-                          onChange={(e) =>
-                            updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", e.target.value)
-                          }
-                          className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => markSetDone(key)}
-                      disabled={isDone}
-                      className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
-                        isDone
-                          ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
-                          : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
+                  )
+                })()}
+
+                {/* Extra work card */}
+                {currentItem?.type === "extra" && (() => {
+                  const item = currentItem
+                  const key = getItemKey(item)
+                  const isDone = completedSets.has(key)
+                  const currentExtraSet = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
+                  const topSet = getTopSet(item.exercise, previousSessions)
+                  return (
+                    <div
+                      className={`rounded-2xl border-2 p-5 transition-colors ${
+                        isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
                       }`}
                     >
-                      {isDone ? "✓ Done" : "Done"}
-                    </button>
-                  </div>
-                )
-              })()}
-            </div>
+                      <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
+                        {MUSCLE_GROUP_LABEL[item.muscle]}
+                      </p>
+                      <div className="flex items-start justify-between mb-5">
+                        <div>
+                          <p className="text-xl font-bold text-[#111111] leading-tight">
+                            {item.exercise}
+                            {isDone && <span className="ml-2 text-[#7a1f2e] text-lg">✓</span>}
+                          </p>
+                          <p className="text-xs text-[#aaaaaa] mt-0.5">Set {item.setIndex + 1}</p>
+                        </div>
+                        {topSet && (
+                          <span className="text-xs text-[#aaaaaa] mt-0.5">
+                            last: {topSet.kg}kg &times; {topSet.reps}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-5">
+                        <div>
+                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
+                          <input
+                            type="number" step="2.5" min="0"
+                            value={currentExtraSet?.kgStr ?? "0"}
+                            onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", e.target.value)}
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
+                          <input
+                            type="number" step="1" min="1"
+                            value={currentExtraSet?.repsStr ?? "10"}
+                            onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", e.target.value)}
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => markSetDone(key)}
+                        disabled={isDone}
+                        className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
+                          isDone
+                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                            : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
+                        }`}
+                      >
+                        {isDone ? "✓ Done" : "Done"}
+                      </button>
+                    </div>
+                  )
+                })()}
+              </div>
 
-            {/* Prev / Next Navigation */}
-            <div className="flex items-center justify-between mb-6 px-1">
-              <button
-                onClick={navigatePrev}
-                disabled={currentSetIndex === 0}
-                className="text-sm font-semibold text-[#777777] disabled:text-[#d4d4d4] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] disabled:hover:bg-transparent transition-colors"
-              >
-                ‹ Prev
-              </button>
-              <span className="text-xs text-[#aaaaaa] tabular-nums">
-                {currentSetIndex + 1} / {carouselItems.length}
-              </span>
-              <button
-                onClick={navigateNext}
-                disabled={currentSetIndex === carouselItems.length - 1}
-                className="text-sm font-semibold text-[#777777] disabled:text-[#d4d4d4] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] disabled:hover:bg-transparent transition-colors"
-              >
-                Next ›
-              </button>
+              {/* Prev / Next */}
+              <div className="flex items-center justify-between px-1">
+                <button
+                  onClick={navigatePrev}
+                  disabled={currentSetIndex === 0}
+                  className="text-sm font-semibold text-[#777777] disabled:text-[#d4d4d4] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] disabled:hover:bg-transparent transition-colors"
+                >
+                  ‹ Prev
+                </button>
+                <span className="text-xs text-[#aaaaaa] tabular-nums">
+                  {currentSetIndex + 1} / {carouselItems.length}
+                </span>
+                <button
+                  onClick={navigateNext}
+                  disabled={currentSetIndex === carouselItems.length - 1}
+                  className="text-sm font-semibold text-[#777777] disabled:text-[#d4d4d4] px-3 py-2 rounded-lg hover:bg-[#f5f5f5] disabled:hover:bg-transparent transition-colors"
+                >
+                  Next ›
+                </button>
+              </div>
             </div>
-          </>
-        )}
+          )}
 
-        {/* Notes + Confirm — only shown after everything is done */}
-        {allDone && (
-          <>
-            <div className="h-px bg-[#e8e8e8] mb-6" />
-            <div className="mb-6">
-              <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
-                Session Notes
-              </label>
-              <textarea
-                value={coachNote}
-                onChange={(e) => setCoachNote(e.target.value)}
-                rows={2}
-                placeholder="How did it feel?"
-                className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
-              />
+          {/* Notes + Confirm — only after everything is done */}
+          {allDone && (
+            <div className="w-full space-y-4">
+              <div className="text-center mb-2">
+                <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
+                <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
+                  Session Notes
+                </label>
+                <textarea
+                  value={coachNote}
+                  onChange={(e) => setCoachNote(e.target.value)}
+                  rows={3}
+                  placeholder="How did it feel?"
+                  className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
+                />
+              </div>
+              <button
+                onClick={handleConfirm}
+                className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
+              >
+                {mode === "edit" ? "Save Changes" : "Confirm Session"}
+              </button>
             </div>
-            <button
-              onClick={handleConfirm}
-              className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
-            >
-              {mode === "edit" ? "Save Changes" : "Confirm Session"}
-            </button>
-          </>
-        )}
+          )}
+
+        </div>
       </div>
     </div>
   )
