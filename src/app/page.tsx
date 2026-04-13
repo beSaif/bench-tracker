@@ -13,6 +13,35 @@ import LogSessionModal from "@/components/LogSessionModal"
 
 const TARGET = 140
 
+const MUSCLE_ROTATION: MuscleGroup[][] = [
+  ["back", "triceps"],
+  ["chest", "biceps"],
+  ["shoulders", "legs"],
+]
+
+function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
+  const last = [...confirmedSessions]
+    .filter((s) => s.date && s.extraWorkouts && s.extraWorkouts.length > 0)
+    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
+
+  if (!last) return MUSCLE_ROTATION[0]
+
+  const lastMuscles = last.extraWorkouts!.map((w) => w.muscle)
+
+  // Find rotation slot with highest overlap to last session's muscles
+  let bestIdx = 0
+  let bestScore = -1
+  MUSCLE_ROTATION.forEach((pair, i) => {
+    const score = pair.filter((m) => lastMuscles.includes(m)).length
+    if (score > bestScore) {
+      bestScore = score
+      bestIdx = i
+    }
+  })
+
+  return MUSCLE_ROTATION[(bestIdx + 1) % MUSCLE_ROTATION.length]
+}
+
 function getLatestE1RM(sessions: Session[]): number | null {
   const confirmed = sessions.filter((s) => s.confirmed && s.date != null)
   if (confirmed.length === 0) return null
@@ -63,7 +92,20 @@ function createUpcomingSession(sessions: Session[]): Session {
     confirmed: false,
     coachNote: `Prescribed: ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`,
     sets: [...warmups, ...workingSets],
+    selectedMuscleGroups: suggestNextMuscles(sessions),
   }
+}
+
+// If the upcoming session was saved before auto-suggest existed, fill it in on load.
+// Only fills when selectedMuscleGroups is undefined — respects intentional empty [] selections.
+function backfillMuscles(sessions: Session[]): Session[] {
+  const upcoming = sessions.find((s) => !s.confirmed)
+  if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
+  const confirmed = sessions.filter((s) => s.confirmed)
+  const suggested = suggestNextMuscles(confirmed)
+  return sessions.map((s) =>
+    s.id === upcoming.id ? { ...s, selectedMuscleGroups: suggested } : s
+  )
 }
 
 export default function Page() {
@@ -76,12 +118,15 @@ export default function Page() {
     // Show localStorage data immediately, then sync from KV
     const local = loadSessionsLocal()
     if (local.length > 0) {
-      setSessions(local)
+      setSessions(backfillMuscles(local))
     }
     setMounted(true)
 
     loadSessions().then((data) => {
-      setSessions(data)
+      const patched = backfillMuscles(data)
+      setSessions(patched)
+      // Persist if we added a suggestion
+      if (patched !== data) saveSessions(patched)
     })
   }, [])
 
