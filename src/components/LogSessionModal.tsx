@@ -118,6 +118,11 @@ export default function LogSessionModal({
   const [currentSetIndex, setCurrentSetIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
 
+  useEffect(() => {
+    document.body.style.overflow = "hidden"
+    return () => { document.body.style.overflow = "" }
+  }, [])
+
   const selectedGroups = session.selectedMuscleGroups ?? []
 
   // All bench sets (warmups first, then working), then all extra sets
