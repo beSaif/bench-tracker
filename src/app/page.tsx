@@ -222,6 +222,7 @@ export default function Page() {
           session={loggingSession}
           onConfirm={handleConfirmSession}
           onClose={handleCloseModal}
+          previousSessions={confirmedSorted}
         />
       )}
 
@@ -232,6 +233,7 @@ export default function Page() {
           mode="edit"
           onConfirm={handleSaveEdit}
           onClose={() => setEditingSession(null)}
+          previousSessions={confirmedSorted}
         />
       )}
     </>

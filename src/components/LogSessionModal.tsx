@@ -6,6 +6,7 @@ import {
   BenchSet,
   MuscleGroup,
   ExtraWorkout,
+  ExtraSet,
   MUSCLE_GROUP_LABEL,
   MUSCLE_GROUP_EXERCISES,
 } from "@/lib/types"
@@ -18,6 +19,7 @@ interface LogSessionModalProps {
   onConfirm: (session: Session) => void
   onClose: () => void
   mode?: "log" | "edit"
+  previousSessions?: Session[]
 }
 
 interface EditableSet extends BenchSet {
@@ -29,7 +31,6 @@ interface EditableSet extends BenchSet {
 interface EditableExtraSet {
   kgStr: string
   repsStr: string
-  rpeStr: string
 }
 
 type ExtraWorkoutState = Record<string, Record<string, EditableExtraSet[]>>
@@ -44,7 +45,7 @@ function toEditable(set: BenchSet): EditableSet {
 }
 
 function defaultExtraSet(): EditableExtraSet {
-  return { kgStr: "0", repsStr: "10", rpeStr: "" }
+  return { kgStr: "0", repsStr: "10" }
 }
 
 function initExtraWorkoutState(session: Session): ExtraWorkoutState {
@@ -59,7 +60,6 @@ function initExtraWorkoutState(session: Session): ExtraWorkoutState {
         state[workout.muscle][exercise.name] = exercise.sets.map((s) => ({
           kgStr: String(s.kg),
           repsStr: String(s.reps),
-          rpeStr: s.rpe != null ? String(s.rpe) : "",
         }))
       }
     }
@@ -76,7 +76,29 @@ function initExtraWorkoutState(session: Session): ExtraWorkoutState {
   return state
 }
 
-export default function LogSessionModal({ session, onConfirm, onClose, mode = "log" }: LogSessionModalProps) {
+// Returns the heaviest set for a given exercise from the most recent session that logged it
+function getTopSet(exerciseName: string, sessions: Session[]): ExtraSet | null {
+  for (const session of sessions) {
+    for (const workout of session.extraWorkouts ?? []) {
+      for (const exercise of workout.exercises) {
+        if (exercise.name === exerciseName && exercise.sets.length > 0) {
+          return exercise.sets.reduce((best, set) =>
+            set.kg > best.kg || (set.kg === best.kg && set.reps > best.reps) ? set : best
+          )
+        }
+      }
+    }
+  }
+  return null
+}
+
+export default function LogSessionModal({
+  session,
+  onConfirm,
+  onClose,
+  mode = "log",
+  previousSessions = [],
+}: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
   const [bwStr, setBwStr] = useState(session.bw != null ? String(session.bw) : "")
   const [coachNote, setCoachNote] = useState(session.coachNote)
@@ -141,7 +163,7 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
     muscle: string,
     exercise: string,
     setIndex: number,
-    field: "kg" | "reps" | "rpe",
+    field: "kg" | "reps",
     raw: string
   ) {
     setExtraState((prev) => {
@@ -149,11 +171,7 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
       next[muscle] = { ...next[muscle] }
       next[muscle][exercise] = next[muscle][exercise].map((s, i) => {
         if (i !== setIndex) return s
-        const updated = { ...s }
-        if (field === "kg") updated.kgStr = raw
-        else if (field === "reps") updated.repsStr = raw
-        else updated.rpeStr = raw
-        return updated
+        return field === "kg" ? { ...s, kgStr: raw } : { ...s, repsStr: raw }
       })
       return next
     })
@@ -174,7 +192,7 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
             sets: extraState[muscle][name].map((s) => ({
               kg: parseFloat(s.kgStr) || 0,
               reps: parseInt(s.repsStr, 10) || 0,
-              rpe: s.rpeStr !== "" ? parseFloat(s.rpeStr) : null,
+              rpe: null,
             })),
           })),
       }))
@@ -368,58 +386,74 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
                 <p className="text-xs font-semibold text-[#7a1f2e] uppercase tracking-wide mb-3">
                   {MUSCLE_GROUP_LABEL[muscle]}
                 </p>
-                {(MUSCLE_GROUP_EXERCISES[muscle] as string[]).map((exerciseName) => (
-                  <div key={exerciseName} className="mb-4">
-                    <p className="text-xs font-medium text-[#777777] mb-2">{exerciseName}</p>
-                    <div className="space-y-2">
-                      {(extraState[muscle]?.[exerciseName] ?? []).map((set, i) => (
-                        <div key={i} className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
-                              kg
-                            </label>
-                            <input
-                              type="number"
-                              step="2.5"
-                              min="0"
-                              value={set.kgStr}
-                              onChange={(e) => updateExtraSet(muscle, exerciseName, i, "kg", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
-                              Reps
-                            </label>
-                            <input
-                              type="number"
-                              step="1"
-                              min="1"
-                              value={set.repsStr}
-                              onChange={(e) => updateExtraSet(muscle, exerciseName, i, "reps", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
-                              RPE
-                            </label>
-                            <input
-                              type="number"
-                              step="0.5"
-                              min="1"
-                              max="10"
-                              value={set.rpeStr}
-                              onChange={(e) => updateExtraSet(muscle, exerciseName, i, "rpe", e.target.value)}
-                              placeholder="—"
-                              className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
-                            />
-                          </div>
-                        </div>
-                      ))}
+                {(MUSCLE_GROUP_EXERCISES[muscle] as string[]).map((exerciseName) => {
+                  const topSet = getTopSet(exerciseName, previousSessions)
+                  return (
+                    <div key={exerciseName} className="mb-4">
+                      {/* Exercise name + top set reference */}
+                      <div className="flex items-baseline justify-between mb-2">
+                        <p className="text-xs font-medium text-[#777777]">{exerciseName}</p>
+                        {topSet && (
+                          <span className="text-[10px] text-[#aaaaaa]">
+                            last: {topSet.kg}kg × {topSet.reps}
+                          </span>
+                        )}
+                      </div>
+                      {/* Set rows */}
+                      <div className="space-y-2">
+                        {(extraState[muscle]?.[exerciseName] ?? []).map((set, i) => {
+                          const extraSetId = `extra-${muscle}-${exerciseName}-${i}`
+                          const isDone = completedSets.has(extraSetId)
+                          return (
+                            <div
+                              key={i}
+                              className={`grid grid-cols-[1.2rem_1fr_1fr_3.5rem] gap-2 items-end transition-opacity ${isDone ? "opacity-50" : ""}`}
+                            >
+                              <span className="text-[10px] text-[#aaaaaa] pb-2">{i + 1}</span>
+                              <div>
+                                <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
+                                  kg
+                                </label>
+                                <input
+                                  type="number"
+                                  step="2.5"
+                                  min="0"
+                                  value={set.kgStr}
+                                  onChange={(e) => updateExtraSet(muscle, exerciseName, i, "kg", e.target.value)}
+                                  className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
+                                  Reps
+                                </label>
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="1"
+                                  value={set.repsStr}
+                                  onChange={(e) => updateExtraSet(muscle, exerciseName, i, "reps", e.target.value)}
+                                  className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                                />
+                              </div>
+                              <button
+                                onClick={() => markSetDone(extraSetId)}
+                                disabled={isDone}
+                                className={`py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                  isDone
+                                    ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                                    : "bg-[#111111] text-white hover:bg-[#333333]"
+                                }`}
+                              >
+                                {isDone ? "✓" : "Done"}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ))}
           </div>
