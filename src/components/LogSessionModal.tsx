@@ -1,7 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Session, BenchSet } from "@/lib/types"
+import {
+  Session,
+  BenchSet,
+  MuscleGroup,
+  ExtraWorkout,
+  MUSCLE_GROUP_LABEL,
+  MUSCLE_GROUP_EXERCISES,
+} from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
 
 const REST_DURATION = 180 // seconds
@@ -19,6 +26,14 @@ interface EditableSet extends BenchSet {
   _rpeStr: string
 }
 
+interface EditableExtraSet {
+  kgStr: string
+  repsStr: string
+  rpeStr: string
+}
+
+type ExtraWorkoutState = Record<string, Record<string, EditableExtraSet[]>>
+
 function toEditable(set: BenchSet): EditableSet {
   return {
     ...set,
@@ -28,6 +43,39 @@ function toEditable(set: BenchSet): EditableSet {
   }
 }
 
+function defaultExtraSet(): EditableExtraSet {
+  return { kgStr: "0", repsStr: "10", rpeStr: "" }
+}
+
+function initExtraWorkoutState(session: Session): ExtraWorkoutState {
+  const groups = session.selectedMuscleGroups ?? []
+  if (groups.length === 0) return {}
+
+  if (session.extraWorkouts && session.extraWorkouts.length > 0) {
+    const state: ExtraWorkoutState = {}
+    for (const workout of session.extraWorkouts) {
+      state[workout.muscle] = {}
+      for (const exercise of workout.exercises) {
+        state[workout.muscle][exercise.name] = exercise.sets.map((s) => ({
+          kgStr: String(s.kg),
+          repsStr: String(s.reps),
+          rpeStr: s.rpe != null ? String(s.rpe) : "",
+        }))
+      }
+    }
+    return state
+  }
+
+  const state: ExtraWorkoutState = {}
+  for (const muscle of groups) {
+    state[muscle] = {}
+    for (const exerciseName of MUSCLE_GROUP_EXERCISES[muscle]) {
+      state[muscle][exerciseName] = [defaultExtraSet(), defaultExtraSet(), defaultExtraSet()]
+    }
+  }
+  return state
+}
+
 export default function LogSessionModal({ session, onConfirm, onClose, mode = "log" }: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
   const [bwStr, setBwStr] = useState(session.bw != null ? String(session.bw) : "")
@@ -35,6 +83,9 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
   const [completedSets, setCompletedSets] = useState<Set<string>>(new Set())
   const [restActive, setRestActive] = useState(false)
   const [restSeconds, setRestSeconds] = useState(0)
+  const [extraState, setExtraState] = useState<ExtraWorkoutState>(
+    () => initExtraWorkoutState(session)
+  )
 
   useEffect(() => {
     if (!restActive) return
@@ -86,8 +137,48 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
     )
   }
 
+  function updateExtraSet(
+    muscle: string,
+    exercise: string,
+    setIndex: number,
+    field: "kg" | "reps" | "rpe",
+    raw: string
+  ) {
+    setExtraState((prev) => {
+      const next = { ...prev }
+      next[muscle] = { ...next[muscle] }
+      next[muscle][exercise] = next[muscle][exercise].map((s, i) => {
+        if (i !== setIndex) return s
+        const updated = { ...s }
+        if (field === "kg") updated.kgStr = raw
+        else if (field === "reps") updated.repsStr = raw
+        else updated.rpeStr = raw
+        return updated
+      })
+      return next
+    })
+  }
+
   function handleConfirm() {
     const bw = parseFloat(bwStr)
+
+    const groups = session.selectedMuscleGroups ?? []
+    const extraWorkouts: ExtraWorkout[] = groups
+      .filter((muscle) => extraState[muscle])
+      .map((muscle) => ({
+        muscle,
+        exercises: (MUSCLE_GROUP_EXERCISES[muscle] as string[])
+          .filter((name) => extraState[muscle][name])
+          .map((name) => ({
+            name,
+            sets: extraState[muscle][name].map((s) => ({
+              kg: parseFloat(s.kgStr) || 0,
+              reps: parseInt(s.repsStr, 10) || 0,
+              rpe: s.rpeStr !== "" ? parseFloat(s.rpeStr) : null,
+            })),
+          })),
+      }))
+
     const finalSession: Session = {
       ...session,
       confirmed: true,
@@ -95,12 +186,14 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
       bw: !isNaN(bw) && bw > 0 ? bw : session.bw,
       coachNote,
       sets: sets.map(({ _kgStr: _, _repsStr: __, _rpeStr: ___, ...rest }) => rest),
+      extraWorkouts: extraWorkouts.length > 0 ? extraWorkouts : undefined,
     }
     onConfirm(finalSession)
   }
 
   const warmups = sets.filter((s) => s.isWarmup)
   const workingSets = sets.filter((s) => !s.isWarmup)
+  const selectedGroups = session.selectedMuscleGroups ?? []
 
   const timerMins = Math.floor(restSeconds / 60)
   const timerSecs = restSeconds % 60
@@ -262,6 +355,75 @@ export default function LogSessionModal({ session, onConfirm, onClose, mode = "l
             })}
           </div>
         </div>
+
+        {/* Additional Muscle Group Sections */}
+        {selectedGroups.length > 0 && (
+          <div className="mb-5">
+            <div className="h-px bg-[#e8e8e8] mb-5" />
+            <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-4">
+              Additional Work
+            </p>
+            {selectedGroups.map((muscle) => (
+              <div key={muscle} className="mb-6">
+                <p className="text-xs font-semibold text-[#7a1f2e] uppercase tracking-wide mb-3">
+                  {MUSCLE_GROUP_LABEL[muscle]}
+                </p>
+                {(MUSCLE_GROUP_EXERCISES[muscle] as string[]).map((exerciseName) => (
+                  <div key={exerciseName} className="mb-4">
+                    <p className="text-xs font-medium text-[#777777] mb-2">{exerciseName}</p>
+                    <div className="space-y-2">
+                      {(extraState[muscle]?.[exerciseName] ?? []).map((set, i) => (
+                        <div key={i} className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
+                              kg
+                            </label>
+                            <input
+                              type="number"
+                              step="2.5"
+                              min="0"
+                              value={set.kgStr}
+                              onChange={(e) => updateExtraSet(muscle, exerciseName, i, "kg", e.target.value)}
+                              className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
+                              Reps
+                            </label>
+                            <input
+                              type="number"
+                              step="1"
+                              min="1"
+                              value={set.repsStr}
+                              onChange={(e) => updateExtraSet(muscle, exerciseName, i, "reps", e.target.value)}
+                              className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1">
+                              RPE
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="1"
+                              max="10"
+                              value={set.rpeStr}
+                              onChange={(e) => updateExtraSet(muscle, exerciseName, i, "rpe", e.target.value)}
+                              placeholder="—"
+                              className="w-full border border-[#e8e8e8] rounded-lg px-2 py-1.5 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Coach Note */}
         <div className="mb-6">

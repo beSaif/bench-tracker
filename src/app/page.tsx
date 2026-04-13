@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Session } from "@/lib/types"
+import { Session, MuscleGroup } from "@/lib/types"
 import { loadSessions, loadSessionsLocal, saveSessions } from "@/lib/storage"
 import { prescribeNext } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
@@ -126,6 +126,16 @@ export default function Page() {
     setEditingSession(null)
   }
 
+  function handleUpdateMuscleGroups(session: Session, groups: MuscleGroup[]) {
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === session.id ? { ...s, selectedMuscleGroups: groups } : s
+      )
+      saveSessions(updated)
+      return updated
+    })
+  }
+
   function handleUnlogSession(session: Session) {
     if (!window.confirm(`Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`)) return
     setSessions((prev) => {
@@ -192,6 +202,7 @@ export default function Page() {
             <SessionCard
               session={upcoming}
               onStartLogging={handleStartLogging}
+              onUpdateMuscleGroups={handleUpdateMuscleGroups}
             />
           )}
           {confirmedSorted.map((s) => (
