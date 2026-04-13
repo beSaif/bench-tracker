@@ -96,6 +96,18 @@ function createUpcomingSession(sessions: Session[]): Session {
   }
 }
 
+// If the upcoming session was saved before auto-suggest existed, fill it in on load.
+// Only fills when selectedMuscleGroups is undefined — respects intentional empty [] selections.
+function backfillMuscles(sessions: Session[]): Session[] {
+  const upcoming = sessions.find((s) => !s.confirmed)
+  if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
+  const confirmed = sessions.filter((s) => s.confirmed)
+  const suggested = suggestNextMuscles(confirmed)
+  return sessions.map((s) =>
+    s.id === upcoming.id ? { ...s, selectedMuscleGroups: suggested } : s
+  )
+}
+
 export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
@@ -106,12 +118,15 @@ export default function Page() {
     // Show localStorage data immediately, then sync from KV
     const local = loadSessionsLocal()
     if (local.length > 0) {
-      setSessions(local)
+      setSessions(backfillMuscles(local))
     }
     setMounted(true)
 
     loadSessions().then((data) => {
-      setSessions(data)
+      const patched = backfillMuscles(data)
+      setSessions(patched)
+      // Persist if we added a suggestion
+      if (patched !== data) saveSessions(patched)
     })
   }, [])
 
