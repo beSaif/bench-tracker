@@ -54,7 +54,7 @@ export default function StatsGrid({ e1rm, best, sessions, bw }: StatsGridProps) 
       </div>
       <div>
         <StatCell
-          label="Best e1RM"
+          label="Current Best"
           value={best != null ? `${best}kg` : "—"}
         />
       </div>
