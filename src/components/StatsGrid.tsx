@@ -7,22 +7,48 @@ interface StatsGridProps {
   bw: number | null
 }
 
-interface StatCellProps {
+interface StatPanelProps {
   label: string
   value: string
-  accent?: boolean
+  variant?: "maroon" | "gold" | "default"
 }
 
-function StatCell({ label, value, accent }: StatCellProps) {
+function StatPanel({ label, value, variant = "default" }: StatPanelProps) {
+  const valueColor =
+    variant === "maroon"
+      ? "#8b2a1e"
+      : variant === "gold"
+      ? "#b8882a"
+      : "#2c2724"
+
+  const panelStyle: React.CSSProperties = {
+    backgroundColor:
+      variant === "maroon"
+        ? "#fdeee9"
+        : variant === "gold"
+        ? "#fdf6e3"
+        : "#faf7f2",
+    border: `1.5px solid ${
+      variant === "maroon"
+        ? "#f0c4b8"
+        : variant === "gold"
+        ? "#e8d090"
+        : "#e2d9d0"
+    }`,
+    borderRadius: "16px 10px 14px 12px / 12px 14px 10px 16px",
+  }
+
   return (
-    <div className="flex flex-col gap-1 p-3">
-      <span className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest">
+    <div className="flex flex-col gap-1.5 p-4" style={panelStyle}>
+      <span
+        className="font-hand text-sm font-semibold uppercase tracking-wider"
+        style={{ color: "#9a8f87" }}
+      >
         {label}
       </span>
       <span
-        className={`text-lg font-semibold leading-none ${
-          accent ? "text-[#7a1f2e]" : "text-[#111111]"
-        }`}
+        className="text-2xl font-semibold leading-none"
+        style={{ color: valueColor }}
       >
         {value}
       </span>
@@ -32,32 +58,22 @@ function StatCell({ label, value, accent }: StatCellProps) {
 
 export default function StatsGrid({ e1rm, best, sessions, bw }: StatsGridProps) {
   return (
-    <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6">
-      <div className="border-b border-r border-[#e8e8e8]">
-        <StatCell
-          label="Current e1RM"
-          value={e1rm != null ? `${e1rm}kg` : "—"}
-          accent
-        />
-      </div>
-      <div className="border-b border-[#e8e8e8]">
-        <StatCell
-          label="Target"
-          value="140kg"
-        />
-      </div>
-      <div className="border-r border-[#e8e8e8]">
-        <StatCell
-          label="Sessions"
-          value={String(sessions)}
-        />
-      </div>
-      <div>
-        <StatCell
-          label="Current Best"
-          value={best != null ? `${best}kg` : "—"}
-        />
-      </div>
+    <div className="grid grid-cols-2 gap-2.5 mb-6">
+      <StatPanel
+        label="Current e1RM"
+        value={e1rm != null ? `${e1rm}kg` : "—"}
+        variant="maroon"
+      />
+      <StatPanel label="Target" value="140kg" />
+      <StatPanel
+        label="Sessions"
+        value={String(sessions)}
+        variant="gold"
+      />
+      <StatPanel
+        label="Best e1RM"
+        value={best != null ? `${best}kg` : "—"}
+      />
     </div>
   )
 }

@@ -22,7 +22,6 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-
 function BenchSummaryLine({ session }: { session: Session }) {
   const working = session.sets.filter((s) => !s.isWarmup)
   if (working.length === 0) return null
@@ -35,15 +34,20 @@ function BenchSummaryLine({ session }: { session: Session }) {
 
   return (
     <div className="flex items-baseline gap-2 flex-wrap">
-      <span className="text-sm font-semibold text-[#7a1f2e]">{weight}kg</span>
-      <span className="text-sm text-[#555555]">
+      <span className="text-sm font-semibold" style={{ color: "#8b2a1e" }}>
+        {weight}kg
+      </span>
+      <span className="text-sm" style={{ color: "#5a4f47" }}>
         × {reps} × {setCount}
       </span>
       {bestE1RM != null && (
         <>
-          <span className="text-[#dddddd]">·</span>
-          <span className="text-xs text-[#777777]">
-            e1RM <span className="font-semibold text-[#7a1f2e]">{bestE1RM}kg</span>
+          <span style={{ color: "#e2d9d0" }}>·</span>
+          <span className="text-xs" style={{ color: "#9a8f87" }}>
+            e1RM{" "}
+            <span className="font-semibold" style={{ color: "#8b2a1e" }}>
+              {bestE1RM}kg
+            </span>
           </span>
         </>
       )}
@@ -51,7 +55,13 @@ function BenchSummaryLine({ session }: { session: Session }) {
   )
 }
 
-export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, onUpdateMuscleGroups }: SessionCardProps) {
+export default function SessionCard({
+  session,
+  onStartLogging,
+  onEdit,
+  onUnlog,
+  onUpdateMuscleGroups,
+}: SessionCardProps) {
   const isUpcoming = !session.confirmed
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -65,31 +75,57 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
     }
   }, [pickerOpen, session.selectedMuscleGroups])
 
-  const cardBorder = isUpcoming
-    ? "border-dashed border-[#e0c8cb]"
-    : "border-solid border-[#e8e8e8]"
-  const cardBg = isUpcoming ? "bg-[#fdf5f6]" : "bg-white"
-  const headerColor = isUpcoming ? "text-[#7a1f2e]" : "text-[#111111]"
+  /* ── Organic border-radius per card type ── */
+  const upcomingCardStyle: React.CSSProperties = {
+    borderRadius: "18px 10px 16px 12px / 10px 16px 12px 18px",
+    border: "2px dashed #f0c4b8",
+    backgroundColor: "#fdeee9",
+  }
+
+  const confirmedCardStyle: React.CSSProperties = {
+    borderRadius: "14px 8px 12px 10px / 8px 12px 10px 14px",
+    border: "1.5px solid #e2d9d0",
+    backgroundColor: "#fefcf9",
+  }
+
+  const cardStyle = isUpcoming ? upcomingCardStyle : confirmedCardStyle
 
   const summaryBody = (
     <div className="px-4 pt-4 pb-4">
       {/* Header row */}
       <div className="flex items-center justify-between mb-1">
-        <span className={`text-sm font-semibold ${headerColor}`}>
+        <span
+          className="text-sm font-semibold"
+          style={{ color: isUpcoming ? "#8b2a1e" : "#2c2724" }}
+        >
           Session {String(session.id).padStart(2, "0")} · {session.type}
         </span>
+
         {isUpcoming ? (
-          <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e] text-white rounded-full px-2 py-0.5">
+          /* Golden "UP NEXT" badge */
+          <span
+            className="font-hand text-sm font-bold uppercase tracking-wide px-3 py-0.5"
+            style={{
+              backgroundColor: "#d4a843",
+              color: "#2c2724",
+              borderRadius: "8px 4px 6px 5px / 4px 6px 5px 8px",
+              lineHeight: 1.3,
+            }}
+          >
             Up next
           </span>
         ) : session.date ? (
-          <span className="text-xs text-[#aaaaaa]">{formatDate(session.date)}</span>
+          <span className="text-xs" style={{ color: "#bdb5ad" }}>
+            {formatDate(session.date)}
+          </span>
         ) : null}
       </div>
 
       {/* BW */}
       {session.bw && (
-        <p className="text-xs text-[#777777] mb-2">{session.bw}kg BW</p>
+        <p className="text-xs mb-2" style={{ color: "#9a8f87" }}>
+          {session.bw}kg BW
+        </p>
       )}
 
       {/* Compact bench summary */}
@@ -97,22 +133,32 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
     </div>
   )
 
+  /* Muscle tags */
+  const muscles = isUpcoming
+    ? (session.selectedMuscleGroups ?? [])
+    : (session.extraWorkouts?.map((w) => w.muscle) ?? [])
+
   return (
-    <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
-      {/* Card body — link to detail page for confirmed sessions */}
+    <div className="mb-3 overflow-hidden" style={cardStyle}>
+      {/* Card body */}
       {!isUpcoming ? (
-        <Link href={`/session/${session.id}`} className="block hover:bg-[#fafafa] transition-colors">
+        <Link href={`/session/${session.id}`} className="block transition-opacity hover:opacity-80">
           {summaryBody}
         </Link>
       ) : (
         summaryBody
       )}
 
-
-      {/* Muscle group picker panel — upcoming only */}
+      {/* Muscle group picker — upcoming only */}
       {isUpcoming && pickerOpen && (
-        <div className="px-4 pb-4 pt-2 border-t border-[#e8e8e8]">
-          <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
+        <div
+          className="px-4 pb-4 pt-2"
+          style={{ borderTop: "1px dashed #f0c4b8" }}
+        >
+          <p
+            className="font-hand text-sm font-semibold uppercase tracking-widest mb-3"
+            style={{ color: "#bdb5ad" }}
+          >
             Additional Muscle Groups
           </p>
           <div className="grid grid-cols-2 gap-2 mb-4">
@@ -121,11 +167,13 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
               return (
                 <label
                   key={g}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
-                    checked
-                      ? "border-[#7a1f2e]/40 bg-[#7a1f2e]/[0.04] text-[#7a1f2e]"
-                      : "border-[#e8e8e8] text-[#111111]"
-                  }`}
+                  className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors"
+                  style={{
+                    border: checked ? "1.5px solid #e07a65" : "1.5px solid #e2d9d0",
+                    backgroundColor: checked ? "#fdeee9" : "transparent",
+                    color: checked ? "#8b2a1e" : "#2c2724",
+                    borderRadius: "10px 6px 10px 6px / 6px 10px 6px 10px",
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -135,7 +183,7 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
                         prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
                       )
                     }
-                    className="accent-[#7a1f2e]"
+                    className="accent-[#8b2a1e]"
                   />
                   <span className="font-medium text-xs">{MUSCLE_GROUP_LABEL[g]}</span>
                 </label>
@@ -147,7 +195,13 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
               onUpdateMuscleGroups?.(session, selectedGroups)
               setPickerOpen(false)
             }}
-            className="w-full rounded-lg border border-[#7a1f2e] text-[#7a1f2e] text-xs font-semibold py-2 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+            className="w-full text-xs font-semibold py-2 transition-colors hover:opacity-80"
+            style={{
+              border: "1.5px solid #8b2a1e",
+              color: "#8b2a1e",
+              borderRadius: "10px 6px 10px 6px / 6px 10px 6px 10px",
+              backgroundColor: "transparent",
+            }}
           >
             Save Selection
           </button>
@@ -155,29 +209,44 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
       )}
 
       {/* Card Footer */}
-      <div className={`${isUpcoming ? "bg-[#f5e6e8]" : "bg-[#fdf5f6]"} px-4 py-3 flex items-center justify-between`}>
+      <div
+        className="px-4 py-3 flex items-center justify-between"
+        style={{
+          backgroundColor: isUpcoming ? "#f5d5cc" : "#f5ede8",
+          borderTop: isUpcoming ? "1px dashed #f0c4b8" : "1px solid #e8ddd5",
+        }}
+      >
+        {/* Muscle tags */}
         <div className="flex flex-wrap gap-1.5">
-          {(() => {
-            const muscles = isUpcoming
-              ? (session.selectedMuscleGroups ?? [])
-              : (session.extraWorkouts?.map((w) => w.muscle) ?? [])
-            return muscles.map((g) => (
-              <span
-                key={g}
-                className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e]/10 text-[#7a1f2e] rounded-full px-2 py-0.5"
-              >
-                {MUSCLE_GROUP_LABEL[g]}
-              </span>
-            ))
-          })()}
+          {muscles.map((g) => (
+            <span
+              key={g}
+              className="font-hand text-xs font-semibold uppercase tracking-wide px-2.5 py-0.5"
+              style={{
+                backgroundColor: "#fdeee9",
+                color: "#8b2a1e",
+                borderRadius: "6px 3px 5px 4px / 3px 5px 4px 6px",
+                border: "1px solid #f0c4b8",
+              }}
+            >
+              {MUSCLE_GROUP_LABEL[g]}
+            </span>
+          ))}
         </div>
 
+        {/* Action buttons */}
         {isUpcoming && (
           <div className="flex gap-2 items-center">
             {onUpdateMuscleGroups && (
               <button
                 onClick={() => setPickerOpen((v) => !v)}
-                className="text-xs font-semibold text-[#777777] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-70"
+                style={{
+                  color: "#9a8f87",
+                  border: "1.5px solid #e2d9d0",
+                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
+                  backgroundColor: "transparent",
+                }}
               >
                 {pickerOpen
                   ? "Close"
@@ -189,7 +258,13 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
             {onStartLogging && (
               <button
                 onClick={() => onStartLogging(session)}
-                className="text-xs font-semibold text-[#7a1f2e] border border-[#7a1f2e] rounded-lg px-3 py-1.5 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-80"
+                style={{
+                  color: "#8b2a1e",
+                  border: "1.5px solid #8b2a1e",
+                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
+                  backgroundColor: "transparent",
+                }}
               >
                 Log Session
               </button>
@@ -202,7 +277,13 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
             {onEdit && (
               <button
                 onClick={() => onEdit(session)}
-                className="text-xs font-semibold text-[#7a1f2e] border border-[#7a1f2e] rounded-lg px-3 py-1.5 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-80"
+                style={{
+                  color: "#8b2a1e",
+                  border: "1.5px solid #8b2a1e",
+                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
+                  backgroundColor: "transparent",
+                }}
               >
                 Edit
               </button>
@@ -210,7 +291,13 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
             {onUnlog && (
               <button
                 onClick={() => onUnlog(session)}
-                className="text-xs font-semibold text-[#aaaaaa] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-70"
+                style={{
+                  color: "#bdb5ad",
+                  border: "1.5px solid #e2d9d0",
+                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
+                  backgroundColor: "transparent",
+                }}
               >
                 Unlog
               </button>

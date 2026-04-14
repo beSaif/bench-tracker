@@ -28,7 +28,6 @@ function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
 
   const lastMuscles = last.extraWorkouts!.map((w) => w.muscle)
 
-  // Find rotation slot with highest overlap to last session's muscles
   let bestIdx = 0
   let bestScore = -1
   MUSCLE_ROTATION.forEach((pair, i) => {
@@ -96,8 +95,6 @@ function createUpcomingSession(sessions: Session[]): Session {
   }
 }
 
-// If the upcoming session was saved before auto-suggest existed, fill it in on load.
-// Only fills when selectedMuscleGroups is undefined — respects intentional empty [] selections.
 function backfillMuscles(sessions: Session[]): Session[] {
   const upcoming = sessions.find((s) => !s.confirmed)
   if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
@@ -115,7 +112,6 @@ export default function Page() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // Show localStorage data immediately, then sync from KV
     const local = loadSessionsLocal()
     if (local.length > 0) {
       setSessions(backfillMuscles(local))
@@ -125,7 +121,6 @@ export default function Page() {
     loadSessions().then((data) => {
       const patched = backfillMuscles(data)
       setSessions(patched)
-      // Persist if we added a suggestion
       if (patched !== data) saveSessions(patched)
     })
   }, [])
@@ -199,10 +194,21 @@ export default function Page() {
   if (!mounted) {
     return (
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
-        <div className="h-8 w-40 bg-[#e8e8e8] rounded animate-pulse mb-1" />
-        <div className="h-4 w-24 bg-[#e8e8e8] rounded animate-pulse mb-8" />
-        <div className="h-[2px] w-full bg-[#e8e8e8] rounded mb-6" />
-        <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6 h-24" />
+        <div className="h-9 w-44 rounded animate-pulse mb-1" style={{ backgroundColor: "#e8ddd5" }} />
+        <div className="h-4 w-28 rounded animate-pulse mb-8" style={{ backgroundColor: "#e8ddd5" }} />
+        <div className="h-[8px] w-full rounded mb-6" style={{ backgroundColor: "#e8ddd5" }} />
+        <div className="grid grid-cols-2 gap-2.5 mb-6">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-20 animate-pulse"
+              style={{
+                backgroundColor: "#e8ddd5",
+                borderRadius: "16px 10px 14px 12px / 12px 14px 10px 16px",
+              }}
+            />
+          ))}
+        </div>
       </main>
     )
   }
@@ -222,10 +228,23 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">
-            Bench Tracker
-          </h1>
-          <p className="text-sm text-[#777777] mt-0.5">
+          <div className="flex items-start gap-2">
+            <h1
+              className="font-hand text-4xl font-bold leading-tight"
+              style={{ color: "#2c2724" }}
+            >
+              Bench Tracker
+            </h1>
+            {/* Decorative asterisk cluster */}
+            <span
+              className="font-hand text-lg select-none mt-1"
+              style={{ color: "#2c2724", opacity: 0.35, letterSpacing: "-2px" }}
+              aria-hidden
+            >
+              ✳✳
+            </span>
+          </div>
+          <p className="text-sm mt-0.5" style={{ color: "#9a8f87" }}>
             Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
           </p>
         </header>
@@ -241,7 +260,24 @@ export default function Page() {
           bw={latestBW}
         />
 
-        {/* Session Cards — upcoming first, then confirmed reverse-chron */}
+        {/* Session list heading */}
+        <div className="flex items-center gap-2 mb-3">
+          <span
+            className="font-hand text-base font-semibold uppercase tracking-wider"
+            style={{ color: "#9a8f87" }}
+          >
+            Sessions
+          </span>
+          <span
+            className="font-hand text-base select-none"
+            style={{ color: "#2c2724", opacity: 0.3 }}
+            aria-hidden
+          >
+            ✳✳
+          </span>
+        </div>
+
+        {/* Session Cards */}
         <div>
           {upcoming && (
             <SessionCard
