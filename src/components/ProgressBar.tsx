@@ -5,46 +5,49 @@ interface ProgressBarProps {
   target: number
 }
 
+function CubeSegment({ filled }: { filled: boolean }) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        height: 30,
+        borderRadius: "7px",
+        background: filled
+          ? "linear-gradient(180deg, #d48c72 0%, #c4785a 55%, #a85e42 100%)"
+          : "linear-gradient(180deg, #e6e0d8 0%, #d8d2c8 100%)",
+        boxShadow: filled
+          ? "0 5px 0 #8a4830, 0 7px 6px rgba(0,0,0,0.13)"
+          : "0 3px 0 #c8c2b8, 0 5px 5px rgba(0,0,0,0.06)",
+        transition: "all 0.3s ease",
+      }}
+    />
+  )
+}
+
 export default function ProgressBar({ current, target }: ProgressBarProps) {
+  const SEGMENTS = 10
   const pct = current != null ? Math.min((current / target) * 100, 100) : 0
   const pctStr = pct.toFixed(1)
+  const filledCount = Math.round((pct / 100) * SEGMENTS)
 
   return (
     <div className="mb-6">
-      <div className="flex justify-between items-baseline mb-2.5">
-        <span
-          className="font-hand text-base font-semibold tracking-wide uppercase"
-          style={{ color: "#5a4f47" }}
-        >
-          Road to {target}kg
-        </span>
-        <span className="text-xs" style={{ color: "#9a8f87" }}>
-          {current != null ? `${current}kg` : "—"} / {target}kg
-          <span className="ml-2 font-semibold" style={{ color: "#8b2a1e" }}>
-            {pctStr}%
-          </span>{" "}
-          <span style={{ color: "#2c2724", opacity: 0.5 }}>✳</span>
-        </span>
-      </div>
+      {/* Motivational sentence */}
+      <p className="text-sm mb-3 leading-relaxed" style={{ color: "#2c2724" }}>
+        <span className="font-bold">{pctStr}%</span> towards {target}kg.{" "}
+        {current != null ? (
+          <>
+            <span className="font-bold">{current}kg</span> logged.{" "}
+          </>
+        ) : null}
+        <span style={{ color: "#7a6e66" }}>you&apos;re on a roll!</span>
+      </p>
 
-      {/* Organic ink-line progress bar */}
-      <div
-        className="relative w-full overflow-hidden"
-        style={{
-          height: "8px",
-          borderRadius: "4px 2px 4px 2px / 2px 4px 2px 4px",
-          border: "1.5px solid #8b2a1e",
-          backgroundColor: "#faf0ea",
-        }}
-      >
-        <div
-          className="absolute left-0 top-0 h-full transition-all duration-500"
-          style={{
-            width: `${pct}%`,
-            backgroundColor: "#d4a843",
-            borderRadius: "3px 1px 3px 1px",
-          }}
-        />
+      {/* 3D cube segments */}
+      <div className="flex gap-1.5">
+        {Array.from({ length: SEGMENTS }).map((_, i) => (
+          <CubeSegment key={i} filled={i < filledCount} />
+        ))}
       </div>
     </div>
   )

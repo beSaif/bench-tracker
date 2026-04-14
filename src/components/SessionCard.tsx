@@ -4,7 +4,17 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Session, MuscleGroup, MUSCLE_GROUP_LABEL } from "@/lib/types"
 
-const ALL_MUSCLE_GROUPS: MuscleGroup[] = ["back", "triceps", "chest", "biceps", "shoulders", "legs"]
+const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
+  "back",
+  "triceps",
+  "chest",
+  "biceps",
+  "shoulders",
+  "legs",
+]
+
+const SALMON = "#c4785a"
+const SAGE = "#aabba4"
 
 interface SessionCardProps {
   session: Session
@@ -19,10 +29,18 @@ function formatDate(iso: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(new Date(iso))
+  })
+    .format(new Date(iso))
+    .toLowerCase()
 }
 
-function BenchSummaryLine({ session }: { session: Session }) {
+function BenchSummaryLine({
+  session,
+  isUpcoming,
+}: {
+  session: Session
+  isUpcoming: boolean
+}) {
   const working = session.sets.filter((s) => !s.isWarmup)
   if (working.length === 0) return null
 
@@ -32,26 +50,39 @@ function BenchSummaryLine({ session }: { session: Session }) {
   const e1rms = working.map((s) => s.e1rm).filter((v): v is number => v != null)
   const bestE1RM = e1rms.length > 0 ? Math.max(...e1rms) : null
 
+  const textColor = isUpcoming ? "rgba(255,255,255,0.9)" : "#5a4f47"
+
   return (
-    <div className="flex items-baseline gap-2 flex-wrap">
-      <span className="text-sm font-semibold" style={{ color: "#8b2a1e" }}>
-        {weight}kg
-      </span>
-      <span className="text-sm" style={{ color: "#5a4f47" }}>
-        × {reps} × {setCount}
-      </span>
-      {bestE1RM != null && (
-        <>
-          <span style={{ color: "#e2d9d0" }}>·</span>
-          <span className="text-xs" style={{ color: "#9a8f87" }}>
-            e1RM{" "}
-            <span className="font-semibold" style={{ color: "#8b2a1e" }}>
-              {bestE1RM}kg
-            </span>
-          </span>
-        </>
-      )}
-    </div>
+    <p className="text-sm mt-1" style={{ color: textColor }}>
+      {weight}kg × {reps}{isUpcoming ? " reps" : ""} × {setCount}
+      {isUpcoming ? " sets" : ""}
+      {bestE1RM != null ? `. estimated max: ${bestE1RM}kg` : ""}
+    </p>
+  )
+}
+
+function MuscleTag({
+  label,
+  isUpcoming,
+}: {
+  label: string
+  isUpcoming: boolean
+}) {
+  return (
+    <span
+      className="text-xs font-medium px-3 py-1"
+      style={{
+        backgroundColor: isUpcoming ? "rgba(255,255,255,0.22)" : "#ede8e0",
+        color: isUpcoming ? "#fff" : "#5a4f47",
+        borderRadius: "20px",
+        border: isUpcoming
+          ? "1px solid rgba(255,255,255,0.28)"
+          : "1px solid #ddd6cc",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label.toLowerCase()}
+    </span>
   )
 }
 
@@ -75,89 +106,91 @@ export default function SessionCard({
     }
   }, [pickerOpen, session.selectedMuscleGroups])
 
-  /* ── Organic border-radius per card type ── */
-  const upcomingCardStyle: React.CSSProperties = {
-    borderRadius: "18px 10px 16px 12px / 10px 16px 12px 18px",
-    border: "2px dashed #f0c4b8",
-    backgroundColor: "#fdeee9",
+  const muscles = isUpcoming
+    ? session.selectedMuscleGroups ?? []
+    : session.extraWorkouts?.map((w) => w.muscle) ?? []
+
+  const upcomingStyle: React.CSSProperties = {
+    backgroundColor: SALMON,
+    borderRadius: "16px",
   }
 
-  const confirmedCardStyle: React.CSSProperties = {
-    borderRadius: "14px 8px 12px 10px / 8px 12px 10px 14px",
-    border: "1.5px solid #e2d9d0",
-    backgroundColor: "#fefcf9",
+  const confirmedStyle: React.CSSProperties = {
+    backgroundColor: "#faf6ef",
+    border: "1px solid #e4dcd0",
+    borderRadius: "14px",
   }
 
-  const cardStyle = isUpcoming ? upcomingCardStyle : confirmedCardStyle
+  const cardStyle = isUpcoming ? upcomingStyle : confirmedStyle
 
   const summaryBody = (
-    <div className="px-4 pt-4 pb-4">
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-1">
-        <span
-          className="text-sm font-semibold"
-          style={{ color: isUpcoming ? "#8b2a1e" : "#2c2724" }}
-        >
-          Session {String(session.id).padStart(2, "0")} · {session.type}
-        </span>
+    <div className="px-4 pt-4 pb-3">
+      {/* Title row */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline flex-wrap gap-x-2">
+            <span
+              className="font-bold text-base"
+              style={{ color: isUpcoming ? "#fff" : "#2c2724" }}
+            >
+              session {String(session.id).padStart(2, "0")} · {session.type.toLowerCase()}
+            </span>
+            {!isUpcoming && session.date && (
+              <span className="text-sm" style={{ color: "#9a8f87" }}>
+                {formatDate(session.date)}
+              </span>
+            )}
+          </div>
+          {session.bw && !isUpcoming && (
+            <p className="text-xs mt-0.5" style={{ color: "#9a8f87" }}>
+              {session.bw}kg BW
+            </p>
+          )}
+        </div>
 
-        {isUpcoming ? (
-          /* Golden "UP NEXT" badge */
+        {/* "up next" underlined — upcoming only */}
+        {isUpcoming && (
           <span
-            className="font-hand text-sm font-bold uppercase tracking-wide px-3 py-0.5"
+            className="text-sm font-medium shrink-0"
             style={{
-              backgroundColor: "#d4a843",
-              color: "#2c2724",
-              borderRadius: "8px 4px 6px 5px / 4px 6px 5px 8px",
-              lineHeight: 1.3,
+              color: "rgba(255,255,255,0.85)",
+              textDecoration: "underline",
+              textUnderlineOffset: "3px",
             }}
           >
-            Up next
+            up next
           </span>
-        ) : session.date ? (
-          <span className="text-xs" style={{ color: "#bdb5ad" }}>
-            {formatDate(session.date)}
-          </span>
-        ) : null}
+        )}
       </div>
 
-      {/* BW */}
-      {session.bw && (
-        <p className="text-xs mb-2" style={{ color: "#9a8f87" }}>
-          {session.bw}kg BW
-        </p>
-      )}
-
-      {/* Compact bench summary */}
-      <BenchSummaryLine session={session} />
+      {/* Bench summary */}
+      <BenchSummaryLine session={session} isUpcoming={isUpcoming} />
     </div>
   )
-
-  /* Muscle tags */
-  const muscles = isUpcoming
-    ? (session.selectedMuscleGroups ?? [])
-    : (session.extraWorkouts?.map((w) => w.muscle) ?? [])
 
   return (
     <div className="mb-3 overflow-hidden" style={cardStyle}>
       {/* Card body */}
       {!isUpcoming ? (
-        <Link href={`/session/${session.id}`} className="block transition-opacity hover:opacity-80">
+        <Link
+          href={`/session/${session.id}`}
+          className="block hover:opacity-90 transition-opacity"
+        >
           {summaryBody}
         </Link>
       ) : (
         summaryBody
       )}
 
-      {/* Muscle group picker — upcoming only */}
+      {/* Muscle group picker panel — upcoming only */}
       {isUpcoming && pickerOpen && (
         <div
-          className="px-4 pb-4 pt-2"
-          style={{ borderTop: "1px dashed #f0c4b8" }}
+          className="px-4 pb-4 pt-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.2)" }}
         >
           <p
-            className="font-hand text-sm font-semibold uppercase tracking-widest mb-3"
-            style={{ color: "#bdb5ad" }}
+            className="text-[10px] font-semibold uppercase tracking-widest mb-3"
+            style={{ color: "rgba(255,255,255,0.55)" }}
           >
             Additional Muscle Groups
           </p>
@@ -167,12 +200,16 @@ export default function SessionCard({
               return (
                 <label
                   key={g}
-                  className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 cursor-pointer"
                   style={{
-                    border: checked ? "1.5px solid #e07a65" : "1.5px solid #e2d9d0",
-                    backgroundColor: checked ? "#fdeee9" : "transparent",
-                    color: checked ? "#8b2a1e" : "#2c2724",
-                    borderRadius: "10px 6px 10px 6px / 6px 10px 6px 10px",
+                    border: checked
+                      ? "1.5px solid rgba(255,255,255,0.5)"
+                      : "1.5px solid rgba(255,255,255,0.22)",
+                    backgroundColor: checked
+                      ? "rgba(255,255,255,0.2)"
+                      : "rgba(255,255,255,0.08)",
+                    color: "#fff",
+                    borderRadius: "10px",
                   }}
                 >
                   <input
@@ -180,12 +217,16 @@ export default function SessionCard({
                     checked={checked}
                     onChange={() =>
                       setSelectedGroups((prev) =>
-                        prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+                        prev.includes(g)
+                          ? prev.filter((x) => x !== g)
+                          : [...prev, g]
                       )
                     }
-                    className="accent-[#8b2a1e]"
+                    className="accent-white"
                   />
-                  <span className="font-medium text-xs">{MUSCLE_GROUP_LABEL[g]}</span>
+                  <span className="font-medium text-xs">
+                    {MUSCLE_GROUP_LABEL[g]}
+                  </span>
                 </label>
               )
             })}
@@ -195,12 +236,12 @@ export default function SessionCard({
               onUpdateMuscleGroups?.(session, selectedGroups)
               setPickerOpen(false)
             }}
-            className="w-full text-xs font-semibold py-2 transition-colors hover:opacity-80"
+            className="w-full text-xs font-semibold py-2 transition-opacity hover:opacity-80"
             style={{
-              border: "1.5px solid #8b2a1e",
-              color: "#8b2a1e",
-              borderRadius: "10px 6px 10px 6px / 6px 10px 6px 10px",
-              backgroundColor: "transparent",
+              border: "1.5px solid rgba(255,255,255,0.45)",
+              color: "#fff",
+              borderRadius: "10px",
+              backgroundColor: "rgba(255,255,255,0.12)",
             }}
           >
             Save Selection
@@ -208,98 +249,95 @@ export default function SessionCard({
         </div>
       )}
 
-      {/* Card Footer */}
+      {/* Footer */}
       <div
-        className="px-4 py-3 flex items-center justify-between"
+        className="px-4 py-3 flex items-center justify-between gap-2"
         style={{
-          backgroundColor: isUpcoming ? "#f5d5cc" : "#f5ede8",
-          borderTop: isUpcoming ? "1px dashed #f0c4b8" : "1px solid #e8ddd5",
+          backgroundColor: isUpcoming ? "rgba(0,0,0,0.09)" : "transparent",
+          borderTop: isUpcoming ? "none" : "1px solid #e8e0d4",
         }}
       >
         {/* Muscle tags */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
           {muscles.map((g) => (
-            <span
+            <MuscleTag
               key={g}
-              className="font-hand text-xs font-semibold uppercase tracking-wide px-2.5 py-0.5"
-              style={{
-                backgroundColor: "#fdeee9",
-                color: "#8b2a1e",
-                borderRadius: "6px 3px 5px 4px / 3px 5px 4px 6px",
-                border: "1px solid #f0c4b8",
-              }}
-            >
-              {MUSCLE_GROUP_LABEL[g]}
-            </span>
+              label={MUSCLE_GROUP_LABEL[g]}
+              isUpcoming={isUpcoming}
+            />
           ))}
         </div>
 
         {/* Action buttons */}
         {isUpcoming && (
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center shrink-0">
             {onUpdateMuscleGroups && (
               <button
                 onClick={() => setPickerOpen((v) => !v)}
-                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-70"
+                className="text-xs font-medium px-3 py-1.5 transition-opacity hover:opacity-80"
                 style={{
-                  color: "#9a8f87",
-                  border: "1.5px solid #e2d9d0",
-                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
-                  backgroundColor: "transparent",
+                  color: "rgba(255,255,255,0.8)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  borderRadius: "20px",
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {pickerOpen
-                  ? "Close"
+                  ? "close"
                   : session.selectedMuscleGroups?.length
-                  ? `${session.selectedMuscleGroups.length} group${session.selectedMuscleGroups.length > 1 ? "s" : ""}`
-                  : "+ Groups"}
+                  ? `${session.selectedMuscleGroups.length} groups`
+                  : "+ groups"}
               </button>
             )}
             {onStartLogging && (
               <button
                 onClick={() => onStartLogging(session)}
-                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-80"
+                className="text-xs font-semibold px-4 py-1.5 transition-opacity hover:opacity-80"
                 style={{
-                  color: "#8b2a1e",
-                  border: "1.5px solid #8b2a1e",
-                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
-                  backgroundColor: "transparent",
+                  color: "#fff",
+                  backgroundColor: "#8a4830",
+                  borderRadius: "20px",
+                  border: "none",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Log Session
+                ready to log?
               </button>
             )}
           </div>
         )}
 
         {!isUpcoming && (onEdit || onUnlog) && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             {onEdit && (
               <button
                 onClick={() => onEdit(session)}
-                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-80"
+                className="text-xs font-medium px-3 py-1.5 transition-opacity hover:opacity-80"
                 style={{
-                  color: "#8b2a1e",
-                  border: "1.5px solid #8b2a1e",
-                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
-                  backgroundColor: "transparent",
+                  color: "#2c2724",
+                  backgroundColor: SAGE,
+                  borderRadius: "20px",
+                  border: "none",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Edit
+                edit session
               </button>
             )}
             {onUnlog && (
               <button
                 onClick={() => onUnlog(session)}
-                className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-70"
+                className="text-xs font-medium px-3 py-1.5 transition-opacity hover:opacity-80"
                 style={{
-                  color: "#bdb5ad",
-                  border: "1.5px solid #e2d9d0",
-                  borderRadius: "10px 6px 8px 7px / 6px 8px 7px 10px",
-                  backgroundColor: "transparent",
+                  color: "#2c2724",
+                  backgroundColor: SAGE,
+                  borderRadius: "20px",
+                  border: "none",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Unlog
+                oops, unlog
               </button>
             )}
           </div>

@@ -19,15 +19,48 @@ const MUSCLE_ROTATION: MuscleGroup[][] = [
   ["shoulders", "legs"],
 ]
 
+function SpiralBinding() {
+  const count = 13
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        margin: "-1.5rem -1rem 2rem -1rem",
+        padding: "10px 20px 16px",
+        background: "linear-gradient(to bottom, #e0d8cc 0%, #f2ece0 100%)",
+      }}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at 35% 30%, #d6d2cc 0%, #a8a4a0 60%, #8a8682 100%)",
+            boxShadow:
+              "0 2px 4px rgba(0,0,0,0.22), inset 0 1px 1px rgba(255,255,255,0.45)",
+            border: "1px solid #7e7a76",
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
   const last = [...confirmedSessions]
     .filter((s) => s.date && s.extraWorkouts && s.extraWorkouts.length > 0)
-    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
+    .sort(
+      (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
+    )[0]
 
   if (!last) return MUSCLE_ROTATION[0]
 
   const lastMuscles = last.extraWorkouts!.map((w) => w.muscle)
-
   let bestIdx = 0
   let bestScore = -1
   MUSCLE_ROTATION.forEach((pair, i) => {
@@ -66,7 +99,9 @@ function getBestWeight(sessions: Session[]): number | null {
 function getLatestBW(sessions: Session[]): number | null {
   const withBW = sessions
     .filter((s) => s.confirmed && s.bw != null && s.date != null)
-    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
+    .sort(
+      (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
+    )
   return withBW[0]?.bw ?? null
 }
 
@@ -82,7 +117,8 @@ function createUpcomingSession(sessions: Session[]): Session {
     note: "",
     isWarmup: false,
   }))
-  const maxId = sessions.length > 0 ? Math.max(...sessions.map((s) => s.id)) : 0
+  const maxId =
+    sessions.length > 0 ? Math.max(...sessions.map((s) => s.id)) : 0
   return {
     id: maxId + 1,
     date: null,
@@ -113,9 +149,7 @@ export default function Page() {
 
   useEffect(() => {
     const local = loadSessionsLocal()
-    if (local.length > 0) {
-      setSessions(backfillMuscles(local))
-    }
+    if (local.length > 0) setSessions(backfillMuscles(local))
     setMounted(true)
 
     loadSessions().then((data) => {
@@ -177,9 +211,16 @@ export default function Page() {
   }
 
   function handleUnlogSession(session: Session) {
-    if (!window.confirm(`Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`)) return
+    if (
+      !window.confirm(
+        `Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`
+      )
+    )
+      return
     setSessions((prev) => {
-      const remaining = prev.filter((s) => s.confirmed && s.id !== session.id)
+      const remaining = prev.filter(
+        (s) => s.confirmed && s.id !== session.id
+      )
       const newUpcoming = createUpcomingSession(remaining)
       const final = [...remaining, newUpcoming].sort((a, b) => {
         if (!a.confirmed) return -1
@@ -194,18 +235,24 @@ export default function Page() {
   if (!mounted) {
     return (
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
-        <div className="h-9 w-44 rounded animate-pulse mb-1" style={{ backgroundColor: "#e8ddd5" }} />
-        <div className="h-4 w-28 rounded animate-pulse mb-8" style={{ backgroundColor: "#e8ddd5" }} />
-        <div className="h-[8px] w-full rounded mb-6" style={{ backgroundColor: "#e8ddd5" }} />
-        <div className="grid grid-cols-2 gap-2.5 mb-6">
-          {[0, 1, 2, 3].map((i) => (
+        <div
+          className="h-9 w-48 rounded animate-pulse mb-1"
+          style={{ backgroundColor: "#e0d8cc" }}
+        />
+        <div
+          className="h-4 w-32 rounded animate-pulse mb-8"
+          style={{ backgroundColor: "#e0d8cc" }}
+        />
+        <div
+          className="h-[30px] w-full rounded mb-6"
+          style={{ backgroundColor: "#e0d8cc" }}
+        />
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {[0, 1].map((i) => (
             <div
               key={i}
-              className="h-20 animate-pulse"
-              style={{
-                backgroundColor: "#e8ddd5",
-                borderRadius: "16px 10px 14px 12px / 12px 14px 10px 16px",
-              }}
+              className="h-14 animate-pulse rounded-[14px]"
+              style={{ backgroundColor: "#e0d8cc" }}
             />
           ))}
         </div>
@@ -226,33 +273,26 @@ export default function Page() {
   return (
     <>
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+        {/* Spiral binding strip */}
+        <SpiralBinding />
+
         {/* Header */}
-        <header className="mb-6">
-          <div className="flex items-start gap-2">
-            <h1
-              className="font-hand text-4xl font-bold leading-tight"
-              style={{ color: "#2c2724" }}
-            >
-              Bench Tracker
-            </h1>
-            {/* Decorative asterisk cluster */}
-            <span
-              className="font-hand text-lg select-none mt-1"
-              style={{ color: "#2c2724", opacity: 0.35, letterSpacing: "-2px" }}
-              aria-hidden
-            >
-              ✳✳
-            </span>
-          </div>
+        <header className="mb-5">
+          <h1
+            className="font-hand font-bold leading-tight"
+            style={{ fontSize: "2rem", color: "#2c2724" }}
+          >
+            my bench journal
+          </h1>
           <p className="text-sm mt-0.5" style={{ color: "#9a8f87" }}>
-            Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
+            saif · {confirmed.length} sessions · bw {latestBW ?? 54}kg
           </p>
         </header>
 
-        {/* Progress Bar */}
+        {/* Progress */}
         <ProgressBar current={latestE1RM} target={TARGET} />
 
-        {/* Stats Grid */}
+        {/* Stats */}
         <StatsGrid
           e1rm={latestE1RM}
           best={bestWeight}
@@ -260,25 +300,17 @@ export default function Page() {
           bw={latestBW}
         />
 
-        {/* Session list heading */}
-        <div className="flex items-center gap-2 mb-3">
+        {/* Session cards with decorative asterisk */}
+        <div className="relative">
+          {/* Decorative star — right side */}
           <span
-            className="font-hand text-base font-semibold uppercase tracking-wider"
-            style={{ color: "#9a8f87" }}
-          >
-            Sessions
-          </span>
-          <span
-            className="font-hand text-base select-none"
-            style={{ color: "#2c2724", opacity: 0.3 }}
+            className="absolute -right-2 top-10 select-none font-hand text-2xl"
+            style={{ color: "#2c2724", opacity: 0.18 }}
             aria-hidden
           >
-            ✳✳
+            ✳
           </span>
-        </div>
 
-        {/* Session Cards */}
-        <div>
           {upcoming && (
             <SessionCard
               session={upcoming}
@@ -286,6 +318,7 @@ export default function Page() {
               onUpdateMuscleGroups={handleUpdateMuscleGroups}
             />
           )}
+
           {confirmedSorted.map((s) => (
             <SessionCard
               key={s.id}
@@ -294,10 +327,18 @@ export default function Page() {
               onUnlog={handleUnlogSession}
             />
           ))}
+
+          {/* Decorative star — bottom left */}
+          <span
+            className="inline-block mt-2 select-none font-hand text-2xl"
+            style={{ color: "#2c2724", opacity: 0.18 }}
+            aria-hidden
+          >
+            ✳
+          </span>
         </div>
       </main>
 
-      {/* Log Session Modal */}
       {loggingSession && (
         <LogSessionModal
           session={loggingSession}
@@ -307,7 +348,6 @@ export default function Page() {
         />
       )}
 
-      {/* Edit Session Modal */}
       {editingSession && (
         <LogSessionModal
           session={editingSession}
