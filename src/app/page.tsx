@@ -55,11 +55,11 @@ function getLatestE1RM(sessions: Session[]): number | null {
   return e1rms.length > 0 ? Math.max(...e1rms) : null
 }
 
-function getBestE1RM(sessions: Session[]): number | null {
+function getBestWeight(sessions: Session[]): number | null {
   const all = sessions
     .filter((s) => s.confirmed)
     .flatMap((s) => s.sets.filter((set) => !set.isWarmup))
-    .map((s) => s.e1rm)
+    .map((s) => s.kg)
     .filter((v): v is number => v != null)
   return all.length > 0 ? Math.max(...all) : null
 }
@@ -214,7 +214,7 @@ export default function Page() {
   )
 
   const latestE1RM = getLatestE1RM(sessions)
-  const bestE1RM = getBestE1RM(sessions)
+  const bestWeight = getBestWeight(sessions)
   const latestBW = getLatestBW(sessions)
 
   return (
@@ -236,7 +236,7 @@ export default function Page() {
         {/* Stats Grid */}
         <StatsGrid
           e1rm={latestE1RM}
-          best={bestE1RM}
+          best={bestWeight}
           sessions={confirmed.length}
           bw={latestBW}
         />
