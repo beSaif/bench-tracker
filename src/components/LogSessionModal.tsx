@@ -11,6 +11,7 @@ import {
   MUSCLE_GROUP_EXERCISES,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
+import PixelCharacter from "@/components/PixelCharacter"
 
 const REST_DURATION = 180 // seconds
 
@@ -119,6 +120,13 @@ export default function LogSessionModal({
   const [currentSetIndex, setCurrentSetIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
 
+  // Pixel character state
+  const [restPos, setRestPos] = useState(0)
+  const [restDir, setRestDir] = useState<"east" | "west">("east")
+  const restDirRef = useRef<"east" | "west">("east")
+  const [showVictoryRun, setShowVictoryRun] = useState(false)
+  const prevAllDoneRef = useRef(false)
+
   useEffect(() => {
     document.body.style.overflow = "hidden"
     return () => { document.body.style.overflow = "" }
@@ -180,6 +188,37 @@ export default function LogSessionModal({
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [restEndTime])
+
+  // Pace character back and forth during rest
+  useEffect(() => {
+    if (!restActive) return
+    setRestPos(0)
+    restDirRef.current = "east"
+    setRestDir("east")
+    const interval = setInterval(() => {
+      setRestPos((pos) => {
+        const dir = restDirRef.current
+        const next = dir === "east" ? pos + 0.8 : pos - 0.8
+        if (next >= 92 && dir === "east") {
+          restDirRef.current = "west"
+          setRestDir("west")
+        } else if (next <= 0 && dir === "west") {
+          restDirRef.current = "east"
+          setRestDir("east")
+        }
+        return Math.max(0, Math.min(92, next))
+      })
+    }, 50)
+    return () => clearInterval(interval)
+  }, [restActive])
+
+  // Trigger victory run once when all sets are done
+  useEffect(() => {
+    if (allDone && !prevAllDoneRef.current) {
+      setShowVictoryRun(true)
+    }
+    prevAllDoneRef.current = allDone
+  }, [allDone])
 
   function markSetDone(key: string) {
     if (completedSets.has(key)) return
@@ -301,7 +340,18 @@ export default function LogSessionModal({
   // Full-screen rest timer
   if (restActive) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center relative overflow-hidden">
+        <PixelCharacter
+          animation="walk"
+          direction={restDir}
+          size={56}
+          style={{
+            position: "absolute",
+            bottom: "120px",
+            left: `${restPos}%`,
+            transform: "translateX(-50%)",
+          }}
+        />
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
           Rest
         </p>
@@ -328,6 +378,21 @@ export default function LogSessionModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+      {showVictoryRun && (
+        <PixelCharacter
+          animation="run"
+          direction="east"
+          size={48}
+          style={{
+            position: "absolute",
+            top: "40%",
+            zIndex: 10,
+            pointerEvents: "none",
+            animation: "victory-run 1.2s linear forwards",
+          }}
+          onAnimationEnd={() => setShowVictoryRun(false)}
+        />
+      )}
       <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0">
 
         {/* Header + Progress — pinned at top */}

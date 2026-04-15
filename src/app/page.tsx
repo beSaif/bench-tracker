@@ -10,6 +10,7 @@ import SessionCard from "@/components/SessionCard"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
+import PixelCharacter from "@/components/PixelCharacter"
 
 const TARGET = 140
 
@@ -251,14 +252,17 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <h1
-            className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
-            onPointerDown={handleTitlePointerDown}
-            onPointerUp={handleTitlePointerUp}
-            onPointerLeave={handleTitlePointerUp}
-          >
-            Bench Tracker
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1
+              className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
+              onPointerDown={handleTitlePointerDown}
+              onPointerUp={handleTitlePointerUp}
+              onPointerLeave={handleTitlePointerUp}
+            >
+              Bench Tracker
+            </h1>
+            <PixelCharacter animation="idle" direction="south" size={40} />
+          </div>
           <p className="text-sm text-[#777777] mt-0.5">
             Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
           </p>
