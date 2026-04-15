@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Session, MuscleGroup } from "@/lib/types"
 import { loadSessions, loadSessionsLocal, saveSessions } from "@/lib/storage"
 import { prescribeNext } from "@/lib/prescription"
@@ -113,6 +113,20 @@ export default function Page() {
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleTitlePointerDown() {
+    longPressTimer.current = setTimeout(() => {
+      window.location.href = "/dev"
+    }, 800)
+  }
+
+  function handleTitlePointerUp() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
 
   useEffect(() => {
     // Show localStorage data immediately, then sync from KV
@@ -222,7 +236,12 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">
+          <h1
+            className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
+            onPointerDown={handleTitlePointerDown}
+            onPointerUp={handleTitlePointerUp}
+            onPointerLeave={handleTitlePointerUp}
+          >
             Bench Tracker
           </h1>
           <p className="text-sm text-[#777777] mt-0.5">
