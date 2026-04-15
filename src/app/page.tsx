@@ -109,6 +109,9 @@ function backfillMuscles(sessions: Session[]): Session[] {
   )
 }
 
+type CharAnim = "walk" | "run"
+type CharDir  = "east" | "west"
+
 export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
@@ -116,6 +119,14 @@ export default function Page() {
   const [mounted, setMounted] = useState(false)
   const [showVictoryRun, setShowVictoryRun] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Home screen roaming character
+  const [charX,    setCharX]    = useState(15)
+  const [charDir,  setCharDir]  = useState<CharDir>("east")
+  const [charAnim, setCharAnim] = useState<CharAnim>("walk")
+  const charXRef    = useRef(15)
+  const charDirRef  = useRef<CharDir>("east")
+  const charAnimRef = useRef<CharAnim>("walk")
 
   function handleTitlePointerDown() {
     longPressTimer.current = setTimeout(() => {
@@ -160,6 +171,41 @@ export default function Page() {
       if (patched !== data) saveSessions(patched)
     })
   }, [])
+
+  // Roaming character on home screen
+  useEffect(() => {
+    if (!mounted) return
+    const interval = setInterval(() => {
+      const dir  = charDirRef.current
+      const anim = charAnimRef.current
+      const speed = anim === "run" ? 0.45 : 0.18
+      const next  = dir === "east"
+        ? charXRef.current + speed
+        : charXRef.current - speed
+
+      let newX   = next
+      let newDir = dir
+      let newAnim = anim
+
+      if (next >= 88) {
+        newX   = 88
+        newDir = "west"
+        if (Math.random() < 0.4) newAnim = anim === "run" ? "walk" : "run"
+      } else if (next <= 2) {
+        newX   = 2
+        newDir = "east"
+        if (Math.random() < 0.4) newAnim = anim === "run" ? "walk" : "run"
+      }
+
+      charXRef.current    = newX
+      charDirRef.current  = newDir
+      charAnimRef.current = newAnim
+      setCharX(newX)
+      setCharDir(newDir)
+      setCharAnim(newAnim)
+    }, 50)
+    return () => clearInterval(interval)
+  }, [mounted])
 
   function handleStartLogging(session: Session) {
     setLoggingSession(JSON.parse(JSON.stringify(session)))
@@ -319,6 +365,23 @@ export default function Page() {
           onConfirm={handleSaveEdit}
           onClose={() => setEditingSession(null)}
           previousSessions={confirmedSorted}
+        />
+      )}
+
+      {/* Roaming character — walks/runs around the home screen */}
+      {mounted && !loggingSession && !editingSession && (
+        <PixelCharacter
+          animation={charAnim}
+          direction={charDir}
+          size={52}
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            left: `${charX}%`,
+            transform: "translateX(-50%)",
+            zIndex: 5,
+            pointerEvents: "none",
+          }}
         />
       )}
 

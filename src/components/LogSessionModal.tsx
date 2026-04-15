@@ -123,6 +123,7 @@ export default function LogSessionModal({
   // Pixel character state
   const [restPos, setRestPos] = useState(0)
   const [restDir, setRestDir] = useState<"east" | "west">("east")
+  const restPosRef = useRef(0)
   const restDirRef = useRef<"east" | "west">("east")
 
   useEffect(() => {
@@ -190,22 +191,21 @@ export default function LogSessionModal({
   // Pace character back and forth during rest
   useEffect(() => {
     if (!restActive) return
-    setRestPos(0)
+    restPosRef.current = 0
     restDirRef.current = "east"
+    setRestPos(0)
     setRestDir("east")
     const interval = setInterval(() => {
-      setRestPos((pos) => {
-        const dir = restDirRef.current
-        const next = dir === "east" ? pos + 0.8 : pos - 0.8
-        if (next >= 92 && dir === "east") {
-          restDirRef.current = "west"
-          setRestDir("west")
-        } else if (next <= 0 && dir === "west") {
-          restDirRef.current = "east"
-          setRestDir("east")
-        }
-        return Math.max(0, Math.min(92, next))
-      })
+      const dir = restDirRef.current
+      const next = dir === "east"
+        ? restPosRef.current + 0.8
+        : restPosRef.current - 0.8
+      const clamped = Math.max(0, Math.min(92, next))
+      restPosRef.current = clamped
+      if (next >= 92 && dir === "east") restDirRef.current = "west"
+      else if (next <= 0 && dir === "west") restDirRef.current = "east"
+      setRestPos(clamped)
+      setRestDir(restDirRef.current)
     }, 50)
     return () => clearInterval(interval)
   }, [restActive])
