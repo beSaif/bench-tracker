@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Session, MuscleGroup } from "@/lib/types"
 import { loadSessions, loadSessionsLocal, saveSessions } from "@/lib/storage"
-import { prescribeNext } from "@/lib/prescription"
+import { prescribeNext, migrateSessionTypes } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM } from "@/lib/e1rm"
 import SessionCard from "@/components/SessionCard"
@@ -138,6 +138,21 @@ export default function Page() {
 
     loadSessions().then((data) => {
       const patched = backfillMuscles(data)
+
+      // One-time migration: re-assign types to historical "Push" sessions
+      const migrated = migrateSessionTypes(patched)
+      if (migrated !== null) {
+        const newUpcoming = createUpcomingSession(migrated)
+        const final = [...migrated, newUpcoming].sort((a, b) => {
+          if (!a.confirmed) return -1
+          if (!b.confirmed) return 1
+          return new Date(b.date!).getTime() - new Date(a.date!).getTime()
+        })
+        saveSessions(final)
+        setSessions(final)
+        return
+      }
+
       setSessions(patched)
       // Persist if we added a suggestion
       if (patched !== data) saveSessions(patched)

@@ -27,6 +27,32 @@ function getLastWorkingSet(session: Session) {
   return working.length > 0 ? working[working.length - 1] : null
 }
 
+/**
+ * One-time migration: assigns SessionType to historical "Push" sessions
+ * by their chronological position in the cycle.
+ * Returns the updated confirmed-only array, or null if no migration was needed.
+ */
+export function migrateSessionTypes(sessions: Session[]): Session[] | null {
+  const needsMigration = sessions.some((s) => s.confirmed && (s.type as string) === "Push")
+  if (!needsMigration) return null
+
+  const allConfirmed = sessions
+    .filter((s) => s.confirmed)
+    .sort((a, b) => {
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return new Date(a.date).getTime() - new Date(b.date).getTime()
+    })
+
+  const typeMap = new Map<number, SessionType>()
+  allConfirmed.forEach((s, i) => {
+    const pos = i % MACRO_TOTAL
+    typeMap.set(s.id, pos === 12 ? "Deload" : BLOCK[pos % 3])
+  })
+
+  return allConfirmed.map((s) => ({ ...s, type: typeMap.get(s.id) ?? s.type }))
+}
+
 export function prescribeNext(sessions: Session[]): Prescription {
   const confirmed = sessions
     .filter((s) => s.confirmed)
