@@ -1,16 +1,28 @@
-import { Session, BenchSet } from "./types"
+import { Session, SessionType } from "./types"
+import { roundToPlate } from "./e1rm"
 
 interface Prescription {
   weight: number
   reps: number
   sets: number
+  sessionType: SessionType
 }
 
-function getWorkingSets(session: Session): BenchSet[] {
+const BLOCK: SessionType[] = ["Volume", "Intensity", "Peak"]
+const MACRO_TOTAL = 13 // 4 blocks × 3 + 1 deload
+
+const SCHEMES: Record<SessionType, { pct: number; reps: number; sets: number }> = {
+  Volume:    { pct: 0.70, reps: 5, sets: 4 },
+  Intensity: { pct: 0.82, reps: 3, sets: 4 },
+  Peak:      { pct: 1.00, reps: 3, sets: 3 },
+  Deload:    { pct: 0.60, reps: 5, sets: 3 },
+}
+
+function getWorkingSets(session: Session) {
   return session.sets.filter((s) => !s.isWarmup)
 }
 
-function getLastWorkingSet(session: Session): BenchSet | null {
+function getLastWorkingSet(session: Session) {
   const working = getWorkingSets(session)
   return working.length > 0 ? working[working.length - 1] : null
 }
@@ -24,39 +36,43 @@ export function prescribeNext(sessions: Session[]): Prescription {
       return new Date(a.date).getTime() - new Date(b.date).getTime()
     })
 
-  if (confirmed.length === 0) {
-    return { weight: 60, reps: 5, sets: 3 }
-  }
+  // Determine next session type from cycle position
+  const pos = confirmed.length % MACRO_TOTAL
+  const nextType: SessionType = pos === 12 ? "Deload" : BLOCK[pos % 3]
 
-  const last = confirmed[confirmed.length - 1]
-  const lastWorking = getWorkingSets(last)
-  const lastSet = getLastWorkingSet(last)
+  // Find the Peak anchor weight
+  const peakSessions = confirmed.filter((s) => s.type === "Peak")
+  const lastPeak = peakSessions[peakSessions.length - 1]
 
-  const currentWeight = lastWorking[0]?.kg ?? 60
-  const currentReps = lastWorking[0]?.reps ?? 5
-  const currentSets = lastWorking.length
+  let anchor: number
+  if (lastPeak) {
+    const lastPeakWeight = getWorkingSets(lastPeak)[0]?.kg ?? 60
+    const lastPeakRPE = getLastWorkingSet(lastPeak)?.rpe ?? null
 
-  if (confirmed.length === 1) {
-    // Only one session — wait for a second before bumping
-    return { weight: currentWeight, reps: currentReps, sets: currentSets }
-  }
-
-  const secondLast = confirmed[confirmed.length - 2]
-  const secondLastWorking = getWorkingSets(secondLast)
-  const secondLastWeight = secondLastWorking[0]?.kg ?? 0
-
-  const lastRPE = lastSet?.rpe ?? null
-
-  if (currentWeight === secondLastWeight) {
-    // Same weight used twice
-    if (lastRPE !== null && lastRPE <= 7) {
-      // Both sessions at same weight, RPE ≤ 7 → bump weight
-      return { weight: currentWeight + 2.5, reps: currentReps, sets: currentSets }
+    if (nextType === "Peak") {
+      // Only bump anchor when prescribing the next Peak session
+      anchor = lastPeakRPE !== null && lastPeakRPE <= 7.5
+        ? lastPeakWeight + 2.5
+        : lastPeakWeight
+    } else {
+      anchor = lastPeakWeight
     }
-    // RPE 8+ → repeat
-    return { weight: currentWeight, reps: currentReps, sets: currentSets }
+  } else {
+    // Migration / first run: use last confirmed session weight as anchor,
+    // or default to 60kg
+    const lastWeight = confirmed.length > 0
+      ? getWorkingSets(confirmed[confirmed.length - 1])[0]?.kg ?? 60
+      : 60
+    anchor = lastWeight
   }
 
-  // New weight first time → keep same, wait for second session
-  return { weight: currentWeight, reps: currentReps, sets: currentSets }
+  const scheme = SCHEMES[nextType]
+  const weight = roundToPlate(anchor * scheme.pct)
+
+  return {
+    weight,
+    reps: scheme.reps,
+    sets: scheme.sets,
+    sessionType: nextType,
+  }
 }

@@ -8,10 +8,12 @@ export interface BenchSet {
   isWarmup: boolean
 }
 
+export type SessionType = "Volume" | "Intensity" | "Peak" | "Deload"
+
 export interface Session {
   id: number
   date: string | null
-  type: string
+  type: SessionType
   bw: number | null
   sets: BenchSet[]
   confirmed: boolean

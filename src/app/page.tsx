@@ -87,10 +87,10 @@ function createUpcomingSession(sessions: Session[]): Session {
   return {
     id: maxId + 1,
     date: null,
-    type: "Push",
+    type: prescription.sessionType,
     bw: null,
     confirmed: false,
-    coachNote: `Prescribed: ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`,
+    coachNote: `Prescribed [${prescription.sessionType}]: ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`,
     sets: [...warmups, ...workingSets],
     selectedMuscleGroups: suggestNextMuscles(sessions),
   }
