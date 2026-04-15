@@ -12,9 +12,9 @@ const BLOCK: SessionType[] = ["Volume", "Intensity", "Peak"]
 const MACRO_TOTAL = 13 // 4 blocks × 3 + 1 deload
 
 const SCHEMES: Record<SessionType, { pct: number; reps: number; sets: number }> = {
-  Volume:    { pct: 0.70, reps: 5, sets: 4 },
-  Intensity: { pct: 0.82, reps: 3, sets: 4 },
-  Peak:      { pct: 1.00, reps: 3, sets: 3 },
+  Volume:    { pct: 0.70, reps: 5, sets: 3 },
+  Intensity: { pct: 0.82, reps: 5, sets: 3 },
+  Peak:      { pct: 1.00, reps: 5, sets: 3 },
   Deload:    { pct: 0.60, reps: 5, sets: 3 },
 }
 
