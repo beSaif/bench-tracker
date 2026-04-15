@@ -114,6 +114,7 @@ export default function Page() {
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [showVictoryRun, setShowVictoryRun] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function handleTitlePointerDown() {
@@ -180,6 +181,7 @@ export default function Page() {
       return final
     })
     setLoggingSession(null)
+    setShowVictoryRun(true)
   }
 
   function handleCloseModal() {
@@ -317,6 +319,23 @@ export default function Page() {
           onConfirm={handleSaveEdit}
           onClose={() => setEditingSession(null)}
           previousSessions={confirmedSorted}
+        />
+      )}
+
+      {/* Victory run — fires after confirming a session */}
+      {showVictoryRun && (
+        <PixelCharacter
+          animation="run"
+          direction="east"
+          size={56}
+          style={{
+            position: "fixed",
+            top: "35%",
+            zIndex: 100,
+            pointerEvents: "none",
+            animation: "victory-run 1.4s linear forwards",
+          }}
+          onAnimationEnd={() => setShowVictoryRun(false)}
         />
       )}
     </>

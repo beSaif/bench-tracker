@@ -124,8 +124,6 @@ export default function LogSessionModal({
   const [restPos, setRestPos] = useState(0)
   const [restDir, setRestDir] = useState<"east" | "west">("east")
   const restDirRef = useRef<"east" | "west">("east")
-  const [showVictoryRun, setShowVictoryRun] = useState(false)
-  const prevAllDoneRef = useRef(false)
 
   useEffect(() => {
     document.body.style.overflow = "hidden"
@@ -211,14 +209,6 @@ export default function LogSessionModal({
     }, 50)
     return () => clearInterval(interval)
   }, [restActive])
-
-  // Trigger victory run once when all sets are done
-  useEffect(() => {
-    if (allDone && !prevAllDoneRef.current) {
-      setShowVictoryRun(true)
-    }
-    prevAllDoneRef.current = allDone
-  }, [allDone])
 
   function markSetDone(key: string) {
     if (completedSets.has(key)) return
@@ -378,21 +368,6 @@ export default function LogSessionModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
-      {showVictoryRun && (
-        <PixelCharacter
-          animation="run"
-          direction="east"
-          size={48}
-          style={{
-            position: "absolute",
-            top: "40%",
-            zIndex: 10,
-            pointerEvents: "none",
-            animation: "victory-run 1.2s linear forwards",
-          }}
-          onAnimationEnd={() => setShowVictoryRun(false)}
-        />
-      )}
       <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0">
 
         {/* Header + Progress — pinned at top */}

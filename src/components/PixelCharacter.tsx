@@ -54,6 +54,11 @@ export default function PixelCharacter({
       ? `/sprites/idle/${direction}.png`
       : `/sprites/${animation}/${direction}/frame_${frame}.png`
 
+  const baseStyle: CSSProperties =
+    animation === "idle"
+      ? { imageRendering: "pixelated", animation: "char-idle-bob 1.8s ease-in-out infinite" }
+      : { imageRendering: "pixelated" }
+
   return (
     <img
       src={src}
@@ -63,7 +68,7 @@ export default function PixelCharacter({
       draggable={false}
       onError={() => setHasFailed(true)}
       onAnimationEnd={onAnimationEnd}
-      style={{ imageRendering: "pixelated", ...style }}
+      style={{ ...baseStyle, ...style }}
       className={className}
     />
   )

@@ -22,6 +22,11 @@ html {
   to   { transform: translateX(calc(100vw + 64px)); }
 }
 
+@keyframes char-idle-bob {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-3px); }
+}
+
 body {
   background: #ffffff;
   color: #111111;
