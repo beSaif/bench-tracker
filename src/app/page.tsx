@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Session, MuscleGroup } from "@/lib/types"
 import { loadSessions, loadSessionsLocal, saveSessions } from "@/lib/storage"
-import { prescribeNext } from "@/lib/prescription"
+import { prescribeNext, migrateSessionTypes } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM } from "@/lib/e1rm"
 import SessionCard from "@/components/SessionCard"
@@ -87,10 +87,10 @@ function createUpcomingSession(sessions: Session[]): Session {
   return {
     id: maxId + 1,
     date: null,
-    type: "Push",
+    type: prescription.sessionType,
     bw: null,
     confirmed: false,
-    coachNote: `Prescribed: ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`,
+    coachNote: `Prescribed [${prescription.sessionType}]: ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`,
     sets: [...warmups, ...workingSets],
     selectedMuscleGroups: suggestNextMuscles(sessions),
   }
@@ -113,6 +113,20 @@ export default function Page() {
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleTitlePointerDown() {
+    longPressTimer.current = setTimeout(() => {
+      window.location.href = "/dev"
+    }, 800)
+  }
+
+  function handleTitlePointerUp() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
 
   useEffect(() => {
     // Show localStorage data immediately, then sync from KV
@@ -124,6 +138,21 @@ export default function Page() {
 
     loadSessions().then((data) => {
       const patched = backfillMuscles(data)
+
+      // One-time migration: re-assign types to historical "Push" sessions
+      const migrated = migrateSessionTypes(patched)
+      if (migrated !== null) {
+        const newUpcoming = createUpcomingSession(migrated)
+        const final = [...migrated, newUpcoming].sort((a, b) => {
+          if (!a.confirmed) return -1
+          if (!b.confirmed) return 1
+          return new Date(b.date!).getTime() - new Date(a.date!).getTime()
+        })
+        saveSessions(final)
+        setSessions(final)
+        return
+      }
+
       setSessions(patched)
       // Persist if we added a suggestion
       if (patched !== data) saveSessions(patched)
@@ -222,7 +251,12 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">
+          <h1
+            className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
+            onPointerDown={handleTitlePointerDown}
+            onPointerUp={handleTitlePointerUp}
+            onPointerLeave={handleTitlePointerUp}
+          >
             Bench Tracker
           </h1>
           <p className="text-sm text-[#777777] mt-0.5">
