@@ -254,6 +254,41 @@ export default function LogSessionModal({
     })
   }
 
+  function nextSetId(currentSets: EditableSet[], isWarmup: boolean): string {
+    const prefix = isWarmup ? "W" : "S"
+    const max = currentSets.reduce((m, s) => {
+      const match = s.id.match(new RegExp(`^${prefix}(\\d+)$`))
+      return match ? Math.max(m, parseInt(match[1])) : m
+    }, 0)
+    return `${prefix}${max + 1}`
+  }
+
+  function addSetAfterCurrent(globalIndex: number) {
+    setSets((prev) => {
+      const current = prev[globalIndex]
+      const newSet: EditableSet = {
+        ...current,
+        id: nextSetId(prev, current.isWarmup),
+        note: "",
+      }
+      const next = [...prev]
+      next.splice(globalIndex + 1, 0, newSet)
+      return next
+    })
+    setCurrentSetIndex((p) => p + 1)
+  }
+
+  function deleteCurrentSet(globalIndex: number, setId: string) {
+    if (sets.length <= 1) return
+    setSets((prev) => prev.filter((_, i) => i !== globalIndex))
+    setCompletedSets((prev) => {
+      const next = new Set(prev)
+      next.delete(setId)
+      return next
+    })
+    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+  }
+
   function handleConfirm() {
     const extraWorkouts: ExtraWorkout[] = selectedGroups
       .filter((muscle) => extraState[muscle])
@@ -456,6 +491,21 @@ export default function LogSessionModal({
                       >
                         {isDone ? "✓ Done" : "Done"}
                       </button>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
+                        <button
+                          onClick={() => deleteCurrentSet(item.globalIndex, item.set.id)}
+                          disabled={sets.length <= 1}
+                          className="text-xs text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors px-1"
+                        >
+                          Delete set
+                        </button>
+                        <button
+                          onClick={() => addSetAfterCurrent(item.globalIndex)}
+                          className="text-xs text-[#bbbbbb] hover:text-[#111111] transition-colors px-1"
+                        >
+                          + Add set after
+                        </button>
+                      </div>
                     </div>
                   )
                 })()}
