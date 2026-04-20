@@ -289,6 +289,50 @@ export default function LogSessionModal({
     setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
   }
 
+  function addExtraSetAfter(muscle: string, exercise: string, setIndex: number) {
+    setExtraState((prev) => {
+      const next = { ...prev }
+      next[muscle] = { ...next[muscle] }
+      const arr = [...next[muscle][exercise]]
+      arr.splice(setIndex + 1, 0, defaultExtraSet())
+      next[muscle][exercise] = arr
+      return next
+    })
+    setCompletedSets((prev) => {
+      const prefix = `extra-${muscle}-${exercise}-`
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (!key.startsWith(prefix)) { next.add(key); continue }
+        const idx = parseInt(key.slice(prefix.length))
+        next.add(idx > setIndex ? `${prefix}${idx + 1}` : key)
+      }
+      return next
+    })
+    setCurrentSetIndex((p) => p + 1)
+  }
+
+  function deleteExtraSet(muscle: string, exercise: string, setIndex: number) {
+    if ((extraState[muscle]?.[exercise]?.length ?? 0) <= 1) return
+    setExtraState((prev) => {
+      const next = { ...prev }
+      next[muscle] = { ...next[muscle] }
+      next[muscle][exercise] = next[muscle][exercise].filter((_, i) => i !== setIndex)
+      return next
+    })
+    setCompletedSets((prev) => {
+      const prefix = `extra-${muscle}-${exercise}-`
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (!key.startsWith(prefix)) { next.add(key); continue }
+        const idx = parseInt(key.slice(prefix.length))
+        if (idx === setIndex) continue
+        next.add(idx > setIndex ? `${prefix}${idx - 1}` : key)
+      }
+      return next
+    })
+    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+  }
+
   function handleConfirm() {
     const extraWorkouts: ExtraWorkout[] = selectedGroups
       .filter((muscle) => extraState[muscle])
@@ -571,6 +615,21 @@ export default function LogSessionModal({
                       >
                         {isDone ? "✓ Done" : "Done"}
                       </button>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
+                        <button
+                          onClick={() => deleteExtraSet(item.muscle, item.exercise, item.setIndex)}
+                          disabled={(extraState[item.muscle]?.[item.exercise]?.length ?? 0) <= 1}
+                          className="text-xs text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors px-1"
+                        >
+                          Delete set
+                        </button>
+                        <button
+                          onClick={() => addExtraSetAfter(item.muscle, item.exercise, item.setIndex)}
+                          className="text-xs text-[#bbbbbb] hover:text-[#111111] transition-colors px-1"
+                        >
+                          + Add set after
+                        </button>
+                      </div>
                     </div>
                   )
                 })()}
