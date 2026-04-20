@@ -182,10 +182,15 @@ export default function LogSessionModal({
   }, [restEndTime])
 
   function markSetDone(key: string) {
-    if (completedSets.has(key)) return
-    setCompletedSets((prev) => new Set([...prev, key]))
-    setRestEndTime(Date.now() + REST_DURATION * 1000)
-    setRestSeconds(REST_DURATION)
+    if (completedSets.has(key)) {
+      setCompletedSets((prev) => { const n = new Set(prev); n.delete(key); return n })
+      setRestEndTime(null)
+      setRestSeconds(0)
+    } else {
+      setCompletedSets((prev) => new Set([...prev, key]))
+      setRestEndTime(Date.now() + REST_DURATION * 1000)
+      setRestSeconds(REST_DURATION)
+    }
   }
 
   function dismissRest() {
@@ -529,7 +534,7 @@ export default function LogSessionModal({
                         disabled={isDone}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
-                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
@@ -609,7 +614,7 @@ export default function LogSessionModal({
                         disabled={isDone}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
-                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
