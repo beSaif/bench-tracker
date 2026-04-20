@@ -502,28 +502,31 @@ export default function LogSessionModal({
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
                             <input
                               type="number" step="2.5" min="20" max="300"
+                              disabled={isDone}
                               value={item.set._kgStr}
                               onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                             />
                           </div>
                           <div>
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
                             <input
                               type="number" step="1" min="1" max="20"
+                              disabled={isDone}
                               value={item.set._repsStr}
                               onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                             />
                           </div>
                           <div>
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">RPE</label>
                             <input
                               type="number" step="0.5" min="1" max="10"
+                              disabled={isDone}
                               value={item.set._rpeStr}
                               onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
                               placeholder="—"
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                             />
                           </div>
                         </div>
@@ -531,7 +534,6 @@ export default function LogSessionModal({
 
                       <button
                         onClick={() => markSetDone(item.set.id)}
-                        disabled={isDone}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
                             ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
@@ -594,24 +596,25 @@ export default function LogSessionModal({
                           <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
                           <input
                             type="number" step="2.5" min="0"
+                            disabled={isDone}
                             value={currentExtraSet?.kgStr ?? "0"}
                             onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                           />
                         </div>
                         <div>
                           <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
                           <input
                             type="number" step="1" min="1"
+                            disabled={isDone}
                             value={currentExtraSet?.repsStr ?? "10"}
                             onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                           />
                         </div>
                       </div>
                       <button
                         onClick={() => markSetDone(key)}
-                        disabled={isDone}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
                             ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
