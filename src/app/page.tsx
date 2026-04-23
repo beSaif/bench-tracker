@@ -59,17 +59,13 @@ function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
   return MUSCLE_ROTATION[(bestIdx + 1) % MUSCLE_ROTATION.length]
 }
 
-function getLatestE1RM(sessions: Session[]): number | null {
-  const confirmed = sessions.filter((s) => s.confirmed && s.date != null)
-  if (confirmed.length === 0) return null
-  const latest = [...confirmed].sort(
-    (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
-  )[0]
-  const e1rms = latest.sets
-    .filter((s) => !s.isWarmup)
-    .map((s) => s.e1rm)
+function getBestE1RM(sessions: Session[]): number | null {
+  const validSets = sessions
+    .filter((s) => s.confirmed && s.date != null && s.type !== "Deload")
+    .flatMap((s) => s.sets.filter((set) => !set.isWarmup))
+    .map((set) => set.e1rm)
     .filter((v): v is number => v != null)
-  return e1rms.length > 0 ? Math.max(...e1rms) : null
+  return validSets.length > 0 ? Math.max(...validSets) : null
 }
 
 function getBestWeight(sessions: Session[]): number | null {
@@ -396,7 +392,19 @@ export default function Page() {
   // Sessions outside the active block (archive + completed blocks)
   const archiveSessions = confirmedSorted.filter((s) => !activeBlockSessionIds.has(s.id))
 
-  const latestE1RM = getLatestE1RM(sessions)
+  // Map each session in the active block to its 1-based position within the block
+  const blockIndexMap = new Map<number, number>()
+  if (activeBlock) {
+    const chronoConfirmed = [...activeBlockSessions].sort(
+      (a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()
+    )
+    chronoConfirmed.forEach((s, i) => blockIndexMap.set(s.id, i + 1))
+    if (upcoming?.blockId === activeBlock.id) {
+      blockIndexMap.set(upcoming.id, activeBlockSessions.length + 1)
+    }
+  }
+
+  const latestE1RM = getBestE1RM(sessions)
   const bestWeight = getBestWeight(sessions)
   const latestBW = getLatestBW(sessions)
 
@@ -437,6 +445,7 @@ export default function Page() {
           {upcoming && (
             <SessionCard
               session={upcoming}
+              blockIndex={blockIndexMap.get(upcoming.id)}
               onStartLogging={handleStartLogging}
               onUpdateMuscleGroups={handleUpdateMuscleGroups}
             />
@@ -445,6 +454,7 @@ export default function Page() {
             <SessionCard
               key={s.id}
               session={s}
+              blockIndex={blockIndexMap.get(s.id)}
               onEdit={handleEditSession}
               onUnlog={handleUnlogSession}
             />
