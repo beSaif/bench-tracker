@@ -13,7 +13,7 @@ import {
   PHASE_LABEL,
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
-import { calcE1RM } from "@/lib/e1rm"
+import { calcE1RM, roundToPlate } from "@/lib/e1rm"
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import StatsGrid from "@/components/StatsGrid"
@@ -169,6 +169,8 @@ export default function Page() {
   const [activeDraft, setActiveDraft] = useState<SessionDraft | null>(null)
   const [draftPrompt, setDraftPrompt] = useState<{ session: Session; draft: SessionDraft } | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [anchorPrompt, setAnchorPrompt] = useState<{ confirmedSessions: Session[] } | null>(null)
+  const [anchorInput, setAnchorInput] = useState("")
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -203,18 +205,13 @@ export default function Page() {
 
       let finalBlocks = loadedBlocks
 
-      // First-time block setup: no blocks exist yet
+      // First-time block setup: no blocks exist yet — prompt user for anchor
       if (finalBlocks.length === 0) {
         const confirmed = finalSessions.filter((s) => s.confirmed)
-        finalBlocks = [initializeFirstBlock(confirmed)]
-
-        // Replace any old upcoming session with a block-aware one
-        const upcoming = createUpcomingSession(confirmed, finalBlocks)
-        finalSessions = sortSessions([...confirmed, upcoming])
-
-        saveAll(finalSessions, finalBlocks)
-        setSessions(finalSessions)
-        setBlocks(finalBlocks)
+        const derived = deriveInitialAnchor(confirmed)
+        setSessions(confirmed) // show confirmed-only while prompt is open
+        setAnchorInput(String(derived))
+        setAnchorPrompt({ confirmedSessions: confirmed })
         return
       }
 
@@ -245,6 +242,29 @@ export default function Page() {
     } else {
       setLoggingSession(JSON.parse(JSON.stringify(session)))
     }
+  }
+
+  function handleConfirmAnchor() {
+    if (!anchorPrompt) return
+    const parsed = parseFloat(anchorInput)
+    if (isNaN(parsed) || parsed <= 0) return
+    const anchor = roundToPlate(parsed)
+    const firstBlock: TrainingBlock = {
+      id: 1,
+      phase: "accumulation",
+      status: "active",
+      sessionIds: [],
+      anchorWeight: anchor,
+      startDate: null,
+      endDate: null,
+    }
+    const finalBlocks = [firstBlock]
+    const upcoming = createUpcomingSession(anchorPrompt.confirmedSessions, finalBlocks)
+    const finalSessions = sortSessions([...anchorPrompt.confirmedSessions, upcoming])
+    saveAll(finalSessions, finalBlocks)
+    setSessions(finalSessions)
+    setBlocks(finalBlocks)
+    setAnchorPrompt(null)
   }
 
   function handleConfirmSession(updatedSession: Session) {
@@ -538,6 +558,36 @@ export default function Page() {
               className="w-full border border-[#e8e8e8] text-[#555555] text-sm font-semibold rounded-xl py-3.5 hover:bg-[#f5f5f5] active:bg-[#eeeeee] transition-colors"
             >
               Start fresh
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Anchor weight setup (first-time only) */}
+      {anchorPrompt && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10">
+            <p className="text-base font-semibold text-[#111111] mb-1">Set your anchor weight</p>
+            <p className="text-sm text-[#777777] mb-6">
+              Your anchor is the 1RM this cycle is built around. All block prescriptions are calculated as a percentage of this.
+            </p>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-2">
+              Current 1RM (kg)
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={anchorInput}
+              onChange={(e) => setAnchorInput(e.target.value)}
+              className="w-full border border-[#e8e8e8] rounded-xl px-4 py-3 text-xl font-semibold text-[#111111] mb-6 focus:outline-none focus:border-[#7a1f2e]"
+              placeholder="100"
+            />
+            <button
+              onClick={handleConfirmAnchor}
+              disabled={isNaN(parseFloat(anchorInput)) || parseFloat(anchorInput) <= 0}
+              className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors disabled:opacity-40"
+            >
+              Start Block 1: Accumulation
             </button>
           </div>
         </div>
