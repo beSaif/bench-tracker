@@ -182,10 +182,17 @@ export default function LogSessionModal({
   }, [restEndTime])
 
   function markSetDone(key: string) {
-    if (completedSets.has(key)) return
-    setCompletedSets((prev) => new Set([...prev, key]))
-    setRestEndTime(Date.now() + REST_DURATION * 1000)
-    setRestSeconds(REST_DURATION)
+    if (completedSets.has(key)) {
+      setCompletedSets((prev) => { const n = new Set(prev); n.delete(key); return n })
+      setRestEndTime(null)
+      setRestSeconds(0)
+    } else {
+      setCompletedSets((prev) => new Set([...prev, key]))
+      if (mode !== "edit") {
+        setRestEndTime(Date.now() + REST_DURATION * 1000)
+        setRestSeconds(REST_DURATION)
+      }
+    }
   }
 
   function dismissRest() {
@@ -254,6 +261,85 @@ export default function LogSessionModal({
     })
   }
 
+  function nextSetId(currentSets: EditableSet[], isWarmup: boolean): string {
+    const prefix = isWarmup ? "W" : "S"
+    const max = currentSets.reduce((m, s) => {
+      const match = s.id.match(new RegExp(`^${prefix}(\\d+)$`))
+      return match ? Math.max(m, parseInt(match[1])) : m
+    }, 0)
+    return `${prefix}${max + 1}`
+  }
+
+  function addSetAfterCurrent(globalIndex: number) {
+    setSets((prev) => {
+      const current = prev[globalIndex]
+      const newSet: EditableSet = {
+        ...current,
+        id: nextSetId(prev, current.isWarmup),
+        note: "",
+      }
+      const next = [...prev]
+      next.splice(globalIndex + 1, 0, newSet)
+      return next
+    })
+    setCurrentSetIndex((p) => p + 1)
+  }
+
+  function deleteCurrentSet(globalIndex: number, setId: string) {
+    if (sets.length <= 1) return
+    setSets((prev) => prev.filter((_, i) => i !== globalIndex))
+    setCompletedSets((prev) => {
+      const next = new Set(prev)
+      next.delete(setId)
+      return next
+    })
+    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+  }
+
+  function addExtraSetAfter(muscle: string, exercise: string, setIndex: number) {
+    setExtraState((prev) => {
+      const next = { ...prev }
+      next[muscle] = { ...next[muscle] }
+      const arr = [...next[muscle][exercise]]
+      arr.splice(setIndex + 1, 0, defaultExtraSet())
+      next[muscle][exercise] = arr
+      return next
+    })
+    setCompletedSets((prev) => {
+      const prefix = `extra-${muscle}-${exercise}-`
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (!key.startsWith(prefix)) { next.add(key); continue }
+        const idx = parseInt(key.slice(prefix.length))
+        next.add(idx > setIndex ? `${prefix}${idx + 1}` : key)
+      }
+      return next
+    })
+    setCurrentSetIndex((p) => p + 1)
+  }
+
+  function deleteExtraSet(muscle: string, exercise: string, setIndex: number) {
+    if ((extraState[muscle]?.[exercise]?.length ?? 0) <= 1) return
+    setExtraState((prev) => {
+      const next = { ...prev }
+      next[muscle] = { ...next[muscle] }
+      next[muscle][exercise] = next[muscle][exercise].filter((_, i) => i !== setIndex)
+      return next
+    })
+    setCompletedSets((prev) => {
+      const prefix = `extra-${muscle}-${exercise}-`
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (!key.startsWith(prefix)) { next.add(key); continue }
+        const idx = parseInt(key.slice(prefix.length))
+        if (idx === setIndex) continue
+        next.add(idx > setIndex ? `${prefix}${idx - 1}` : key)
+      }
+      return next
+    })
+    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+  }
+
   function handleConfirm() {
     const extraWorkouts: ExtraWorkout[] = selectedGroups
       .filter((muscle) => extraState[muscle])
@@ -303,7 +389,7 @@ export default function LogSessionModal({
     return (
       <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
-          Rest
+          Rest · {completedCount} / {carouselItems.length}
         </p>
         <p className="text-[96px] font-bold tabular-nums leading-none text-white">
           {timerDisplay}
@@ -345,7 +431,7 @@ export default function LogSessionModal({
             </button>
           </div>
 
-          {carouselItems.length > 0 && (
+          {mode === "log" && carouselItems.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] text-[#aaaaaa] uppercase tracking-widest">Progress</span>
@@ -418,28 +504,31 @@ export default function LogSessionModal({
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
                             <input
                               type="number" step="2.5" min="20" max="300"
+                              disabled={isDone && mode !== "edit"}
                               value={item.set._kgStr}
                               onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                             />
                           </div>
                           <div>
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
                             <input
                               type="number" step="1" min="1" max="20"
+                              disabled={isDone && mode !== "edit"}
                               value={item.set._repsStr}
                               onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                             />
                           </div>
                           <div>
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">RPE</label>
                             <input
                               type="number" step="0.5" min="1" max="10"
+                              disabled={isDone && mode !== "edit"}
                               value={item.set._rpeStr}
                               onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
                               placeholder="—"
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                             />
                           </div>
                         </div>
@@ -447,15 +536,29 @@ export default function LogSessionModal({
 
                       <button
                         onClick={() => markSetDone(item.set.id)}
-                        disabled={isDone}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
-                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
                         {isDone ? "✓ Done" : "Done"}
                       </button>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
+                        <button
+                          onClick={() => deleteCurrentSet(item.globalIndex, item.set.id)}
+                          disabled={sets.length <= 1}
+                          className="text-xs text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors px-1"
+                        >
+                          Delete set
+                        </button>
+                        <button
+                          onClick={() => addSetAfterCurrent(item.globalIndex)}
+                          className="text-xs text-[#bbbbbb] hover:text-[#111111] transition-colors px-1"
+                        >
+                          + Add set after
+                        </button>
+                      </div>
                     </div>
                   )
                 })()}
@@ -495,32 +598,48 @@ export default function LogSessionModal({
                           <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
                           <input
                             type="number" step="2.5" min="0"
+                            disabled={isDone && mode !== "edit"}
                             value={currentExtraSet?.kgStr ?? "0"}
                             onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                           />
                         </div>
                         <div>
                           <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
                           <input
                             type="number" step="1" min="1"
+                            disabled={isDone && mode !== "edit"}
                             value={currentExtraSet?.repsStr ?? "10"}
                             onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e]"
+                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
                           />
                         </div>
                       </div>
                       <button
                         onClick={() => markSetDone(key)}
-                        disabled={isDone}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
-                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] cursor-default"
+                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
                         {isDone ? "✓ Done" : "Done"}
                       </button>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
+                        <button
+                          onClick={() => deleteExtraSet(item.muscle, item.exercise, item.setIndex)}
+                          disabled={(extraState[item.muscle]?.[item.exercise]?.length ?? 0) <= 1}
+                          className="text-xs text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors px-1"
+                        >
+                          Delete set
+                        </button>
+                        <button
+                          onClick={() => addExtraSetAfter(item.muscle, item.exercise, item.setIndex)}
+                          className="text-xs text-[#bbbbbb] hover:text-[#111111] transition-colors px-1"
+                        >
+                          + Add set after
+                        </button>
+                      </div>
                     </div>
                   )
                 })()}
@@ -549,13 +668,15 @@ export default function LogSessionModal({
             </div>
           )}
 
-          {/* Notes + Confirm — only after everything is done */}
-          {allDone && (
+          {/* Notes + Confirm — after everything is done (log), or always (edit) */}
+          {(allDone || mode === "edit") && (
             <div className="w-full space-y-4">
-              <div className="text-center mb-2">
-                <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
-                <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
-              </div>
+              {allDone && mode !== "edit" && (
+                <div className="text-center mb-2">
+                  <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
+                  <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
                   Session Notes
