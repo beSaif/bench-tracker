@@ -1,13 +1,21 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Session, MuscleGroup } from "@/lib/types"
-import { loadSessions, loadSessionsLocal, saveSessions, loadDraft, clearDraft } from "@/lib/storage"
+import { Session, TrainingBlock, MuscleGroup } from "@/lib/types"
+import { loadSessionsLocal, loadBlocksLocal, loadAll, saveAll, loadDraft, clearDraft } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
-import { prescribeNext, migrateSessionTypes } from "@/lib/prescription"
+import {
+  prescribeBlockSession,
+  createNextBlock,
+  deriveInitialAnchor,
+  migrateSessionTypes,
+  BLOCK_LENGTHS,
+  PHASE_LABEL,
+} from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM } from "@/lib/e1rm"
 import SessionCard from "@/components/SessionCard"
+import BlockHeader from "@/components/BlockHeader"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
@@ -39,8 +47,6 @@ function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
   if (!last) return MUSCLE_ROTATION[0]
 
   const lastMuscles = last.extraWorkouts!.map((w) => w.muscle)
-
-  // Find rotation slot with highest overlap to last session's muscles
   let bestIdx = 0
   let bestScore = -1
   MUSCLE_ROTATION.forEach((pair, i) => {
@@ -50,7 +56,6 @@ function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
       bestIdx = i
     }
   })
-
   return MUSCLE_ROTATION[(bestIdx + 1) % MUSCLE_ROTATION.length]
 }
 
@@ -83,8 +88,25 @@ function getLatestBW(sessions: Session[]): number | null {
   return withBW[0]?.bw ?? null
 }
 
-function createUpcomingSession(sessions: Session[]): Session {
-  const prescription = prescribeNext(sessions)
+function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
+  return blocks.find((b) => b.status === "active")
+}
+
+function createUpcomingSession(sessions: Session[], blocks: TrainingBlock[]): Session {
+  const activeBlock = getActiveBlock(blocks)
+
+  let prescription: ReturnType<typeof prescribeBlockSession>
+  let blockId: number | undefined
+
+  if (activeBlock) {
+    const sessionIndexInBlock = activeBlock.sessionIds.length
+    prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
+    blockId = activeBlock.id
+  } else {
+    // Fallback if no active block (shouldn't happen in normal flow)
+    prescription = prescribeBlockSession("accumulation", 0, 100)
+  }
+
   const warmups = generateWarmups(prescription.weight)
   const workingSets = Array.from({ length: prescription.sets }, (_, i) => ({
     id: `S${i + 1}`,
@@ -96,20 +118,36 @@ function createUpcomingSession(sessions: Session[]): Session {
     isWarmup: false,
   }))
   const maxId = sessions.length > 0 ? Math.max(...sessions.map((s) => s.id)) : 0
+
+  const sessionIndex = activeBlock ? activeBlock.sessionIds.length : 0
+  const phase = activeBlock?.phase ?? "accumulation"
+  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`
+
   return {
     id: maxId + 1,
     date: null,
     type: prescription.sessionType,
     bw: null,
     confirmed: false,
-    coachNote: `Prescribed [${prescription.sessionType}]: ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`,
+    coachNote,
     sets: [...warmups, ...workingSets],
     selectedMuscleGroups: suggestNextMuscles(sessions),
+    blockId,
   }
 }
 
-// If the upcoming session was saved before auto-suggest existed, fill it in on load.
-// Only fills when selectedMuscleGroups is undefined — respects intentional empty [] selections.
+function initializeFirstBlock(confirmedSessions: Session[]): TrainingBlock {
+  return {
+    id: 1,
+    phase: "accumulation",
+    status: "active",
+    sessionIds: [],
+    anchorWeight: deriveInitialAnchor(confirmedSessions),
+    startDate: null,
+    endDate: null,
+  }
+}
+
 function backfillMuscles(sessions: Session[]): Session[] {
   const upcoming = sessions.find((s) => !s.confirmed)
   if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
@@ -120,12 +158,22 @@ function backfillMuscles(sessions: Session[]): Session[] {
   )
 }
 
+function sortSessions(sessions: Session[]): Session[] {
+  return [...sessions].sort((a, b) => {
+    if (!a.confirmed) return -1
+    if (!b.confirmed) return 1
+    return new Date(b.date!).getTime() - new Date(a.date!).getTime()
+  })
+}
+
 export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
+  const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
   const [activeDraft, setActiveDraft] = useState<SessionDraft | null>(null)
   const [draftPrompt, setDraftPrompt] = useState<{ session: Session; draft: SessionDraft } | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [archiveOpen, setArchiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -143,33 +191,48 @@ export default function Page() {
   }
 
   useEffect(() => {
-    // Show localStorage data immediately, then sync from KV
-    const local = loadSessionsLocal()
-    if (local.length > 0) {
-      setSessions(backfillMuscles(local))
-    }
+    // Show localStorage data immediately
+    const localSessions = loadSessionsLocal()
+    const localBlocks = loadBlocksLocal()
+    if (localSessions.length > 0) setSessions(backfillMuscles(localSessions))
+    if (localBlocks.length > 0) setBlocks(localBlocks)
     setMounted(true)
 
-    loadSessions().then((data) => {
-      const patched = backfillMuscles(data)
+    loadAll().then(({ sessions: data, blocks: loadedBlocks }) => {
+      let finalSessions = backfillMuscles(data)
 
-      // One-time migration: re-assign types to historical "Push" sessions
-      const migrated = migrateSessionTypes(patched)
-      if (migrated !== null) {
-        const newUpcoming = createUpcomingSession(migrated)
-        const final = [...migrated, newUpcoming].sort((a, b) => {
-          if (!a.confirmed) return -1
-          if (!b.confirmed) return 1
-          return new Date(b.date!).getTime() - new Date(a.date!).getTime()
-        })
-        saveSessions(final)
-        setSessions(final)
+      // One-time migration for historical "Push" sessions
+      const migrated = migrateSessionTypes(finalSessions)
+      if (migrated !== null) finalSessions = migrated
+
+      let finalBlocks = loadedBlocks
+
+      // First-time block setup: no blocks exist yet
+      if (finalBlocks.length === 0) {
+        const confirmed = finalSessions.filter((s) => s.confirmed)
+        finalBlocks = [initializeFirstBlock(confirmed)]
+
+        // Replace any old upcoming session with a block-aware one
+        const upcoming = createUpcomingSession(confirmed, finalBlocks)
+        finalSessions = sortSessions([...confirmed, upcoming])
+
+        saveAll(finalSessions, finalBlocks)
+        setSessions(finalSessions)
+        setBlocks(finalBlocks)
         return
       }
 
-      setSessions(patched)
-      // Persist if we added a suggestion
-      if (patched !== data) saveSessions(patched)
+      // Normal load: ensure an upcoming session exists
+      const hasUpcoming = finalSessions.some((s) => !s.confirmed)
+      if (!hasUpcoming) {
+        const confirmed = finalSessions.filter((s) => s.confirmed)
+        const upcoming = createUpcomingSession(confirmed, finalBlocks)
+        finalSessions = sortSessions([...confirmed, upcoming])
+        saveAll(finalSessions, finalBlocks)
+      }
+
+      setSessions(finalSessions)
+      setBlocks(finalBlocks)
     })
   }, [])
 
@@ -189,20 +252,51 @@ export default function Page() {
   }
 
   function handleConfirmSession(updatedSession: Session) {
-    setSessions((prev) => {
-      const updated = prev.map((s) =>
-        s.id === updatedSession.id ? updatedSession : s
-      )
-      const confirmed = updated.filter((s) => s.confirmed)
-      const newUpcoming = createUpcomingSession(confirmed)
-      const final = [...confirmed, newUpcoming].sort((a, b) => {
-        if (!a.confirmed) return -1
-        if (!b.confirmed) return 1
-        return new Date(b.date!).getTime() - new Date(a.date!).getTime()
-      })
-      saveSessions(final)
-      return final
-    })
+    const currentSessions = sessions
+    const currentBlocks = blocks
+
+    // Update sessions array with the confirmed session
+    const updatedSessions = currentSessions.map((s) =>
+      s.id === updatedSession.id ? { ...updatedSession, blockId: updatedSession.blockId } : s
+    )
+    const confirmedSessions = updatedSessions.filter((s) => s.confirmed)
+
+    // Find active block and add this session to it
+    const activeBlock = getActiveBlock(currentBlocks)
+    let finalBlocks = currentBlocks
+
+    if (activeBlock) {
+      const updatedBlockSessionIds = [...activeBlock.sessionIds, updatedSession.id]
+      const isBlockComplete = updatedBlockSessionIds.length >= BLOCK_LENGTHS[activeBlock.phase]
+
+      if (isBlockComplete) {
+        // Complete this block and create the next one
+        const completedBlock: TrainingBlock = {
+          ...activeBlock,
+          sessionIds: updatedBlockSessionIds,
+          status: "completed",
+          endDate: updatedSession.date ?? null,
+        }
+        const maxBlockId = Math.max(...currentBlocks.map((b) => b.id))
+        const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
+        finalBlocks = currentBlocks
+          .map((b) => (b.id === activeBlock.id ? completedBlock : b))
+          .concat(newBlock)
+      } else {
+        // Update the block's session list
+        finalBlocks = currentBlocks.map((b) =>
+          b.id === activeBlock.id ? { ...b, sessionIds: updatedBlockSessionIds } : b
+        )
+      }
+    }
+
+    // Create the next upcoming session
+    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks)
+    const final = sortSessions([...confirmedSessions, newUpcoming])
+
+    setSessions(final)
+    setBlocks(finalBlocks)
+    saveAll(final, finalBlocks)
     setLoggingSession(null)
     setActiveDraft(null)
   }
@@ -221,7 +315,7 @@ export default function Page() {
       const updated = prev.map((s) =>
         s.id === updatedSession.id ? updatedSession : s
       )
-      saveSessions(updated)
+      saveAll(updated, blocks)
       return updated
     })
     setEditingSession(null)
@@ -232,24 +326,48 @@ export default function Page() {
       const updated = prev.map((s) =>
         s.id === session.id ? { ...s, selectedMuscleGroups: groups } : s
       )
-      saveSessions(updated)
+      saveAll(updated, blocks)
       return updated
     })
   }
 
   function handleUnlogSession(session: Session) {
     if (!window.confirm(`Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`)) return
-    setSessions((prev) => {
-      const remaining = prev.filter((s) => s.confirmed && s.id !== session.id)
-      const newUpcoming = createUpcomingSession(remaining)
-      const final = [...remaining, newUpcoming].sort((a, b) => {
-        if (!a.confirmed) return -1
-        if (!b.confirmed) return 1
-        return new Date(b.date!).getTime() - new Date(a.date!).getTime()
+
+    const remaining = sessions.filter((s) => s.confirmed && s.id !== session.id)
+
+    // Update blocks: remove session from its block, revert block if it was completed
+    const sessionBlockId = session.blockId
+    let newBlocks = blocks
+      .filter((b) => {
+        // Remove any blocks created after the affected block
+        if (sessionBlockId !== undefined && b.id > sessionBlockId) return false
+        return true
       })
-      saveSessions(final)
-      return final
-    })
+      .map((b) => {
+        if (b.id !== sessionBlockId) return b
+        return {
+          ...b,
+          sessionIds: b.sessionIds.filter((id) => id !== session.id),
+          status: "active" as const,
+          endDate: null,
+        }
+      })
+
+    // If no active block remains, the last block becomes active
+    if (!getActiveBlock(newBlocks) && newBlocks.length > 0) {
+      const lastBlock = newBlocks[newBlocks.length - 1]
+      newBlocks = newBlocks.map((b) =>
+        b.id === lastBlock.id ? { ...b, status: "active" as const } : b
+      )
+    }
+
+    const newUpcoming = createUpcomingSession(remaining, newBlocks)
+    const final = sortSessions([...remaining, newUpcoming])
+
+    setSessions(final)
+    setBlocks(newBlocks)
+    saveAll(final, newBlocks)
   }
 
   if (!mounted) {
@@ -268,6 +386,15 @@ export default function Page() {
   const confirmedSorted = [...confirmed].sort(
     (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
   )
+
+  const activeBlock = getActiveBlock(blocks)
+  const activeBlockSessionIds = new Set(activeBlock?.sessionIds ?? [])
+
+  // Sessions confirmed as part of the active block
+  const activeBlockSessions = confirmedSorted.filter((s) => activeBlockSessionIds.has(s.id))
+
+  // Sessions outside the active block (archive + completed blocks)
+  const archiveSessions = confirmedSorted.filter((s) => !activeBlockSessionIds.has(s.id))
 
   const latestE1RM = getLatestE1RM(sessions)
   const bestWeight = getBestWeight(sessions)
@@ -302,8 +429,11 @@ export default function Page() {
           bw={latestBW}
         />
 
-        {/* Session Cards — upcoming first, then confirmed reverse-chron */}
-        <div>
+        {/* Active block + sessions */}
+        <div className="mb-4">
+          {activeBlock && (
+            <BlockHeader block={activeBlock} confirmedCount={activeBlockSessions.length} />
+          )}
           {upcoming && (
             <SessionCard
               session={upcoming}
@@ -311,7 +441,7 @@ export default function Page() {
               onUpdateMuscleGroups={handleUpdateMuscleGroups}
             />
           )}
-          {confirmedSorted.map((s) => (
+          {activeBlockSessions.map((s) => (
             <SessionCard
               key={s.id}
               session={s}
@@ -320,6 +450,33 @@ export default function Page() {
             />
           ))}
         </div>
+
+        {/* Archive / history */}
+        {archiveSessions.length > 0 && (
+          <div>
+            <button
+              onClick={() => setArchiveOpen((v) => !v)}
+              className="flex items-center gap-2 text-xs font-semibold text-[#777777] mb-3 hover:text-[#444444] transition-colors"
+            >
+              <span
+                className="inline-block transition-transform duration-200"
+                style={{ transform: archiveOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+              >
+                ›
+              </span>
+              {archiveOpen ? "Hide" : "Show"} history ({archiveSessions.length})
+            </button>
+            {archiveOpen &&
+              archiveSessions.map((s) => (
+                <SessionCard
+                  key={s.id}
+                  session={s}
+                  onEdit={handleEditSession}
+                  onUnlog={handleUnlogSession}
+                />
+              ))}
+          </div>
+        )}
       </main>
 
       {/* Log Session Modal */}
