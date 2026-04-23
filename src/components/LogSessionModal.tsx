@@ -188,8 +188,10 @@ export default function LogSessionModal({
       setRestSeconds(0)
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
-      setRestEndTime(Date.now() + REST_DURATION * 1000)
-      setRestSeconds(REST_DURATION)
+      if (mode !== "edit") {
+        setRestEndTime(Date.now() + REST_DURATION * 1000)
+        setRestSeconds(REST_DURATION)
+      }
     }
   }
 
@@ -387,7 +389,7 @@ export default function LogSessionModal({
     return (
       <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
-          Rest
+          Rest · {completedCount} / {carouselItems.length}
         </p>
         <p className="text-[96px] font-bold tabular-nums leading-none text-white">
           {timerDisplay}
@@ -429,7 +431,7 @@ export default function LogSessionModal({
             </button>
           </div>
 
-          {carouselItems.length > 0 && (
+          {mode === "log" && carouselItems.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] text-[#aaaaaa] uppercase tracking-widest">Progress</span>
@@ -502,7 +504,7 @@ export default function LogSessionModal({
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
                             <input
                               type="number" step="2.5" min="20" max="300"
-                              disabled={isDone}
+                              disabled={isDone && mode !== "edit"}
                               value={item.set._kgStr}
                               onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
                               className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
@@ -512,7 +514,7 @@ export default function LogSessionModal({
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
                             <input
                               type="number" step="1" min="1" max="20"
-                              disabled={isDone}
+                              disabled={isDone && mode !== "edit"}
                               value={item.set._repsStr}
                               onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
                               className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
@@ -522,7 +524,7 @@ export default function LogSessionModal({
                             <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">RPE</label>
                             <input
                               type="number" step="0.5" min="1" max="10"
-                              disabled={isDone}
+                              disabled={isDone && mode !== "edit"}
                               value={item.set._rpeStr}
                               onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
                               placeholder="—"
@@ -596,7 +598,7 @@ export default function LogSessionModal({
                           <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
                           <input
                             type="number" step="2.5" min="0"
-                            disabled={isDone}
+                            disabled={isDone && mode !== "edit"}
                             value={currentExtraSet?.kgStr ?? "0"}
                             onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", e.target.value)}
                             className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
@@ -606,7 +608,7 @@ export default function LogSessionModal({
                           <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
                           <input
                             type="number" step="1" min="1"
-                            disabled={isDone}
+                            disabled={isDone && mode !== "edit"}
                             value={currentExtraSet?.repsStr ?? "10"}
                             onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", e.target.value)}
                             className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
@@ -666,13 +668,15 @@ export default function LogSessionModal({
             </div>
           )}
 
-          {/* Notes + Confirm — only after everything is done */}
-          {allDone && (
+          {/* Notes + Confirm — after everything is done (log), or always (edit) */}
+          {(allDone || mode === "edit") && (
             <div className="w-full space-y-4">
-              <div className="text-center mb-2">
-                <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
-                <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
-              </div>
+              {allDone && mode !== "edit" && (
+                <div className="text-center mb-2">
+                  <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
+                  <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
                   Session Notes
