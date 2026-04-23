@@ -33,9 +33,10 @@ const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string
 interface BlockHeaderProps {
   block: TrainingBlock
   confirmedCount: number
+  onEditAnchor?: () => void
 }
 
-export default function BlockHeader({ block, confirmedCount }: BlockHeaderProps) {
+export default function BlockHeader({ block, confirmedCount, onEditAnchor }: BlockHeaderProps) {
   const style = PHASE_STYLE[block.phase]
   const total = BLOCK_LENGTHS[block.phase]
 
@@ -47,7 +48,12 @@ export default function BlockHeader({ block, confirmedCount }: BlockHeaderProps)
           <span className={`text-sm font-semibold ${style.label}`}>
             {PHASE_LABEL[block.phase]}
           </span>
-          <span className={`text-xs ${style.meta}`}>· {block.anchorWeight}kg anchor</span>
+          <button
+            onClick={onEditAnchor}
+            className={`text-xs ${style.meta} hover:underline`}
+          >
+            · {block.anchorWeight}kg anchor
+          </button>
         </div>
         <span className={`text-xs font-semibold ${style.label} opacity-60`}>
           {confirmedCount}/{total}

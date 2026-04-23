@@ -169,7 +169,7 @@ export default function Page() {
   const [activeDraft, setActiveDraft] = useState<SessionDraft | null>(null)
   const [draftPrompt, setDraftPrompt] = useState<{ session: Session; draft: SessionDraft } | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
-  const [anchorPrompt, setAnchorPrompt] = useState<{ confirmedSessions: Session[] } | null>(null)
+  const [anchorPrompt, setAnchorPrompt] = useState(false)
   const [anchorInput, setAnchorInput] = useState("")
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -208,10 +208,9 @@ export default function Page() {
       // First-time block setup: no blocks exist yet — prompt user for anchor
       if (finalBlocks.length === 0) {
         const confirmed = finalSessions.filter((s) => s.confirmed)
-        const derived = deriveInitialAnchor(confirmed)
-        setSessions(confirmed) // show confirmed-only while prompt is open
-        setAnchorInput(String(derived))
-        setAnchorPrompt({ confirmedSessions: confirmed })
+        setSessions(confirmed)
+        setAnchorInput(String(deriveInitialAnchor(confirmed)))
+        setAnchorPrompt(true)
         return
       }
 
@@ -244,27 +243,44 @@ export default function Page() {
     }
   }
 
+  function handleEditAnchor() {
+    const active = getActiveBlock(blocks)
+    setAnchorInput(active ? String(active.anchorWeight) : "")
+    setAnchorPrompt(true)
+  }
+
   function handleConfirmAnchor() {
-    if (!anchorPrompt) return
     const parsed = parseFloat(anchorInput)
     if (isNaN(parsed) || parsed <= 0) return
     const anchor = roundToPlate(parsed)
-    const firstBlock: TrainingBlock = {
-      id: 1,
-      phase: "accumulation",
-      status: "active",
-      sessionIds: [],
-      anchorWeight: anchor,
-      startDate: null,
-      endDate: null,
+    const confirmed = sessions.filter((s) => s.confirmed)
+    const activeBlock = getActiveBlock(blocks)
+
+    let finalBlocks: TrainingBlock[]
+    if (activeBlock) {
+      // Edit existing block's anchor
+      finalBlocks = blocks.map((b) =>
+        b.id === activeBlock.id ? { ...b, anchorWeight: anchor } : b
+      )
+    } else {
+      // First-time init
+      finalBlocks = [{
+        id: 1,
+        phase: "accumulation",
+        status: "active",
+        sessionIds: [],
+        anchorWeight: anchor,
+        startDate: null,
+        endDate: null,
+      }]
     }
-    const finalBlocks = [firstBlock]
-    const upcoming = createUpcomingSession(anchorPrompt.confirmedSessions, finalBlocks)
-    const finalSessions = sortSessions([...anchorPrompt.confirmedSessions, upcoming])
+
+    const upcoming = createUpcomingSession(confirmed, finalBlocks)
+    const finalSessions = sortSessions([...confirmed, upcoming])
     saveAll(finalSessions, finalBlocks)
     setSessions(finalSessions)
     setBlocks(finalBlocks)
-    setAnchorPrompt(null)
+    setAnchorPrompt(false)
   }
 
   function handleConfirmSession(updatedSession: Session) {
@@ -460,7 +476,11 @@ export default function Page() {
         {/* Active block + sessions */}
         <div className="mb-4">
           {activeBlock && (
-            <BlockHeader block={activeBlock} confirmedCount={activeBlockSessions.length} />
+            <BlockHeader
+              block={activeBlock}
+              confirmedCount={activeBlockSessions.length}
+              onEditAnchor={handleEditAnchor}
+            />
           )}
           {upcoming && (
             <SessionCard
@@ -563,7 +583,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* Anchor weight setup (first-time only) */}
+      {/* Anchor weight setup / edit */}
       {anchorPrompt && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
           <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10">
