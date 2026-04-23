@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Session, MuscleGroup } from "@/lib/types"
-import { loadSessions, loadSessionsLocal, saveSessions } from "@/lib/storage"
+import { loadSessions, loadSessionsLocal, saveSessions, loadDraft, clearDraft } from "@/lib/storage"
+import type { SessionDraft } from "@/lib/types"
 import { prescribeNext, migrateSessionTypes } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM } from "@/lib/e1rm"
@@ -12,6 +13,17 @@ import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 
 const TARGET = 140
+const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+function relativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
 
 const MUSCLE_ROTATION: MuscleGroup[][] = [
   ["back", "triceps"],
@@ -111,6 +123,8 @@ function backfillMuscles(sessions: Session[]): Session[] {
 export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
+  const [activeDraft, setActiveDraft] = useState<SessionDraft | null>(null)
+  const [draftPrompt, setDraftPrompt] = useState<{ session: Session; draft: SessionDraft } | null>(null)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -160,7 +174,18 @@ export default function Page() {
   }, [])
 
   function handleStartLogging(session: Session) {
-    setLoggingSession(JSON.parse(JSON.stringify(session)))
+    const draft = loadDraft()
+    const isLive =
+      draft !== null &&
+      draft.sessionId === session.id &&
+      draft.completedSets.length > 0 &&
+      Date.now() - new Date(draft.savedAt).getTime() < DRAFT_MAX_AGE_MS
+
+    if (isLive) {
+      setDraftPrompt({ session: JSON.parse(JSON.stringify(session)), draft })
+    } else {
+      setLoggingSession(JSON.parse(JSON.stringify(session)))
+    }
   }
 
   function handleConfirmSession(updatedSession: Session) {
@@ -179,10 +204,12 @@ export default function Page() {
       return final
     })
     setLoggingSession(null)
+    setActiveDraft(null)
   }
 
   function handleCloseModal() {
     setLoggingSession(null)
+    setActiveDraft(null)
   }
 
   function handleEditSession(session: Session) {
@@ -302,6 +329,7 @@ export default function Page() {
           onConfirm={handleConfirmSession}
           onClose={handleCloseModal}
           previousSessions={confirmedSorted}
+          initialDraft={activeDraft ?? undefined}
         />
       )}
 
@@ -314,6 +342,38 @@ export default function Page() {
           onClose={() => setEditingSession(null)}
           previousSessions={confirmedSorted}
         />
+      )}
+
+      {/* Draft resume prompt */}
+      {draftPrompt && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10">
+            <p className="text-base font-semibold text-[#111111] mb-1">Resume session?</p>
+            <p className="text-sm text-[#777777] mb-6">
+              Draft saved {relativeTime(draftPrompt.draft.savedAt)} · {draftPrompt.draft.completedSets.length} set{draftPrompt.draft.completedSets.length !== 1 ? "s" : ""} done
+            </p>
+            <button
+              onClick={() => {
+                setActiveDraft(draftPrompt.draft)
+                setLoggingSession(draftPrompt.session)
+                setDraftPrompt(null)
+              }}
+              className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 mb-3 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors"
+            >
+              Continue
+            </button>
+            <button
+              onClick={() => {
+                clearDraft()
+                setLoggingSession(draftPrompt.session)
+                setDraftPrompt(null)
+              }}
+              className="w-full border border-[#e8e8e8] text-[#555555] text-sm font-semibold rounded-xl py-3.5 hover:bg-[#f5f5f5] active:bg-[#eeeeee] transition-colors"
+            >
+              Start fresh
+            </button>
+          </div>
+        </div>
       )}
     </>
   )

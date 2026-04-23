@@ -27,6 +27,28 @@ export const TARGET_E1RM = 140
 export const TARGET_BW = 60
 export const START_DATE = "2026-03-21"
 export const STORAGE_KEY = "bench-tracker-sessions"
+export const DRAFT_KEY = "bench-tracker-draft"
+
+export interface SessionDraft {
+  sessionId: number
+  savedAt: string
+  sets: Array<{
+    id: string
+    kg: number
+    reps: number
+    rpe: number | null
+    e1rm: number | null
+    note: string
+    isWarmup: boolean
+    _kgStr: string
+    _repsStr: string
+    _rpeStr: string
+  }>
+  completedSets: string[]
+  extraState: Record<string, Record<string, Array<{ kgStr: string; repsStr: string }>>>
+  coachNote: string
+  currentSetIndex: number
+}
 
 export type MuscleGroup = "back" | "triceps" | "chest" | "biceps" | "shoulders" | "legs"
 

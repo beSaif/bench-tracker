@@ -1,4 +1,4 @@
-import { Session, STORAGE_KEY } from "./types"
+import { Session, STORAGE_KEY, SessionDraft, DRAFT_KEY } from "./types"
 
 /** Read from localStorage (fast, synchronous cache) */
 export function loadSessionsLocal(): Session[] {
@@ -33,6 +33,24 @@ export async function loadSessions(): Promise<Session[]> {
   }
 
   return loadSessionsLocal()
+}
+
+export function saveDraft(draft: SessionDraft): void {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+}
+
+export function loadDraft(): SessionDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as SessionDraft
+  } catch {
+    return null
+  }
+}
+
+export function clearDraft(): void {
+  localStorage.removeItem(DRAFT_KEY)
 }
 
 /** Save sessions to both localStorage (sync) and KV (async, best-effort) */
