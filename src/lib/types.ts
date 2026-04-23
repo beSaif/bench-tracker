@@ -20,6 +20,20 @@ export interface Session {
   coachNote: string
   selectedMuscleGroups?: MuscleGroup[]
   extraWorkouts?: ExtraWorkout[]
+  blockId?: number
+}
+
+export type BlockPhase = "accumulation" | "transmutation" | "realization" | "deload"
+export type BlockStatus = "active" | "completed"
+
+export interface TrainingBlock {
+  id: number
+  phase: BlockPhase
+  status: BlockStatus
+  sessionIds: number[]
+  anchorWeight: number
+  startDate: string | null
+  endDate: string | null
 }
 
 export const ATHLETE_NAME = "Saif"
@@ -28,6 +42,7 @@ export const TARGET_BW = 60
 export const START_DATE = "2026-03-21"
 export const STORAGE_KEY = "bench-tracker-sessions"
 export const DRAFT_KEY = "bench-tracker-draft"
+export const BLOCKS_KEY = "bench-tracker-blocks"
 
 export interface SessionDraft {
   sessionId: number

@@ -2,24 +2,35 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { loadSessionsLocal, saveSessions } from "@/lib/storage"
-import { Session } from "@/lib/types"
+import { loadSessionsLocal, loadBlocksLocal, saveAll } from "@/lib/storage"
+import { Session, TrainingBlock } from "@/lib/types"
 
 type KvStatus = "loading" | "ok" | "error"
 type Copied = "local" | "kv" | null
 
+interface StoredData {
+  sessions: Session[]
+  blocks: TrainingBlock[]
+}
+
 export default function DevPage() {
-  const [localData, setLocalData] = useState<Session[]>([])
-  const [kvData, setKvData] = useState<Session[] | null>(null)
+  const [localData, setLocalData] = useState<StoredData>({ sessions: [], blocks: [] })
+  const [kvData, setKvData] = useState<StoredData | null>(null)
   const [kvStatus, setKvStatus] = useState<KvStatus>("loading")
   const [copied, setCopied] = useState<Copied>(null)
 
   useEffect(() => {
-    setLocalData(loadSessionsLocal())
+    setLocalData({ sessions: loadSessionsLocal(), blocks: loadBlocksLocal() })
     fetch("/api/sessions")
       .then((r) => r.json())
       .then((data) => {
-        setKvData(Array.isArray(data) ? data : null)
+        if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.sessions)) {
+          setKvData(data as StoredData)
+        } else if (Array.isArray(data)) {
+          setKvData({ sessions: data, blocks: [] })
+        } else {
+          setKvData({ sessions: [], blocks: [] })
+        }
         setKvStatus("ok")
       })
       .catch(() => setKvStatus("error"))
@@ -34,20 +45,21 @@ export default function DevPage() {
   function clearLocal() {
     if (!confirm("Clear localStorage? This cannot be undone.")) return
     localStorage.removeItem("bench-tracker-sessions")
-    setLocalData([])
+    localStorage.removeItem("bench-tracker-blocks")
+    setLocalData({ sessions: [], blocks: [] })
   }
 
   function pullFromKV() {
     if (!kvData) return
-    saveSessions(kvData)
+    saveAll(kvData.sessions, kvData.blocks)
     setLocalData(kvData)
   }
 
   function pushToKV() {
-    saveSessions(localData)
+    saveAll(localData.sessions, localData.blocks)
   }
 
-  const kvCount = kvData?.length ?? 0
+  const kvCount = kvData?.sessions.length ?? 0
 
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 py-6">
@@ -61,7 +73,7 @@ export default function DevPage() {
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-[#111111]">
             localStorage{" "}
-            <span className="text-[#777777] font-normal">({localData.length} sessions)</span>
+            <span className="text-[#777777] font-normal">({localData.sessions.length} sessions · {localData.blocks.length} blocks)</span>
           </h2>
           <div className="flex items-center gap-3">
             <button
@@ -76,7 +88,7 @@ export default function DevPage() {
           </div>
         </div>
         <pre className="bg-[#f5f5f5] rounded-xl p-3 text-[11px] leading-relaxed text-[#333333] overflow-x-auto max-h-52 overflow-y-auto">
-          {localData.length > 0 ? JSON.stringify(localData, null, 2) : "[]"}
+          {JSON.stringify(localData, null, 2)}
         </pre>
       </section>
 
@@ -102,7 +114,7 @@ export default function DevPage() {
         </div>
         {kvStatus === "ok" && (
           <pre className="bg-[#f5f5f5] rounded-xl p-3 text-[11px] leading-relaxed text-[#333333] overflow-x-auto max-h-52 overflow-y-auto">
-            {kvCount > 0 ? JSON.stringify(kvData, null, 2) : "[]"}
+            {kvCount > 0 ? JSON.stringify(kvData, null, 2) : "{}"}
           </pre>
         )}
         {kvStatus === "loading" && (
@@ -126,7 +138,7 @@ export default function DevPage() {
           </button>
           <button
             onClick={pushToKV}
-            disabled={localData.length === 0}
+            disabled={localData.sessions.length === 0}
             className="w-full py-3 rounded-xl bg-[#7a1f2e] text-sm text-white disabled:opacity-40"
           >
             Push localStorage → KV

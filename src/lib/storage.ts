@@ -1,6 +1,7 @@
-import { Session, STORAGE_KEY, SessionDraft, DRAFT_KEY } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY } from "./types"
 
-/** Read from localStorage (fast, synchronous cache) */
+type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
+
 export function loadSessionsLocal(): Session[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -12,27 +13,61 @@ export function loadSessionsLocal(): Session[] {
   }
 }
 
-/** Write to localStorage cache */
+export function loadBlocksLocal(): TrainingBlock[] {
+  try {
+    const raw = localStorage.getItem(BLOCKS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as TrainingBlock[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function saveLocal(sessions: Session[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
 
-/** Load sessions from KV, fall back to localStorage */
-export async function loadSessions(): Promise<Session[]> {
+function saveBlocksLocal(blocks: TrainingBlock[]): void {
+  localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks))
+}
+
+/** Load sessions + blocks from KV, falling back to localStorage. */
+export async function loadAll(): Promise<StoredData> {
   try {
     const res = await fetch("/api/sessions")
     if (res.ok) {
       const data = await res.json()
+      if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.sessions)) {
+        saveLocal(data.sessions)
+        saveBlocksLocal(data.blocks ?? [])
+        return { sessions: data.sessions, blocks: data.blocks ?? [] }
+      }
+      // Legacy format: plain array of sessions
       if (Array.isArray(data) && data.length > 0) {
         saveLocal(data)
-        return data
+        return { sessions: data, blocks: [] }
       }
     }
   } catch {
     // Network/KV unavailable — fall through to localStorage
   }
 
-  return loadSessionsLocal()
+  return {
+    sessions: loadSessionsLocal(),
+    blocks: loadBlocksLocal(),
+  }
+}
+
+/** Save sessions + blocks to localStorage (sync) and KV (async, best-effort). */
+export function saveAll(sessions: Session[], blocks: TrainingBlock[]): void {
+  saveLocal(sessions)
+  saveBlocksLocal(blocks)
+  fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessions, blocks }),
+  }).catch(() => {})
 }
 
 export function saveDraft(draft: SessionDraft): void {
@@ -51,14 +86,4 @@ export function loadDraft(): SessionDraft | null {
 
 export function clearDraft(): void {
   localStorage.removeItem(DRAFT_KEY)
-}
-
-/** Save sessions to both localStorage (sync) and KV (async, best-effort) */
-export function saveSessions(sessions: Session[]): void {
-  saveLocal(sessions)
-  fetch("/api/sessions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(sessions),
-  }).catch(() => {})
 }

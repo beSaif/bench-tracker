@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Session, BenchSet, MUSCLE_GROUP_LABEL } from "@/lib/types"
-import { loadSessions, loadSessionsLocal } from "@/lib/storage"
+import { loadAll, loadSessionsLocal } from "@/lib/storage"
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -56,8 +56,8 @@ export default function SessionDetailPage() {
     setSession(found)
     setMounted(true)
 
-    loadSessions().then((data) => {
-      const updated = data.find((s) => s.id === id) ?? null
+    loadAll().then(({ sessions }) => {
+      const updated = sessions.find((s) => s.id === id) ?? null
       setSession(updated)
     })
   }, [id])

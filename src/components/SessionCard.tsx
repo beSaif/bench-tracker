@@ -8,6 +8,7 @@ const ALL_MUSCLE_GROUPS: MuscleGroup[] = ["back", "triceps", "chest", "biceps", 
 
 interface SessionCardProps {
   session: Session
+  blockIndex?: number
   onStartLogging?: (session: Session) => void
   onEdit?: (session: Session) => void
   onUnlog?: (session: Session) => void
@@ -51,7 +52,7 @@ function BenchSummaryLine({ session }: { session: Session }) {
   )
 }
 
-export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, onUpdateMuscleGroups }: SessionCardProps) {
+export default function SessionCard({ session, blockIndex, onStartLogging, onEdit, onUnlog, onUpdateMuscleGroups }: SessionCardProps) {
   const isUpcoming = !session.confirmed
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -76,7 +77,7 @@ export default function SessionCard({ session, onStartLogging, onEdit, onUnlog, 
       {/* Header row */}
       <div className="flex items-center justify-between mb-1">
         <span className={`text-sm font-semibold ${headerColor}`}>
-          Session {String(session.id).padStart(2, "0")} · {session.type}
+          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
         </span>
         {isUpcoming ? (
           <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e] text-white rounded-full px-2 py-0.5">

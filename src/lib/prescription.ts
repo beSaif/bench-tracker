@@ -1,4 +1,4 @@
-import { Session, SessionType } from "./types"
+import { Session, TrainingBlock, BlockPhase, SessionType } from "./types"
 import { roundToPlate } from "./e1rm"
 
 interface Prescription {
@@ -8,14 +8,58 @@ interface Prescription {
   sessionType: SessionType
 }
 
-const BLOCK: SessionType[] = ["Volume", "Intensity", "Peak"]
-const MACRO_TOTAL = 13 // 4 blocks × 3 + 1 deload
+export const BLOCK_LENGTHS: Record<BlockPhase, number> = {
+  accumulation: 4,
+  transmutation: 4,
+  realization: 3,
+  deload: 1,
+}
 
-const SCHEMES: Record<SessionType, { pct: number; reps: number; sets: number }> = {
-  Volume:    { pct: 0.70, reps: 5, sets: 4 },
-  Intensity: { pct: 0.82, reps: 3, sets: 4 },
-  Peak:      { pct: 1.00, reps: 3, sets: 3 },
-  Deload:    { pct: 0.60, reps: 5, sets: 3 },
+export const PHASE_LABEL: Record<BlockPhase, string> = {
+  accumulation: "Accumulation",
+  transmutation: "Transmutation",
+  realization: "Realization",
+  deload: "Deload",
+}
+
+const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
+
+const ACCUMULATION_SCHEME = [
+  { pct: 0.675, reps: 8, sets: 4 },
+  { pct: 0.700, reps: 7, sets: 4 },
+  { pct: 0.725, reps: 6, sets: 4 },
+  { pct: 0.750, reps: 6, sets: 5 },
+]
+
+const TRANSMUTATION_SCHEME = [
+  { pct: 0.800, reps: 5, sets: 4 },
+  { pct: 0.825, reps: 4, sets: 4 },
+  { pct: 0.850, reps: 3, sets: 4 },
+  { pct: 0.875, reps: 3, sets: 4 },
+]
+
+const REALIZATION_SCHEME = [
+  { pct: 0.900, reps: 3, sets: 3 },
+  { pct: 0.950, reps: 2, sets: 2 },
+  { pct: 1.000, reps: 1, sets: 1 },
+]
+
+const DELOAD_SCHEME = [
+  { pct: 0.600, reps: 5, sets: 3 },
+]
+
+const PHASE_SCHEMES: Record<BlockPhase, Array<{ pct: number; reps: number; sets: number }>> = {
+  accumulation: ACCUMULATION_SCHEME,
+  transmutation: TRANSMUTATION_SCHEME,
+  realization: REALIZATION_SCHEME,
+  deload: DELOAD_SCHEME,
+}
+
+const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
+  accumulation: "Volume",
+  transmutation: "Intensity",
+  realization: "Peak",
+  deload: "Deload",
 }
 
 function getWorkingSets(session: Session) {
@@ -27,14 +71,99 @@ function getLastWorkingSet(session: Session) {
   return working.length > 0 ? working[working.length - 1] : null
 }
 
+export function nextBlockPhase(current: BlockPhase): BlockPhase {
+  const idx = BLOCK_PHASE_ORDER.indexOf(current)
+  return BLOCK_PHASE_ORDER[(idx + 1) % BLOCK_PHASE_ORDER.length]
+}
+
+export function prescribeBlockSession(
+  phase: BlockPhase,
+  sessionIndexInBlock: number,
+  anchorWeight: number
+): Prescription {
+  const scheme = PHASE_SCHEMES[phase]
+  const entry = scheme[Math.min(sessionIndexInBlock, scheme.length - 1)]
+  return {
+    weight: roundToPlate(anchorWeight * entry.pct),
+    reps: entry.reps,
+    sets: entry.sets,
+    sessionType: PHASE_SESSION_TYPE[phase],
+  }
+}
+
+/** After a realization block, determine the anchor for the next cycle. */
+export function deriveNextAnchor(completedRealizationBlock: TrainingBlock, sessions: Session[]): number {
+  const blockSessions = sessions.filter(
+    (s) => s.confirmed && completedRealizationBlock.sessionIds.includes(s.id)
+  )
+  const peakSessions = blockSessions.filter((s) => s.type === "Peak")
+  const lastPeak = peakSessions[peakSessions.length - 1]
+
+  if (!lastPeak) return completedRealizationBlock.anchorWeight
+
+  const lastPeakWeight = getWorkingSets(lastPeak)[0]?.kg ?? completedRealizationBlock.anchorWeight
+  const lastPeakRPE = getLastWorkingSet(lastPeak)?.rpe ?? null
+
+  return lastPeakRPE !== null && lastPeakRPE <= 7.5
+    ? lastPeakWeight + 2.5
+    : lastPeakWeight
+}
+
+/** Factory for the next block after a completed one. */
+export function createNextBlock(
+  completedBlock: TrainingBlock,
+  sessions: Session[],
+  newId: number
+): TrainingBlock {
+  const phase = nextBlockPhase(completedBlock.phase)
+  // Bump anchor only when finishing realization (before the deload between cycles)
+  const anchor =
+    completedBlock.phase === "realization"
+      ? deriveNextAnchor(completedBlock, sessions)
+      : completedBlock.anchorWeight
+
+  return {
+    id: newId,
+    phase,
+    status: "active",
+    sessionIds: [],
+    anchorWeight: anchor,
+    startDate: null,
+    endDate: null,
+  }
+}
+
+/** Derive starting anchor weight from existing confirmed sessions (first-run only). */
+export function deriveInitialAnchor(confirmedSessions: Session[]): number {
+  if (confirmedSessions.length === 0) return 60
+
+  const sorted = [...confirmedSessions].sort((a, b) => {
+    if (!a.date) return 1
+    if (!b.date) return -1
+    return new Date(a.date).getTime() - new Date(b.date).getTime()
+  })
+
+  // Prefer last Peak session's first working set weight
+  const peaks = sorted.filter((s) => s.type === "Peak")
+  if (peaks.length > 0) {
+    const w = getWorkingSets(peaks[peaks.length - 1])[0]?.kg
+    if (w) return w
+  }
+
+  // Fallback: last confirmed session
+  return getWorkingSets(sorted[sorted.length - 1])[0]?.kg ?? 60
+}
+
 /**
  * One-time migration: assigns SessionType to historical "Push" sessions
- * by their chronological position in the cycle.
- * Returns the updated confirmed-only array, or null if no migration was needed.
+ * by their chronological position in the old 13-session macro cycle.
  */
 export function migrateSessionTypes(sessions: Session[]): Session[] | null {
   const needsMigration = sessions.some((s) => s.confirmed && (s.type as string) === "Push")
   if (!needsMigration) return null
+
+  const LEGACY_BLOCK: SessionType[] = ["Volume", "Intensity", "Peak"]
+  const LEGACY_MACRO_TOTAL = 13
 
   const allConfirmed = sessions
     .filter((s) => s.confirmed)
@@ -46,59 +175,9 @@ export function migrateSessionTypes(sessions: Session[]): Session[] | null {
 
   const typeMap = new Map<number, SessionType>()
   allConfirmed.forEach((s, i) => {
-    const pos = i % MACRO_TOTAL
-    typeMap.set(s.id, pos === 12 ? "Deload" : BLOCK[pos % 3])
+    const pos = i % LEGACY_MACRO_TOTAL
+    typeMap.set(s.id, pos === 12 ? "Deload" : LEGACY_BLOCK[pos % 3])
   })
 
   return allConfirmed.map((s) => ({ ...s, type: typeMap.get(s.id) ?? s.type }))
-}
-
-export function prescribeNext(sessions: Session[]): Prescription {
-  const confirmed = sessions
-    .filter((s) => s.confirmed)
-    .sort((a, b) => {
-      if (!a.date) return 1
-      if (!b.date) return -1
-      return new Date(a.date).getTime() - new Date(b.date).getTime()
-    })
-
-  // Determine next session type from cycle position
-  const pos = confirmed.length % MACRO_TOTAL
-  const nextType: SessionType = pos === 12 ? "Deload" : BLOCK[pos % 3]
-
-  // Find the Peak anchor weight
-  const peakSessions = confirmed.filter((s) => s.type === "Peak")
-  const lastPeak = peakSessions[peakSessions.length - 1]
-
-  let anchor: number
-  if (lastPeak) {
-    const lastPeakWeight = getWorkingSets(lastPeak)[0]?.kg ?? 60
-    const lastPeakRPE = getLastWorkingSet(lastPeak)?.rpe ?? null
-
-    if (nextType === "Peak") {
-      // Only bump anchor when prescribing the next Peak session
-      anchor = lastPeakRPE !== null && lastPeakRPE <= 7.5
-        ? lastPeakWeight + 2.5
-        : lastPeakWeight
-    } else {
-      anchor = lastPeakWeight
-    }
-  } else {
-    // Migration / first run: use last confirmed session weight as anchor,
-    // or default to 60kg
-    const lastWeight = confirmed.length > 0
-      ? getWorkingSets(confirmed[confirmed.length - 1])[0]?.kg ?? 60
-      : 60
-    anchor = lastWeight
-  }
-
-  const scheme = SCHEMES[nextType]
-  const weight = roundToPlate(anchor * scheme.pct)
-
-  return {
-    weight,
-    reps: scheme.reps,
-    sets: scheme.sets,
-    sessionType: nextType,
-  }
 }
