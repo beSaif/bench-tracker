@@ -11,6 +11,8 @@ import {
   MUSCLE_GROUP_EXERCISES,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
+import { saveDraft, clearDraft } from "@/lib/storage"
+import type { SessionDraft } from "@/lib/types"
 
 const REST_DURATION = 180 // seconds
 
@@ -20,6 +22,7 @@ interface LogSessionModalProps {
   onClose: () => void
   mode?: "log" | "edit"
   previousSessions?: Session[]
+  initialDraft?: SessionDraft
 }
 
 interface EditableSet extends BenchSet {
@@ -106,23 +109,45 @@ export default function LogSessionModal({
   onClose,
   mode = "log",
   previousSessions = [],
+  initialDraft,
 }: LogSessionModalProps) {
-  const [sets, setSets] = useState<EditableSet[]>(session.sets.map(toEditable))
-  const [coachNote, setCoachNote] = useState(session.coachNote)
-  const [completedSets, setCompletedSets] = useState<Set<string>>(new Set())
+  const [sets, setSets] = useState<EditableSet[]>(
+    () => initialDraft?.sets ?? session.sets.map(toEditable)
+  )
+  const [coachNote, setCoachNote] = useState(
+    initialDraft?.coachNote ?? session.coachNote
+  )
+  const [completedSets, setCompletedSets] = useState<Set<string>>(
+    () => new Set(initialDraft?.completedSets ?? [])
+  )
   const [restEndTime, setRestEndTime] = useState<number | null>(null)
   const [restSeconds, setRestSeconds] = useState(0)
   const restActive = restEndTime !== null
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
-    () => initExtraWorkoutState(session)
+    () => initialDraft?.extraState ?? initExtraWorkoutState(session)
   )
-  const [currentSetIndex, setCurrentSetIndex] = useState(0)
+  const [currentSetIndex, setCurrentSetIndex] = useState(
+    initialDraft?.currentSetIndex ?? 0
+  )
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
 
   useEffect(() => {
     document.body.style.overflow = "hidden"
     return () => { document.body.style.overflow = "" }
   }, [])
+
+  useEffect(() => {
+    if (mode === "edit") return
+    saveDraft({
+      sessionId: session.id,
+      savedAt: new Date().toISOString(),
+      sets,
+      completedSets: Array.from(completedSets),
+      extraState,
+      coachNote,
+      currentSetIndex,
+    })
+  }, [sets, completedSets, extraState, coachNote, currentSetIndex])
 
   const selectedGroups = session.selectedMuscleGroups ?? []
 
@@ -365,6 +390,7 @@ export default function LogSessionModal({
       sets: sets.map(({ _kgStr: _, _repsStr: __, _rpeStr: ___, ...rest }) => rest),
       extraWorkouts: extraWorkouts.length > 0 ? extraWorkouts : undefined,
     }
+    clearDraft()
     onConfirm(finalSession)
   }
 
