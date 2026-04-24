@@ -569,7 +569,7 @@ export default function LogSessionModal({
               {mode === "log" && !allDone && (
                 <button
                   onClick={() => setShowReorder(true)}
-                  className="text-[#aaaaaa] hover:text-[#111111] p-1.5 rounded transition-colors"
+                  className="w-8 h-8 flex items-center justify-center text-[#aaaaaa] hover:text-[#111111] rounded transition-colors"
                   aria-label="Reorder exercises"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -581,7 +581,7 @@ export default function LogSessionModal({
               )}
               <button
                 onClick={onClose}
-                className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
+                className="w-8 h-8 flex items-center justify-center text-[#777777] hover:text-[#111111] text-xl leading-none rounded transition-colors"
                 aria-label="Close"
               >
                 ×
