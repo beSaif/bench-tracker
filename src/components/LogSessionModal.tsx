@@ -350,16 +350,20 @@ export default function LogSessionModal({
     const id = notifIdRef.current
     if (!id) return
     notifIdRef.current = null
-    navigator.serviceWorker?.controller?.postMessage({ type: "CANCEL", id })
+    navigator.serviceWorker?.ready.then((reg) => {
+      reg.active?.postMessage({ type: "CANCEL", id })
+    })
   }
 
   function scheduleNotification(delay: number, body: string) {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return
-    const sw = navigator.serviceWorker?.controller
-    if (!sw) return
+    if (!navigator.serviceWorker) return
     const id = String(Date.now())
     notifIdRef.current = id
-    sw.postMessage({ type: "SCHEDULE", id, delay, title: "Rest done — go!", body, icon: "/apple-icon.png" })
+    navigator.serviceWorker.ready.then((reg) => {
+      if (notifIdRef.current !== id) return // cancelled before SW was ready
+      reg.active?.postMessage({ type: "SCHEDULE", id, delay, title: "Rest done — go!", body, icon: "/apple-icon.png" })
+    })
   }
 
   useEffect(() => {

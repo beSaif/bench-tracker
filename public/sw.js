@@ -1,5 +1,14 @@
 const pending = new Map()
 
+// Take control of the page immediately on first install — no reload required
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting())
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim())
+})
+
 self.addEventListener('message', (event) => {
   const data = event.data ?? {}
   const { type, id, delay, title, body, icon } = data
