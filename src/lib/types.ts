@@ -63,6 +63,10 @@ export interface SessionDraft {
   extraState: Record<string, Record<string, Array<{ kgStr: string; repsStr: string }>>>
   coachNote: string
   currentSetIndex: number
+  exerciseOrder?: Array<
+    | { kind: "bench" }
+    | { kind: "extra"; muscle: MuscleGroup; exercise: string }
+  >
 }
 
 export type MuscleGroup = "back" | "triceps" | "chest" | "biceps" | "shoulders" | "legs"
