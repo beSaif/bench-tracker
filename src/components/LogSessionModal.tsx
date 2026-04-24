@@ -13,6 +13,21 @@ import {
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 const REST_DURATION = 180 // seconds
 
@@ -41,6 +56,99 @@ type ExtraWorkoutState = Record<string, Record<string, EditableExtraSet[]>>
 type CarouselItem =
   | { type: "bench"; set: EditableSet; globalIndex: number }
   | { type: "extra"; muscle: MuscleGroup; exercise: string; setIndex: number }
+
+type ExerciseGroup =
+  | { kind: "bench" }
+  | { kind: "extra"; muscle: MuscleGroup; exercise: string }
+
+function groupId(g: ExerciseGroup): string {
+  return g.kind === "bench" ? "bench" : `extra-${g.muscle}-${g.exercise}`
+}
+
+function buildDefaultOrder(session: Session): ExerciseGroup[] {
+  const order: ExerciseGroup[] = [{ kind: "bench" }]
+  for (const muscle of session.selectedMuscleGroups ?? []) {
+    for (const exercise of MUSCLE_GROUP_EXERCISES[muscle]) {
+      order.push({ kind: "extra", muscle, exercise })
+    }
+  }
+  return order
+}
+
+function buildCarouselItems(
+  order: ExerciseGroup[],
+  sets: EditableSet[],
+  extraState: ExtraWorkoutState
+): CarouselItem[] {
+  return order.flatMap((group): CarouselItem[] => {
+    if (group.kind === "bench") {
+      return sets.map((set, i) => ({ type: "bench" as const, set, globalIndex: i }))
+    }
+    return (extraState[group.muscle]?.[group.exercise] ?? []).map((_, setIndex) => ({
+      type: "extra" as const,
+      muscle: group.muscle,
+      exercise: group.exercise,
+      setIndex,
+    }))
+  })
+}
+
+function SortableGroupRow({
+  id,
+  group,
+  sets,
+  extraState,
+}: {
+  id: string
+  group: ExerciseGroup
+  sets: EditableSet[]
+  extraState: ExtraWorkoutState
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  const label =
+    group.kind === "bench"
+      ? "Bench Press"
+      : `${MUSCLE_GROUP_LABEL[group.muscle]} · ${group.exercise}`
+  const count =
+    group.kind === "bench"
+      ? sets.length
+      : (extraState[group.muscle]?.[group.exercise]?.length ?? 0)
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 py-3.5 px-1 border-b border-[#f0f0f0] select-none ${
+        isDragging ? "bg-[#f9f9f9] shadow-sm rounded-lg z-10 relative" : ""
+      }`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="text-[#cccccc] touch-none cursor-grab active:cursor-grabbing p-1 shrink-0"
+        aria-label="Drag to reorder"
+      >
+        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+          <circle cx="3" cy="3" r="1.5" />
+          <circle cx="9" cy="3" r="1.5" />
+          <circle cx="3" cy="8" r="1.5" />
+          <circle cx="9" cy="8" r="1.5" />
+          <circle cx="3" cy="13" r="1.5" />
+          <circle cx="9" cy="13" r="1.5" />
+        </svg>
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-[#111111] truncate">{label}</p>
+        <p className="text-[11px] text-[#aaaaaa] mt-0.5">
+          {count} set{count !== 1 ? "s" : ""}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function toEditable(set: BenchSet): EditableSet {
   return {
@@ -130,6 +238,14 @@ export default function LogSessionModal({
     initialDraft?.currentSetIndex ?? 0
   )
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [exerciseOrder, setExerciseOrder] = useState<ExerciseGroup[]>(
+    () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session)
+  )
+  const [showReorder, setShowReorder] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
 
   useEffect(() => {
     document.body.style.overflow = "hidden"
@@ -146,29 +262,13 @@ export default function LogSessionModal({
       extraState,
       coachNote,
       currentSetIndex,
+      exerciseOrder,
     })
   }, [sets, completedSets, extraState, coachNote, currentSetIndex])
 
   const selectedGroups = session.selectedMuscleGroups ?? []
 
-  // All bench sets (warmups first, then working), then all extra sets
-  const carouselItems: CarouselItem[] = [
-    ...sets.map((set) => ({
-      type: "bench" as const,
-      set,
-      globalIndex: sets.findIndex((s) => s.id === set.id),
-    })),
-    ...selectedGroups.flatMap((muscle) =>
-      (MUSCLE_GROUP_EXERCISES[muscle] as string[]).flatMap((exercise) =>
-        (extraState[muscle]?.[exercise] ?? []).map((_, setIndex) => ({
-          type: "extra" as const,
-          muscle,
-          exercise,
-          setIndex,
-        }))
-      )
-    ),
-  ]
+  const carouselItems = buildCarouselItems(exerciseOrder, sets, extraState)
 
   const completedCount = carouselItems.filter((item) =>
     completedSets.has(getItemKey(item))
@@ -365,6 +465,23 @@ export default function LogSessionModal({
     setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setExerciseOrder((prev) => {
+      const oldIdx = prev.findIndex((g) => groupId(g) === active.id)
+      const newIdx = prev.findIndex((g) => groupId(g) === over.id)
+      return arrayMove(prev, oldIdx, newIdx)
+    })
+  }
+
+  function closeReorder() {
+    setShowReorder(false)
+    const items = buildCarouselItems(exerciseOrder, sets, extraState)
+    const first = items.findIndex((item) => !completedSets.has(getItemKey(item)))
+    setCurrentSetIndex(first >= 0 ? first : 0)
+  }
+
   function handleConfirm() {
     const extraWorkouts: ExtraWorkout[] = selectedGroups
       .filter((muscle) => extraState[muscle])
@@ -440,7 +557,7 @@ export default function LogSessionModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
-      <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0">
+      <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0 relative">
 
         {/* Header + Progress — pinned at top */}
         <div className="pt-6 pb-4 shrink-0">
@@ -448,13 +565,28 @@ export default function LogSessionModal({
             <h2 className="text-base font-semibold text-[#111111]">
               {mode === "edit" ? "Edit" : "Log"} Session {String(session.id).padStart(2, "0")}
             </h2>
-            <button
-              onClick={onClose}
-              className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
-              aria-label="Close"
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-1">
+              {mode === "log" && !allDone && (
+                <button
+                  onClick={() => setShowReorder(true)}
+                  className="text-[#aaaaaa] hover:text-[#111111] p-1.5 rounded transition-colors"
+                  aria-label="Reorder exercises"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {mode === "log" && carouselItems.length > 0 && (
@@ -725,6 +857,46 @@ export default function LogSessionModal({
           )}
 
         </div>
+
+        {/* Reorder overlay */}
+        {showReorder && (
+          <div className="absolute inset-0 bg-white flex flex-col z-10">
+            <div className="pt-6 pb-3 flex items-center justify-between shrink-0 border-b border-[#f0f0f0]">
+              <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
+                Reorder Exercises
+              </p>
+              <button
+                onClick={closeReorder}
+                className="text-sm font-semibold text-[#7a1f2e] px-1 py-1"
+              >
+                Done
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={exerciseOrder.map(groupId)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {exerciseOrder.map((group) => (
+                    <SortableGroupRow
+                      key={groupId(group)}
+                      id={groupId(group)}
+                      group={group}
+                      sets={sets}
+                      extraState={extraState}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
