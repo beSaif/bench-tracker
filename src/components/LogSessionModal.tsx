@@ -327,6 +327,41 @@ export default function LogSessionModal({
   const carouselLengthRef = useRef(carouselItems.length)
   carouselLengthRef.current = carouselItems.length
 
+  const notifIdRef = useRef<string | null>(null)
+
+  function playBeep() {
+    try {
+      const ctx = new AudioContext()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15)
+      gain.gain.setValueAtTime(0.4, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.5)
+      osc.onended = () => ctx.close()
+    } catch {}
+  }
+
+  function cancelNotification() {
+    const id = notifIdRef.current
+    if (!id) return
+    notifIdRef.current = null
+    navigator.serviceWorker?.controller?.postMessage({ type: "CANCEL", id })
+  }
+
+  function scheduleNotification(delay: number, body: string) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return
+    const sw = navigator.serviceWorker?.controller
+    if (!sw) return
+    const id = String(Date.now())
+    notifIdRef.current = id
+    sw.postMessage({ type: "SCHEDULE", id, delay, title: "Rest done — go!", body, icon: "/apple-icon.png" })
+  }
+
   useEffect(() => {
     if (restEndTime === null) return
 
@@ -334,6 +369,9 @@ export default function LogSessionModal({
       const remaining = Math.max(0, Math.ceil((restEndTime! - Date.now()) / 1000))
       setRestSeconds(remaining)
       if (remaining <= 0) {
+        cancelNotification()
+        playBeep()
+        navigator.vibrate?.([300, 100, 300])
         setRestEndTime(null)
         setCurrentSetIndex((prev) => Math.min(prev + 1, carouselLengthRef.current - 1))
       }
@@ -344,7 +382,10 @@ export default function LogSessionModal({
 
     // Snap display the moment the tab becomes visible again
     function onVisibilityChange() {
-      if (!document.hidden) tick()
+      if (!document.hidden) {
+        cancelNotification()
+        tick()
+      }
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
 
@@ -359,16 +400,29 @@ export default function LogSessionModal({
       setCompletedSets((prev) => { const n = new Set(prev); n.delete(key); return n })
       setRestEndTime(null)
       setRestSeconds(0)
+      cancelNotification()
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
         setRestEndTime(Date.now() + REST_DURATION * 1000)
         setRestSeconds(REST_DURATION)
+        const body = nextItem ? getNextPreview(nextItem) : "Last set — great work"
+        const doSchedule = () => scheduleNotification(REST_DURATION * 1000, body)
+        if (typeof Notification !== "undefined") {
+          if (Notification.permission === "granted") {
+            doSchedule()
+          } else if (Notification.permission === "default") {
+            Notification.requestPermission().then((perm) => {
+              if (perm === "granted") doSchedule()
+            })
+          }
+        }
       }
     }
   }
 
   function dismissRest() {
+    cancelNotification()
     setRestEndTime(null)
     setRestSeconds(0)
     setCurrentSetIndex((prev) => {
