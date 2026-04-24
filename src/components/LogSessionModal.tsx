@@ -369,10 +369,12 @@ export default function LogSessionModal({
   useEffect(() => {
     if (restEndTime === null) return
 
+    let done = false
     function tick() {
       const remaining = Math.max(0, Math.ceil((restEndTime! - Date.now()) / 1000))
       setRestSeconds(remaining)
-      if (remaining <= 0) {
+      if (remaining <= 0 && !done) {
+        done = true
         cancelNotification()
         playBeep()
         navigator.vibrate?.([300, 100, 300])
