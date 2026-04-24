@@ -914,7 +914,7 @@ export default function LogSessionModal({
               </div>
               <div className="pt-3 pb-3 px-4 flex items-center justify-between shrink-0 border-b border-[#f0f0f0]">
                 <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
-                  Reorder Exercises
+                  Exercises
                 </p>
                 <button onClick={closeReorder} className="text-sm font-semibold text-[#7a1f2e]">
                   Done
