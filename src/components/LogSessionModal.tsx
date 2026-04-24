@@ -565,28 +565,13 @@ export default function LogSessionModal({
             <h2 className="text-base font-semibold text-[#111111]">
               {mode === "edit" ? "Edit" : "Log"} Session {String(session.id).padStart(2, "0")}
             </h2>
-            <div className="flex items-center gap-1">
-              {mode === "log" && !allDone && (
-                <button
-                  onClick={() => setShowReorder(true)}
-                  className="w-8 h-8 flex items-center justify-center text-[#aaaaaa] hover:text-[#111111] rounded transition-colors"
-                  aria-label="Reorder exercises"
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              )}
-              <button
-                onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center text-[#777777] hover:text-[#111111] text-xl leading-none rounded transition-colors"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
 
           {mode === "log" && carouselItems.length > 0 && (
@@ -858,43 +843,59 @@ export default function LogSessionModal({
 
         </div>
 
-        {/* Reorder overlay */}
+        {/* Chevron trigger — bottom center, only during active logging */}
+        {mode === "log" && !allDone && carouselItems.length > 0 && (
+          <button
+            onClick={() => setShowReorder(true)}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[#dddddd] hover:text-[#aaaaaa] p-2 transition-colors"
+            aria-label="Reorder exercises"
+          >
+            <svg width="20" height="11" viewBox="0 0 20 11" fill="none">
+              <path d="M1 10L10 1L19 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
+
+        {/* Bottom sheet */}
         {showReorder && (
-          <div className="absolute inset-0 bg-white flex flex-col z-10">
-            <div className="pt-6 pb-3 flex items-center justify-between shrink-0 border-b border-[#f0f0f0]">
-              <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
-                Reorder Exercises
-              </p>
-              <button
-                onClick={closeReorder}
-                className="text-sm font-semibold text-[#7a1f2e] px-1 py-1"
-              >
-                Done
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto py-1">
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={exerciseOrder.map(groupId)}
-                  strategy={verticalListSortingStrategy}
+          <>
+            <div className="absolute inset-0 bg-black/20 z-10" onClick={closeReorder} />
+            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] flex flex-col z-20 max-h-[65%]">
+              <div className="flex justify-center pt-3 shrink-0">
+                <div className="w-9 h-1 bg-[#e0e0e0] rounded-full" />
+              </div>
+              <div className="pt-3 pb-3 px-4 flex items-center justify-between shrink-0 border-b border-[#f0f0f0]">
+                <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
+                  Reorder Exercises
+                </p>
+                <button onClick={closeReorder} className="text-sm font-semibold text-[#7a1f2e]">
+                  Done
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-1 px-4">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
                 >
-                  {exerciseOrder.map((group) => (
-                    <SortableGroupRow
-                      key={groupId(group)}
-                      id={groupId(group)}
-                      group={group}
-                      sets={sets}
-                      extraState={extraState}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
+                  <SortableContext
+                    items={exerciseOrder.map(groupId)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {exerciseOrder.map((group) => (
+                      <SortableGroupRow
+                        key={groupId(group)}
+                        id={groupId(group)}
+                        group={group}
+                        sets={sets}
+                        extraState={extraState}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
       </div>
