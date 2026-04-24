@@ -7,6 +7,7 @@ import { Session, TrainingBlock } from "@/lib/types"
 
 type KvStatus = "loading" | "ok" | "error"
 type Copied = "local" | "kv" | null
+type NotifStatus = "idle" | "requesting" | "scheduled" | "no-sw" | "denied"
 
 interface StoredData {
   sessions: Session[]
@@ -60,6 +61,40 @@ export default function DevPage() {
   }
 
   const kvCount = kvData?.sessions.length ?? 0
+
+  const [notifStatus, setNotifStatus] = useState<NotifStatus>("idle")
+  const [notifCountdown, setNotifCountdown] = useState<number | null>(null)
+
+  async function testNotification(delaySecs: number) {
+    setNotifStatus("requesting")
+    if (!("serviceWorker" in navigator)) { setNotifStatus("no-sw"); return }
+
+    let perm = Notification.permission
+    if (perm === "default") perm = await Notification.requestPermission()
+    if (perm !== "granted") { setNotifStatus("denied"); return }
+
+    const reg = await navigator.serviceWorker.ready
+    if (!reg.active) { setNotifStatus("no-sw"); return }
+
+    const id = "dev-test-" + Date.now()
+    reg.active.postMessage({
+      type: "SCHEDULE",
+      id,
+      delay: delaySecs * 1000,
+      title: "Test notification",
+      body: "Notification system working!",
+      icon: "/apple-icon.png",
+    })
+
+    setNotifStatus("scheduled")
+    setNotifCountdown(delaySecs)
+    const tick = setInterval(() => {
+      setNotifCountdown((c) => {
+        if (c === null || c <= 1) { clearInterval(tick); setNotifStatus("idle"); return null }
+        return c - 1
+      })
+    }, 1000)
+  }
 
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 py-6">
@@ -122,6 +157,41 @@ export default function DevPage() {
         )}
         {kvStatus === "error" && (
           <div className="bg-[#f5f5f5] rounded-xl p-4 text-xs text-[#aaaaaa]">KV is unavailable in this environment.</div>
+        )}
+      </section>
+
+      {/* Notifications */}
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-[#111111] mb-1">Notifications</h2>
+        <p className="text-xs text-[#aaaaaa] mb-3">
+          Permission: <span className="font-medium text-[#333333]">
+            {typeof Notification !== "undefined" ? Notification.permission : "unavailable"}
+          </span>
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => testNotification(5)}
+            disabled={notifStatus === "scheduled" || notifStatus === "requesting"}
+            className="flex-1 py-3 rounded-xl bg-[#f5f5f5] text-sm text-[#111111] disabled:opacity-40"
+          >
+            Fire in 5s
+          </button>
+          <button
+            onClick={() => testNotification(10)}
+            disabled={notifStatus === "scheduled" || notifStatus === "requesting"}
+            className="flex-1 py-3 rounded-xl bg-[#f5f5f5] text-sm text-[#111111] disabled:opacity-40"
+          >
+            Fire in 10s
+          </button>
+        </div>
+        {notifStatus === "scheduled" && notifCountdown !== null && (
+          <p className="mt-2 text-xs text-[#7a1f2e] text-center">Firing in {notifCountdown}s — background the app now</p>
+        )}
+        {notifStatus === "denied" && (
+          <p className="mt-2 text-xs text-red-500 text-center">Permission denied — enable in iOS Settings → Notifications</p>
+        )}
+        {notifStatus === "no-sw" && (
+          <p className="mt-2 text-xs text-red-500 text-center">Service worker not active — reload and try again</p>
         )}
       </section>
 

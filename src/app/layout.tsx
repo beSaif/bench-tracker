@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import "@fontsource-variable/inter"
 import "./globals.css"
+import SwRegistrar from "@/components/SwRegistrar"
 
 export const metadata: Metadata = {
   title: "Bench Tracker",
@@ -23,7 +24,10 @@ export default function RootLayout({
       <head>
         <meta name="color-scheme" content="light" />
       </head>
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <SwRegistrar />
+        {children}
+      </body>
     </html>
   )
 }
