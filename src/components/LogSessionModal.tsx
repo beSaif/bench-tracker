@@ -98,11 +98,13 @@ function SortableGroupRow({
   group,
   sets,
   extraState,
+  completedSets,
 }: {
   id: string
   group: ExerciseGroup
   sets: EditableSet[]
   extraState: ExtraWorkoutState
+  completedSets: Set<string>
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
@@ -112,10 +114,36 @@ function SortableGroupRow({
     group.kind === "bench"
       ? "Bench Press"
       : `${MUSCLE_GROUP_LABEL[group.muscle]} · ${group.exercise}`
-  const count =
-    group.kind === "bench"
-      ? sets.length
-      : (extraState[group.muscle]?.[group.exercise]?.length ?? 0)
+
+  let count: number
+  let completedCount: number
+  let topKg: number | null = null
+  let topReps: number | null = null
+
+  if (group.kind === "bench") {
+    count = sets.length
+    const completedBench = sets.filter(s => completedSets.has(s.id))
+    completedCount = completedBench.length
+    const topSet = completedBench
+      .filter(s => !s.isWarmup)
+      .reduce<EditableSet | null>((best, s) =>
+        !best || s.kg > best.kg || (s.kg === best.kg && s.reps > best.reps) ? s : best
+      , null)
+    if (topSet) { topKg = topSet.kg; topReps = topSet.reps }
+  } else {
+    const extraSets = extraState[group.muscle]?.[group.exercise] ?? []
+    count = extraSets.length
+    const completedExtra = extraSets.filter((_, i) =>
+      completedSets.has(`extra-${group.muscle}-${group.exercise}-${i}`)
+    )
+    completedCount = completedExtra.length
+    const topSet = completedExtra.reduce<EditableExtraSet | null>((best, s) => {
+      const kg = parseFloat(s.kgStr)
+      const bkg = best ? parseFloat(best.kgStr) : -1
+      return kg > bkg || (kg === bkg && parseInt(s.repsStr) > parseInt(best!.repsStr)) ? s : best
+    }, null)
+    if (topSet) { topKg = parseFloat(topSet.kgStr); topReps = parseInt(topSet.repsStr) }
+  }
 
   return (
     <div
@@ -142,9 +170,22 @@ function SortableGroupRow({
       </button>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[#111111] truncate">{label}</p>
-        <p className="text-[11px] text-[#aaaaaa] mt-0.5">
-          {count} set{count !== 1 ? "s" : ""}
-        </p>
+        <div className="flex items-center gap-1 mt-1 flex-wrap">
+          {count <= 10 && Array.from({ length: count }, (_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                i < completedCount ? "bg-[#7a1f2e]" : "bg-[#e0e0e0]"
+              }`}
+            />
+          ))}
+          <span className="text-[11px] text-[#aaaaaa] ml-0.5">{completedCount} / {count}</span>
+        </div>
+        {topKg !== null && topReps !== null && (
+          <p className="text-[10px] text-[#7a1f2e] mt-0.5 font-medium">
+            Top: {topKg} × {topReps}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -274,6 +315,13 @@ export default function LogSessionModal({
     completedSets.has(getItemKey(item))
   ).length
   const allDone = carouselItems.length > 0 && completedCount === carouselItems.length
+
+  const totalVolume = carouselItems.reduce((sum, item) => {
+    if (!completedSets.has(getItemKey(item))) return sum
+    if (item.type === "bench") return sum + item.set.kg * item.set.reps
+    const s = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
+    return s ? sum + parseFloat(s.kgStr) * parseInt(s.repsStr) : sum
+  }, 0)
 
   // Keep a ref so the interval callback always sees the current length
   const carouselLengthRef = useRef(carouselItems.length)
@@ -872,6 +920,15 @@ export default function LogSessionModal({
                   Done
                 </button>
               </div>
+              <div className="px-4 py-2.5 border-b border-[#f0f0f0] flex items-center gap-2 shrink-0">
+                <span className="text-[12px] font-semibold text-[#111111]">
+                  {completedCount} / {carouselItems.length} sets
+                </span>
+                <span className="text-[#dddddd]">·</span>
+                <span className="text-[12px] text-[#777777]">
+                  {totalVolume.toLocaleString()} kg volume
+                </span>
+              </div>
               <div className="flex-1 overflow-y-auto py-1 px-4">
                 <DndContext
                   sensors={sensors}
@@ -889,6 +946,7 @@ export default function LogSessionModal({
                         group={group}
                         sets={sets}
                         extraState={extraState}
+                        completedSets={completedSets}
                       />
                     ))}
                   </SortableContext>
