@@ -55,7 +55,10 @@ export default function ProgramTimeline({ blocks, sessions }: ProgramTimelinePro
   })
 
   function handleStepClick(step: Step) {
-    if (step.status === "active") return
+    if (step.status === "active") {
+      setExpandedPhase(null)
+      return
+    }
     setExpandedPhase(expandedPhase === step.phase ? null : step.phase)
   }
 
@@ -69,8 +72,7 @@ export default function ProgramTimeline({ blocks, sessions }: ProgramTimelinePro
           <div key={step.phase} className="flex items-center">
             <button
               onClick={() => handleStepClick(step)}
-              disabled={step.status === "active"}
-              className="flex flex-col items-center gap-0.5 disabled:cursor-default"
+              className="flex flex-col items-center gap-0.5"
               style={{ minWidth: 52 }}
             >
               <StepDot step={step} isExpanded={expandedPhase === step.phase} />
