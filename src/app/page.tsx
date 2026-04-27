@@ -498,7 +498,7 @@ export default function Page() {
         />
 
         {/* Program timeline: all 4 blocks of the current cycle */}
-        {blocks.length > 0 && <ProgramTimeline blocks={blocks} />}
+        {blocks.length > 0 && <ProgramTimeline blocks={blocks} sessions={confirmed} />}
 
         {/* Active block + sessions */}
         <div className="mb-4">
