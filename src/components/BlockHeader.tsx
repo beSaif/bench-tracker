@@ -41,19 +41,23 @@ export default function BlockHeader({ block, confirmedCount, onEditAnchor }: Blo
   const total = BLOCK_LENGTHS[block.phase]
 
   return (
-    <div className={`${style.bg} rounded-xl px-4 py-3 mb-3`}>
+    <div className={`${style.bg} rounded-xl px-4 py-3 mb-3${block.status === "completed" ? " opacity-75" : ""}`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-4 rounded-full ${style.bar}`} />
           <span className={`text-sm font-semibold ${style.label}`}>
-            {PHASE_LABEL[block.phase]}
+            {block.status === "completed" ? "✓ " : ""}{PHASE_LABEL[block.phase]}
           </span>
-          <button
-            onClick={onEditAnchor}
-            className={`text-xs ${style.meta} hover:underline`}
-          >
-            · {block.anchorWeight}kg anchor
-          </button>
+          {block.status === "completed" ? (
+            <span className={`text-xs ${style.meta}`}>· {block.anchorWeight}kg anchor</span>
+          ) : (
+            <button
+              onClick={onEditAnchor}
+              className={`text-xs ${style.meta} hover:underline`}
+            >
+              · {block.anchorWeight}kg anchor
+            </button>
+          )}
         </div>
         <span className={`text-xs font-semibold ${style.label} opacity-60`}>
           {confirmedCount}/{total}

@@ -55,7 +55,7 @@ const PHASE_SCHEMES: Record<BlockPhase, Array<{ pct: number; reps: number; sets:
   deload: DELOAD_SCHEME,
 }
 
-const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
+export const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
   accumulation: "Volume",
   transmutation: "Intensity",
   realization: "Peak",
