@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadAll, saveAll, loadDraft, clearDraft } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -14,12 +14,14 @@ import {
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, buildMuscleRotation } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
+import NavDrawer from "@/components/NavDrawer"
 
 const TARGET = 140
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -34,30 +36,26 @@ function relativeTime(isoString: string): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-const MUSCLE_ROTATION: MuscleGroup[][] = [
-  ["back", "triceps"],
-  ["chest", "biceps"],
-  ["shoulders", "legs"],
-]
+function suggestNextMuscles(confirmedSessions: Session[], muscleRotation: string[][]): MuscleGroup[] {
+  if (muscleRotation.length === 0) return []
 
-function suggestNextMuscles(confirmedSessions: Session[]): MuscleGroup[] {
   const last = [...confirmedSessions]
     .filter((s) => s.date && s.extraWorkouts && s.extraWorkouts.length > 0)
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
 
-  if (!last) return MUSCLE_ROTATION[0]
+  if (!last) return muscleRotation[0]
 
   const lastMuscles = last.extraWorkouts!.map((w) => w.muscle)
   let bestIdx = 0
   let bestScore = -1
-  MUSCLE_ROTATION.forEach((pair, i) => {
+  muscleRotation.forEach((pair, i) => {
     const score = pair.filter((m) => lastMuscles.includes(m)).length
     if (score > bestScore) {
       bestScore = score
       bestIdx = i
     }
   })
-  return MUSCLE_ROTATION[(bestIdx + 1) % MUSCLE_ROTATION.length]
+  return muscleRotation[(bestIdx + 1) % muscleRotation.length]
 }
 
 function getBestE1RM(sessions: Session[]): number | null {
@@ -100,7 +98,11 @@ function getCurrentCycleCompletedBlocks(blocks: TrainingBlock[]): TrainingBlock[
   return sorted.slice(activeIdx - phaseIdx, activeIdx)
 }
 
-function createUpcomingSession(sessions: Session[], blocks: TrainingBlock[]): Session {
+function createUpcomingSession(
+  sessions: Session[],
+  blocks: TrainingBlock[],
+  config: MuscleGroupConfig[]
+): Session {
   const activeBlock = getActiveBlock(blocks)
 
   let prescription: ReturnType<typeof prescribeBlockSession>
@@ -111,7 +113,6 @@ function createUpcomingSession(sessions: Session[], blocks: TrainingBlock[]): Se
     prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
     blockId = activeBlock.id
   } else {
-    // Fallback if no active block (shouldn't happen in normal flow)
     prescription = prescribeBlockSession("accumulation", 0, 100)
   }
 
@@ -131,6 +132,8 @@ function createUpcomingSession(sessions: Session[], blocks: TrainingBlock[]): Se
   const phase = activeBlock?.phase ?? "accumulation"
   const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`
 
+  const muscleRotation = buildMuscleRotation(config)
+
   return {
     id: maxId + 1,
     date: null,
@@ -139,28 +142,16 @@ function createUpcomingSession(sessions: Session[], blocks: TrainingBlock[]): Se
     confirmed: false,
     coachNote,
     sets: [...warmups, ...workingSets],
-    selectedMuscleGroups: suggestNextMuscles(sessions),
+    selectedMuscleGroups: suggestNextMuscles(sessions, muscleRotation),
     blockId,
   }
 }
 
-function initializeFirstBlock(confirmedSessions: Session[]): TrainingBlock {
-  return {
-    id: 1,
-    phase: "accumulation",
-    status: "active",
-    sessionIds: [],
-    anchorWeight: deriveInitialAnchor(confirmedSessions),
-    startDate: null,
-    endDate: null,
-  }
-}
-
-function backfillMuscles(sessions: Session[]): Session[] {
+function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[]): Session[] {
   const upcoming = sessions.find((s) => !s.confirmed)
   if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
   const confirmed = sessions.filter((s) => s.confirmed)
-  const suggested = suggestNextMuscles(confirmed)
+  const suggested = suggestNextMuscles(confirmed, buildMuscleRotation(config))
   return sessions.map((s) =>
     s.id === upcoming.id ? { ...s, selectedMuscleGroups: suggested } : s
   )
@@ -177,6 +168,7 @@ function sortSessions(sessions: Session[]): Session[] {
 export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
+  const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
   const [activeDraft, setActiveDraft] = useState<SessionDraft | null>(null)
   const [draftPrompt, setDraftPrompt] = useState<{ session: Session; draft: SessionDraft } | null>(null)
@@ -185,6 +177,7 @@ export default function Page() {
   const [anchorInput, setAnchorInput] = useState("")
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function handleTitlePointerDown() {
@@ -201,43 +194,51 @@ export default function Page() {
   }
 
   useEffect(() => {
-    // Show localStorage data immediately
+    // Sync load from localStorage immediately
     const localSessions = loadSessionsLocal()
     const localBlocks = loadBlocksLocal()
-    if (localSessions.length > 0) setSessions(backfillMuscles(localSessions))
+    const localConfig = loadExerciseConfigLocal()
+
+    if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
     if (localBlocks.length > 0) setBlocks(localBlocks)
+    setExerciseConfig(localConfig)
     setMounted(true)
 
-    loadAll().then(({ sessions: data, blocks: loadedBlocks }) => {
-      let finalSessions = backfillMuscles(data)
+    // Async load from KV
+    Promise.all([loadAll(), loadExerciseConfig()]).then(
+      ([{ sessions: data, blocks: loadedBlocks }, config]) => {
+        setExerciseConfig(config)
 
-      // One-time migration for historical "Push" sessions
-      const migrated = migrateSessionTypes(finalSessions)
-      if (migrated !== null) finalSessions = migrated
+        let finalSessions = backfillMuscles(data, config)
 
-      let finalBlocks = loadedBlocks
+        // One-time migration for historical "Push" sessions
+        const migrated = migrateSessionTypes(finalSessions)
+        if (migrated !== null) finalSessions = migrated
 
-      // First-time block setup: no blocks exist yet — prompt user for anchor
-      if (finalBlocks.length === 0) {
-        const confirmed = finalSessions.filter((s) => s.confirmed)
-        setSessions(confirmed)
-        setAnchorInput(String(deriveInitialAnchor(confirmed)))
-        setAnchorPrompt(true)
-        return
+        let finalBlocks = loadedBlocks
+
+        // First-time block setup: no blocks exist yet — prompt user for anchor
+        if (finalBlocks.length === 0) {
+          const confirmed = finalSessions.filter((s) => s.confirmed)
+          setSessions(confirmed)
+          setAnchorInput(String(deriveInitialAnchor(confirmed)))
+          setAnchorPrompt(true)
+          return
+        }
+
+        // Normal load: ensure an upcoming session exists
+        const hasUpcoming = finalSessions.some((s) => !s.confirmed)
+        if (!hasUpcoming) {
+          const confirmed = finalSessions.filter((s) => s.confirmed)
+          const upcoming = createUpcomingSession(confirmed, finalBlocks, config)
+          finalSessions = sortSessions([...confirmed, upcoming])
+          saveAll(finalSessions, finalBlocks)
+        }
+
+        setSessions(finalSessions)
+        setBlocks(finalBlocks)
       }
-
-      // Normal load: ensure an upcoming session exists
-      const hasUpcoming = finalSessions.some((s) => !s.confirmed)
-      if (!hasUpcoming) {
-        const confirmed = finalSessions.filter((s) => s.confirmed)
-        const upcoming = createUpcomingSession(confirmed, finalBlocks)
-        finalSessions = sortSessions([...confirmed, upcoming])
-        saveAll(finalSessions, finalBlocks)
-      }
-
-      setSessions(finalSessions)
-      setBlocks(finalBlocks)
-    })
+    )
   }, [])
 
   function handleStartLogging(session: Session) {
@@ -270,12 +271,10 @@ export default function Page() {
 
     let finalBlocks: TrainingBlock[]
     if (activeBlock) {
-      // Edit existing block's anchor
       finalBlocks = blocks.map((b) =>
         b.id === activeBlock.id ? { ...b, anchorWeight: anchor } : b
       )
     } else {
-      // First-time init
       finalBlocks = [{
         id: 1,
         phase: "accumulation",
@@ -287,7 +286,7 @@ export default function Page() {
       }]
     }
 
-    const upcoming = createUpcomingSession(confirmed, finalBlocks)
+    const upcoming = createUpcomingSession(confirmed, finalBlocks, exerciseConfig)
     const finalSessions = sortSessions([...confirmed, upcoming])
     saveAll(finalSessions, finalBlocks)
     setSessions(finalSessions)
@@ -299,13 +298,11 @@ export default function Page() {
     const currentSessions = sessions
     const currentBlocks = blocks
 
-    // Update sessions array with the confirmed session
     const updatedSessions = currentSessions.map((s) =>
       s.id === updatedSession.id ? { ...updatedSession, blockId: updatedSession.blockId } : s
     )
     const confirmedSessions = updatedSessions.filter((s) => s.confirmed)
 
-    // Find active block and add this session to it
     const activeBlock = getActiveBlock(currentBlocks)
     let finalBlocks = currentBlocks
 
@@ -314,7 +311,6 @@ export default function Page() {
       const isBlockComplete = updatedBlockSessionIds.length >= BLOCK_LENGTHS[activeBlock.phase]
 
       if (isBlockComplete) {
-        // Complete this block and create the next one
         const completedBlock: TrainingBlock = {
           ...activeBlock,
           sessionIds: updatedBlockSessionIds,
@@ -327,15 +323,13 @@ export default function Page() {
           .map((b) => (b.id === activeBlock.id ? completedBlock : b))
           .concat(newBlock)
       } else {
-        // Update the block's session list
         finalBlocks = currentBlocks.map((b) =>
           b.id === activeBlock.id ? { ...b, sessionIds: updatedBlockSessionIds } : b
         )
       }
     }
 
-    // Create the next upcoming session
-    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks)
+    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig)
     const final = sortSessions([...confirmedSessions, newUpcoming])
 
     setSessions(final)
@@ -380,11 +374,9 @@ export default function Page() {
 
     const remaining = sessions.filter((s) => s.confirmed && s.id !== session.id)
 
-    // Update blocks: remove session from its block, revert block if it was completed
     const sessionBlockId = session.blockId
     let newBlocks = blocks
       .filter((b) => {
-        // Remove any blocks created after the affected block
         if (sessionBlockId !== undefined && b.id > sessionBlockId) return false
         return true
       })
@@ -398,7 +390,6 @@ export default function Page() {
         }
       })
 
-    // If no active block remains, the last block becomes active
     if (!getActiveBlock(newBlocks) && newBlocks.length > 0) {
       const lastBlock = newBlocks[newBlocks.length - 1]
       newBlocks = newBlocks.map((b) =>
@@ -406,7 +397,7 @@ export default function Page() {
       )
     }
 
-    const newUpcoming = createUpcomingSession(remaining, newBlocks)
+    const newUpcoming = createUpcomingSession(remaining, newBlocks, exerciseConfig)
     const final = sortSessions([...remaining, newUpcoming])
 
     setSessions(final)
@@ -434,10 +425,8 @@ export default function Page() {
   const activeBlock = getActiveBlock(blocks)
   const activeBlockSessionIds = new Set(activeBlock?.sessionIds ?? [])
 
-  // Sessions confirmed as part of the active block
   const activeBlockSessions = confirmedSorted.filter((s) => activeBlockSessionIds.has(s.id))
 
-  // Completed blocks in the current cycle + their sessions grouped
   const completedCycleBlocks = getCurrentCycleCompletedBlocks(blocks)
   const completedCycleSessionIdSet = new Set(completedCycleBlocks.flatMap((b) => b.sessionIds))
   const completedCycleGroups = completedCycleBlocks.map((block) => ({
@@ -447,12 +436,10 @@ export default function Page() {
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()),
   }))
 
-  // Old archive: sessions from previous cycles only
   const archiveSessions = confirmedSorted.filter(
     (s) => !activeBlockSessionIds.has(s.id) && !completedCycleSessionIdSet.has(s.id)
   )
 
-  // Map each session in the active block to its 1-based position within the block
   const blockIndexMap = new Map<number, number>()
   if (activeBlock) {
     const chronoConfirmed = [...activeBlockSessions].sort(
@@ -470,18 +457,33 @@ export default function Page() {
 
   return (
     <>
+      <NavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <h1
-            className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
-            onPointerDown={handleTitlePointerDown}
-            onPointerUp={handleTitlePointerUp}
-            onPointerLeave={handleTitlePointerUp}
-          >
-            Bench Tracker
-          </h1>
-          <p className="text-sm text-[#777777] mt-0.5">
+          <div className="flex items-center gap-3 mb-1">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="p-1 -ml-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
+              aria-label="Open menu"
+            >
+              <svg width="20" height="14" viewBox="0 0 20 14" fill="currentColor" aria-hidden="true">
+                <rect y="0" width="20" height="2" rx="1" />
+                <rect y="6" width="20" height="2" rx="1" />
+                <rect y="12" width="20" height="2" rx="1" />
+              </svg>
+            </button>
+            <h1
+              className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
+              onPointerDown={handleTitlePointerDown}
+              onPointerUp={handleTitlePointerUp}
+              onPointerLeave={handleTitlePointerUp}
+            >
+              Bench Tracker
+            </h1>
+          </div>
+          <p className="text-sm text-[#777777] mt-0.5 pl-8">
             Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
           </p>
         </header>
@@ -497,7 +499,7 @@ export default function Page() {
           bw={latestBW}
         />
 
-        {/* Program timeline: all 4 blocks of the current cycle */}
+        {/* Program timeline */}
         {blocks.length > 0 && <ProgramTimeline blocks={blocks} sessions={confirmed} />}
 
         {/* Active block + sessions */}
@@ -515,6 +517,7 @@ export default function Page() {
               blockIndex={blockIndexMap.get(upcoming.id)}
               onStartLogging={handleStartLogging}
               onUpdateMuscleGroups={handleUpdateMuscleGroups}
+              exerciseConfig={exerciseConfig}
             />
           )}
           {activeBlockSessions.map((s) => (
@@ -524,11 +527,12 @@ export default function Page() {
               blockIndex={blockIndexMap.get(s.id)}
               onEdit={handleEditSession}
               onUnlog={handleUnlogSession}
+              exerciseConfig={exerciseConfig}
             />
           ))}
         </div>
 
-        {/* Completed blocks in the current cycle — shown inline */}
+        {/* Completed blocks in the current cycle */}
         {completedCycleGroups.map(({ block, sessions }) => (
           <div key={block.id} className="mb-4">
             <BlockHeader block={block} confirmedCount={sessions.length} />
@@ -538,12 +542,13 @@ export default function Page() {
                 session={s}
                 onEdit={handleEditSession}
                 onUnlog={handleUnlogSession}
+                exerciseConfig={exerciseConfig}
               />
             ))}
           </div>
         ))}
 
-        {/* Old history: sessions from previous cycles */}
+        {/* Old history */}
         {archiveSessions.length > 0 && (
           <div>
             <button
@@ -565,6 +570,7 @@ export default function Page() {
                   session={s}
                   onEdit={handleEditSession}
                   onUnlog={handleUnlogSession}
+                  exerciseConfig={exerciseConfig}
                 />
               ))}
           </div>
@@ -579,6 +585,7 @@ export default function Page() {
           onClose={handleCloseModal}
           previousSessions={confirmedSorted}
           initialDraft={activeDraft ?? undefined}
+          exerciseConfig={exerciseConfig}
         />
       )}
 
@@ -590,6 +597,7 @@ export default function Page() {
           onConfirm={handleSaveEdit}
           onClose={() => setEditingSession(null)}
           previousSessions={confirmedSorted}
+          exerciseConfig={exerciseConfig}
         />
       )}
 

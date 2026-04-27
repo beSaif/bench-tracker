@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, MuscleGroup, MUSCLE_GROUP_LABEL } from "@/lib/types"
-
-const ALL_MUSCLE_GROUPS: MuscleGroup[] = ["back", "triceps", "chest", "biceps", "shoulders", "legs"]
+import { Session, MuscleGroup } from "@/lib/types"
+import { MuscleGroupConfig, getMuscleLabel, sortedMuscleGroups } from "@/lib/exerciseConfig"
 
 interface SessionCardProps {
   session: Session
@@ -13,6 +12,7 @@ interface SessionCardProps {
   onEdit?: (session: Session) => void
   onUnlog?: (session: Session) => void
   onUpdateMuscleGroups?: (session: Session, muscles: MuscleGroup[]) => void
+  exerciseConfig: MuscleGroupConfig[]
 }
 
 function formatDate(iso: string): string {
@@ -22,7 +22,6 @@ function formatDate(iso: string): string {
     year: "numeric",
   }).format(new Date(iso))
 }
-
 
 function BenchSummaryLine({ session }: { session: Session }) {
   const working = session.sets.filter((s) => !s.isWarmup)
@@ -52,7 +51,15 @@ function BenchSummaryLine({ session }: { session: Session }) {
   )
 }
 
-export default function SessionCard({ session, blockIndex, onStartLogging, onEdit, onUnlog, onUpdateMuscleGroups }: SessionCardProps) {
+export default function SessionCard({
+  session,
+  blockIndex,
+  onStartLogging,
+  onEdit,
+  onUnlog,
+  onUpdateMuscleGroups,
+  exerciseConfig,
+}: SessionCardProps) {
   const isUpcoming = !session.confirmed
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -71,6 +78,8 @@ export default function SessionCard({ session, blockIndex, onStartLogging, onEdi
     : "border-solid border-[#e8e8e8]"
   const cardBg = isUpcoming ? "bg-[#fdf5f6]" : "bg-white"
   const headerColor = isUpcoming ? "text-[#7a1f2e]" : "text-[#111111]"
+
+  const allGroups = sortedMuscleGroups(exerciseConfig)
 
   const summaryBody = (
     <div className="px-4 pt-4 pb-4">
@@ -100,7 +109,7 @@ export default function SessionCard({ session, blockIndex, onStartLogging, onEdi
 
   return (
     <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
-      {/* Card body — link to detail page for confirmed sessions */}
+      {/* Card body */}
       {!isUpcoming ? (
         <Link href={`/session/${session.id}`} className="block hover:bg-[#fafafa] transition-colors">
           {summaryBody}
@@ -109,7 +118,6 @@ export default function SessionCard({ session, blockIndex, onStartLogging, onEdi
         summaryBody
       )}
 
-
       {/* Muscle group picker panel — upcoming only */}
       {isUpcoming && pickerOpen && (
         <div className="px-4 pb-4 pt-2 border-t border-[#e8e8e8]">
@@ -117,11 +125,11 @@ export default function SessionCard({ session, blockIndex, onStartLogging, onEdi
             Additional Muscle Groups
           </p>
           <div className="grid grid-cols-2 gap-2 mb-4">
-            {ALL_MUSCLE_GROUPS.map((g) => {
-              const checked = selectedGroups.includes(g)
+            {allGroups.map((g) => {
+              const checked = selectedGroups.includes(g.id)
               return (
                 <label
-                  key={g}
+                  key={g.id}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                     checked
                       ? "border-[#7a1f2e]/40 bg-[#7a1f2e]/[0.04] text-[#7a1f2e]"
@@ -133,12 +141,12 @@ export default function SessionCard({ session, blockIndex, onStartLogging, onEdi
                     checked={checked}
                     onChange={() =>
                       setSelectedGroups((prev) =>
-                        prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+                        prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id]
                       )
                     }
                     className="accent-[#7a1f2e]"
                   />
-                  <span className="font-medium text-xs">{MUSCLE_GROUP_LABEL[g]}</span>
+                  <span className="font-medium text-xs">{g.name}</span>
                 </label>
               )
             })}
@@ -162,12 +170,12 @@ export default function SessionCard({ session, blockIndex, onStartLogging, onEdi
             const muscles = isUpcoming
               ? (session.selectedMuscleGroups ?? [])
               : (session.extraWorkouts?.map((w) => w.muscle) ?? [])
-            return muscles.map((g) => (
+            return muscles.map((id) => (
               <span
-                key={g}
+                key={id}
                 className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e]/10 text-[#7a1f2e] rounded-full px-2 py-0.5"
               >
-                {MUSCLE_GROUP_LABEL[g]}
+                {getMuscleLabel(exerciseConfig, id)}
               </span>
             ))
           })()}

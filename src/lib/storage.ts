@@ -1,4 +1,5 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY } from "./types"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
 
@@ -24,12 +25,27 @@ export function loadBlocksLocal(): TrainingBlock[] {
   }
 }
 
+export function loadExerciseConfigLocal(): MuscleGroupConfig[] {
+  try {
+    const raw = localStorage.getItem(EXERCISES_KEY)
+    if (!raw) return DEFAULT_MUSCLE_GROUPS
+    const parsed = JSON.parse(raw) as MuscleGroupConfig[]
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_MUSCLE_GROUPS
+  } catch {
+    return DEFAULT_MUSCLE_GROUPS
+  }
+}
+
 function saveLocal(sessions: Session[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
 
 function saveBlocksLocal(blocks: TrainingBlock[]): void {
   localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks))
+}
+
+function saveExerciseConfigLocal(config: MuscleGroupConfig[]): void {
+  localStorage.setItem(EXERCISES_KEY, JSON.stringify(config))
 }
 
 /** Load sessions + blocks from KV, falling back to localStorage. */
@@ -57,6 +73,33 @@ export async function loadAll(): Promise<StoredData> {
     sessions: loadSessionsLocal(),
     blocks: loadBlocksLocal(),
   }
+}
+
+/** Load exercise config from KV, falling back to localStorage. */
+export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
+  try {
+    const res = await fetch("/api/exercises")
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data) && data.length > 0) {
+        saveExerciseConfigLocal(data)
+        return data
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return loadExerciseConfigLocal()
+}
+
+/** Save exercise config to localStorage (sync) and KV (async, best-effort). */
+export function saveExerciseConfig(config: MuscleGroupConfig[]): void {
+  saveExerciseConfigLocal(config)
+  fetch("/api/exercises", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  }).catch(() => {})
 }
 
 /** Save sessions + blocks to localStorage (sync) and KV (async, best-effort). */
