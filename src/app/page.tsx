@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Session, TrainingBlock, MuscleGroup } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadAll, saveAll, loadDraft, clearDraft } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -16,6 +16,7 @@ import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
+import ProgramTimeline from "@/components/ProgramTimeline"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
@@ -86,6 +87,17 @@ function getLatestBW(sessions: Session[]): number | null {
 
 function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
   return blocks.find((b) => b.status === "active")
+}
+
+const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
+
+function getCurrentCycleCompletedBlocks(blocks: TrainingBlock[]): TrainingBlock[] {
+  const active = getActiveBlock(blocks)
+  if (!active) return []
+  const sorted = [...blocks].sort((a, b) => a.id - b.id)
+  const activeIdx = sorted.findIndex((b) => b.id === active.id)
+  const phaseIdx = BLOCK_PHASE_ORDER.indexOf(active.phase)
+  return sorted.slice(activeIdx - phaseIdx, activeIdx)
 }
 
 function createUpcomingSession(sessions: Session[], blocks: TrainingBlock[]): Session {
@@ -425,8 +437,20 @@ export default function Page() {
   // Sessions confirmed as part of the active block
   const activeBlockSessions = confirmedSorted.filter((s) => activeBlockSessionIds.has(s.id))
 
-  // Sessions outside the active block (archive + completed blocks)
-  const archiveSessions = confirmedSorted.filter((s) => !activeBlockSessionIds.has(s.id))
+  // Completed blocks in the current cycle + their sessions grouped
+  const completedCycleBlocks = getCurrentCycleCompletedBlocks(blocks)
+  const completedCycleSessionIdSet = new Set(completedCycleBlocks.flatMap((b) => b.sessionIds))
+  const completedCycleGroups = completedCycleBlocks.map((block) => ({
+    block,
+    sessions: confirmedSorted
+      .filter((s) => block.sessionIds.includes(s.id))
+      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()),
+  }))
+
+  // Old archive: sessions from previous cycles only
+  const archiveSessions = confirmedSorted.filter(
+    (s) => !activeBlockSessionIds.has(s.id) && !completedCycleSessionIdSet.has(s.id)
+  )
 
   // Map each session in the active block to its 1-based position within the block
   const blockIndexMap = new Map<number, number>()
@@ -473,6 +497,9 @@ export default function Page() {
           bw={latestBW}
         />
 
+        {/* Program timeline: all 4 blocks of the current cycle */}
+        {blocks.length > 0 && <ProgramTimeline blocks={blocks} />}
+
         {/* Active block + sessions */}
         <div className="mb-4">
           {activeBlock && (
@@ -501,7 +528,22 @@ export default function Page() {
           ))}
         </div>
 
-        {/* Archive / history */}
+        {/* Completed blocks in the current cycle — shown inline */}
+        {completedCycleGroups.map(({ block, sessions }) => (
+          <div key={block.id} className="mb-4">
+            <BlockHeader block={block} confirmedCount={sessions.length} />
+            {sessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                onEdit={handleEditSession}
+                onUnlog={handleUnlogSession}
+              />
+            ))}
+          </div>
+        ))}
+
+        {/* Old history: sessions from previous cycles */}
         {archiveSessions.length > 0 && (
           <div>
             <button
