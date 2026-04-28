@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Session, MuscleGroup } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel, sortedMuscleGroups } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 
 interface SessionCardProps {
   session: Session
@@ -79,7 +79,7 @@ export default function SessionCard({
   const cardBg = isUpcoming ? "bg-[#fdf5f6]" : "bg-white"
   const headerColor = isUpcoming ? "text-[#7a1f2e]" : "text-[#111111]"
 
-  const allGroups = sortedMuscleGroups(exerciseConfig)
+  const allGroups = [...exerciseConfig].sort((a, b) => a.name.localeCompare(b.name))
 
   const summaryBody = (
     <div className="px-4 pt-4 pb-4">
