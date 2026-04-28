@@ -175,7 +175,6 @@ export default function Page() {
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [anchorPrompt, setAnchorPrompt] = useState(false)
   const [anchorInput, setAnchorInput] = useState("")
-  const [archiveOpen, setArchiveOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -436,10 +435,6 @@ export default function Page() {
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()),
   }))
 
-  const archiveSessions = confirmedSorted.filter(
-    (s) => !activeBlockSessionIds.has(s.id) && !completedCycleSessionIdSet.has(s.id)
-  )
-
   const blockIndexMap = new Map<number, number>()
   if (activeBlock) {
     const chronoConfirmed = [...activeBlockSessions].sort(
@@ -547,34 +542,6 @@ export default function Page() {
             ))}
           </div>
         ))}
-
-        {/* Old history */}
-        {archiveSessions.length > 0 && (
-          <div>
-            <button
-              onClick={() => setArchiveOpen((v) => !v)}
-              className="flex items-center gap-2 text-xs font-semibold text-[#777777] mb-3 hover:text-[#444444] transition-colors"
-            >
-              <span
-                className="inline-block transition-transform duration-200"
-                style={{ transform: archiveOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-              >
-                ›
-              </span>
-              {archiveOpen ? "Hide" : "Show"} history ({archiveSessions.length})
-            </button>
-            {archiveOpen &&
-              archiveSessions.map((s) => (
-                <SessionCard
-                  key={s.id}
-                  session={s}
-                  onEdit={handleEditSession}
-                  onUnlog={handleUnlogSession}
-                  exerciseConfig={exerciseConfig}
-                />
-              ))}
-          </div>
-        )}
       </main>
 
       {/* Log Session Modal */}
