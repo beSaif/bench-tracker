@@ -7,12 +7,11 @@ import {
   MuscleGroup,
   ExtraWorkout,
   ExtraSet,
-  MUSCLE_GROUP_LABEL,
-  MUSCLE_GROUP_EXERCISES,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
+import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle } from "@/lib/exerciseConfig"
 import {
   DndContext,
   closestCenter,
@@ -38,6 +37,7 @@ interface LogSessionModalProps {
   mode?: "log" | "edit"
   previousSessions?: Session[]
   initialDraft?: SessionDraft
+  exerciseConfig: MuscleGroupConfig[]
 }
 
 interface EditableSet extends BenchSet {
@@ -65,10 +65,10 @@ function groupId(g: ExerciseGroup): string {
   return g.kind === "bench" ? "bench" : `extra-${g.muscle}-${g.exercise}`
 }
 
-function buildDefaultOrder(session: Session): ExerciseGroup[] {
+function buildDefaultOrder(session: Session, exerciseConfig: MuscleGroupConfig[]): ExerciseGroup[] {
   const order: ExerciseGroup[] = [{ kind: "bench" }]
   for (const muscle of session.selectedMuscleGroups ?? []) {
-    for (const exercise of MUSCLE_GROUP_EXERCISES[muscle]) {
+    for (const exercise of getExercisesForMuscle(exerciseConfig, muscle)) {
       order.push({ kind: "extra", muscle, exercise })
     }
   }
@@ -99,12 +99,14 @@ function SortableGroupRow({
   sets,
   extraState,
   completedSets,
+  exerciseConfig,
 }: {
   id: string
   group: ExerciseGroup
   sets: EditableSet[]
   extraState: ExtraWorkoutState
   completedSets: Set<string>
+  exerciseConfig: MuscleGroupConfig[]
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
@@ -113,7 +115,7 @@ function SortableGroupRow({
   const label =
     group.kind === "bench"
       ? "Bench Press"
-      : `${MUSCLE_GROUP_LABEL[group.muscle]} · ${group.exercise}`
+      : `${getMuscleLabel(exerciseConfig, group.muscle)} · ${group.exercise}`
 
   let count: number
   let completedCount: number
@@ -204,7 +206,7 @@ function defaultExtraSet(): EditableExtraSet {
   return { kgStr: "0", repsStr: "10" }
 }
 
-function initExtraWorkoutState(session: Session): ExtraWorkoutState {
+function initExtraWorkoutState(session: Session, exerciseConfig: MuscleGroupConfig[]): ExtraWorkoutState {
   const groups = session.selectedMuscleGroups ?? []
   if (groups.length === 0) return {}
 
@@ -225,7 +227,7 @@ function initExtraWorkoutState(session: Session): ExtraWorkoutState {
   const state: ExtraWorkoutState = {}
   for (const muscle of groups) {
     state[muscle] = {}
-    for (const exerciseName of MUSCLE_GROUP_EXERCISES[muscle]) {
+    for (const exerciseName of getExercisesForMuscle(exerciseConfig, muscle)) {
       state[muscle][exerciseName] = [defaultExtraSet(), defaultExtraSet(), defaultExtraSet()]
     }
   }
@@ -259,6 +261,7 @@ export default function LogSessionModal({
   mode = "log",
   previousSessions = [],
   initialDraft,
+  exerciseConfig,
 }: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(
     () => initialDraft?.sets ?? session.sets.map(toEditable)
@@ -273,14 +276,14 @@ export default function LogSessionModal({
   const [restSeconds, setRestSeconds] = useState(0)
   const restActive = restEndTime !== null
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
-    () => initialDraft?.extraState ?? initExtraWorkoutState(session)
+    () => initialDraft?.extraState ?? initExtraWorkoutState(session, exerciseConfig)
   )
   const [currentSetIndex, setCurrentSetIndex] = useState(
     initialDraft?.currentSetIndex ?? 0
   )
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [exerciseOrder, setExerciseOrder] = useState<ExerciseGroup[]>(
-    () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session)
+    () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig)
   )
   const [showReorder, setShowReorder] = useState(false)
 
@@ -595,11 +598,11 @@ export default function LogSessionModal({
       .filter((muscle) => extraState[muscle])
       .map((muscle) => ({
         muscle,
-        exercises: (MUSCLE_GROUP_EXERCISES[muscle] as string[])
-          .filter((name) => extraState[muscle][name])
-          .map((name) => ({
+        exercises: Object.entries(extraState[muscle])
+          .filter(([, sets]) => sets.length > 0)
+          .map(([name, sets]) => ({
             name,
-            sets: extraState[muscle][name].map((s) => ({
+            sets: sets.map((s) => ({
               kg: parseFloat(s.kgStr) || 0,
               reps: parseInt(s.repsStr, 10) || 0,
               rpe: null,
@@ -828,7 +831,7 @@ export default function LogSessionModal({
                       }`}
                     >
                       <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
-                        {MUSCLE_GROUP_LABEL[item.muscle]}
+                        {getMuscleLabel(exerciseConfig, item.muscle)}
                       </p>
                       <div className="flex items-start justify-between mb-5">
                         <div>
@@ -1007,6 +1010,7 @@ export default function LogSessionModal({
                         sets={sets}
                         extraState={extraState}
                         completedSets={completedSets}
+                        exerciseConfig={exerciseConfig}
                       />
                     ))}
                   </SortableContext>

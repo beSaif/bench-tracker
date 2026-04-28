@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { Session, BenchSet, MUSCLE_GROUP_LABEL } from "@/lib/types"
-import { loadAll, loadSessionsLocal } from "@/lib/storage"
+import { Session, BenchSet } from "@/lib/types"
+import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig } from "@/lib/storage"
+import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -48,6 +49,7 @@ export default function SessionDetailPage() {
   const id = Number(params.id)
 
   const [session, setSession] = useState<Session | null>(null)
+  const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(loadExerciseConfigLocal)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -55,6 +57,8 @@ export default function SessionDetailPage() {
     const found = local.find((s) => s.id === id) ?? null
     setSession(found)
     setMounted(true)
+
+    loadExerciseConfig().then(setExerciseConfig)
 
     loadAll().then(({ sessions }) => {
       const updated = sessions.find((s) => s.id === id) ?? null
@@ -182,7 +186,7 @@ export default function SessionDetailPage() {
             {session.extraWorkouts.map((workout) => (
               <div key={workout.muscle}>
                 <p className="text-xs font-semibold text-[#555555] mb-2">
-                  {MUSCLE_GROUP_LABEL[workout.muscle]}
+                  {getMuscleLabel(exerciseConfig, workout.muscle)}
                 </p>
                 {workout.exercises.map((exercise) => (
                   <div key={exercise.name} className="mb-2">
