@@ -22,7 +22,6 @@ import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
-import HistorySidebar from "@/components/HistorySidebar"
 
 const TARGET = 140
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -176,7 +175,6 @@ export default function Page() {
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [anchorPrompt, setAnchorPrompt] = useState(false)
   const [anchorInput, setAnchorInput] = useState("")
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -437,10 +435,6 @@ export default function Page() {
       .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()),
   }))
 
-  const archiveSessions = confirmedSorted.filter(
-    (s) => !activeBlockSessionIds.has(s.id) && !completedCycleSessionIdSet.has(s.id)
-  )
-
   const blockIndexMap = new Map<number, number>()
   if (activeBlock) {
     const chronoConfirmed = [...activeBlockSessions].sort(
@@ -472,29 +466,17 @@ export default function Page() {
             >
               Bench Tracker
             </h1>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setHistoryOpen(true)}
-                className="p-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
-                aria-label="Open history"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="9" cy="9" r="7.5" />
-                  <polyline points="9,5 9,9 12,11" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="p-1 -mr-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
-                aria-label="Open menu"
-              >
-                <svg width="20" height="14" viewBox="0 0 20 14" fill="currentColor" aria-hidden="true">
-                  <rect y="0" width="20" height="2" rx="1" />
-                  <rect y="6" width="20" height="2" rx="1" />
-                  <rect y="12" width="20" height="2" rx="1" />
-                </svg>
-              </button>
-            </div>
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="p-1 -mr-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
+              aria-label="Open menu"
+            >
+              <svg width="20" height="14" viewBox="0 0 20 14" fill="currentColor" aria-hidden="true">
+                <rect y="0" width="20" height="2" rx="1" />
+                <rect y="6" width="20" height="2" rx="1" />
+                <rect y="12" width="20" height="2" rx="1" />
+              </svg>
+            </button>
           </div>
           <p className="text-sm text-[#777777]">
             Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
@@ -515,7 +497,7 @@ export default function Page() {
         {/* Program timeline */}
         {blocks.length > 0 && <ProgramTimeline blocks={blocks} sessions={confirmed} />}
 
-        {/* Active block + upcoming session */}
+        {/* Active block + sessions */}
         <div className="mb-4">
           {activeBlock && (
             <BlockHeader
@@ -533,7 +515,33 @@ export default function Page() {
               exerciseConfig={exerciseConfig}
             />
           )}
+          {activeBlockSessions.map((s) => (
+            <SessionCard
+              key={s.id}
+              session={s}
+              blockIndex={blockIndexMap.get(s.id)}
+              onEdit={handleEditSession}
+              onUnlog={handleUnlogSession}
+              exerciseConfig={exerciseConfig}
+            />
+          ))}
         </div>
+
+        {/* Completed blocks in the current cycle */}
+        {completedCycleGroups.map(({ block, sessions }) => (
+          <div key={block.id} className="mb-4">
+            <BlockHeader block={block} confirmedCount={sessions.length} />
+            {sessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                onEdit={handleEditSession}
+                onUnlog={handleUnlogSession}
+                exerciseConfig={exerciseConfig}
+              />
+            ))}
+          </div>
+        ))}
       </main>
 
       {/* Log Session Modal */}
@@ -591,20 +599,6 @@ export default function Page() {
           </div>
         </div>
       )}
-
-      {/* History sidebar */}
-      <HistorySidebar
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        activeBlock={activeBlock}
-        activeBlockSessions={activeBlockSessions}
-        completedCycleGroups={completedCycleGroups}
-        archiveSessions={archiveSessions}
-        blockIndexMap={blockIndexMap}
-        exerciseConfig={exerciseConfig}
-        onEdit={handleEditSession}
-        onUnlog={handleUnlogSession}
-      />
 
       {/* Anchor weight setup / edit */}
       {anchorPrompt && (
