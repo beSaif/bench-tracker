@@ -462,18 +462,7 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <div className="flex items-center gap-3 mb-1">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="p-1 -ml-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
-              aria-label="Open menu"
-            >
-              <svg width="20" height="14" viewBox="0 0 20 14" fill="currentColor" aria-hidden="true">
-                <rect y="0" width="20" height="2" rx="1" />
-                <rect y="6" width="20" height="2" rx="1" />
-                <rect y="12" width="20" height="2" rx="1" />
-              </svg>
-            </button>
+          <div className="flex items-center justify-between mb-1">
             <h1
               className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
               onPointerDown={handleTitlePointerDown}
@@ -482,8 +471,19 @@ export default function Page() {
             >
               Bench Tracker
             </h1>
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="p-1 -mr-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
+              aria-label="Open menu"
+            >
+              <svg width="20" height="14" viewBox="0 0 20 14" fill="currentColor" aria-hidden="true">
+                <rect y="0" width="20" height="2" rx="1" />
+                <rect y="6" width="20" height="2" rx="1" />
+                <rect y="12" width="20" height="2" rx="1" />
+              </svg>
+            </button>
           </div>
-          <p className="text-sm text-[#777777] mt-0.5 pl-8">
+          <p className="text-sm text-[#777777]">
             Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
           </p>
         </header>
