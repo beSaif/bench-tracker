@@ -173,7 +173,7 @@ export default function GroupPage() {
                     if (e.key === "Escape") setEditingExId(null)
                   }}
                   onBlur={saveRename}
-                  className="flex-1 text-sm text-[#111111] border-b border-[#7a1f2e] outline-none bg-transparent py-0.5"
+                  className="flex-1 text-base text-[#111111] border-b border-[#7a1f2e] outline-none bg-transparent py-0.5"
                 />
               ) : (
                 <span className="flex-1 text-sm text-[#333333]">{ex.name}</span>
@@ -217,7 +217,7 @@ export default function GroupPage() {
                 if (e.key === "Escape") { setAddingExercise(false); setSimilarWarning([]) }
               }}
               placeholder="Exercise name"
-              className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#7a1f2e] outline-none bg-transparent pb-1 mb-2"
+              className="w-full text-base text-[#111111] border-b border-[#e8e8e8] focus:border-[#7a1f2e] outline-none bg-transparent pb-1 mb-2"
             />
             {similarWarning.length > 0 && (
               <div className="mb-2">
