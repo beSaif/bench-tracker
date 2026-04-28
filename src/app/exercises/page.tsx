@@ -126,7 +126,7 @@ export default function ExercisesPage() {
                       if (e.key === "Escape") setEditingGroupId(null)
                     }}
                     onBlur={() => saveRename(group.id)}
-                    className="w-full text-base font-semibold text-[#111111] border-b border-[#7a1f2e] outline-none bg-transparent py-0.5"
+                    className="w-full text-sm font-semibold text-[#111111] border-b border-[#7a1f2e] outline-none bg-transparent py-0.5"
                   />
                 </div>
               ) : (
@@ -190,7 +190,7 @@ export default function ExercisesPage() {
                 if (e.key === "Escape") { setAddingGroup(false); setNewGroupName("") }
               }}
               placeholder="e.g. Abs"
-              className="w-full text-base text-[#111111] border-b border-[#e8e8e8] focus:border-[#7a1f2e] outline-none bg-transparent pb-1 mb-4"
+              className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#7a1f2e] outline-none bg-transparent pb-1 mb-4"
             />
             <div className="flex gap-3">
               <button
