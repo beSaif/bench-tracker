@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Session, TrainingBlock, BlockPhase } from "@/lib/types"
-import { loadAll, loadExerciseConfig } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig } from "@/lib/storage"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 
@@ -29,9 +29,8 @@ export default function HistoryPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const { sessions: s, blocks: b } = loadAll()
-    setSessions(s)
-    setBlocks(b)
+    setSessions(loadSessionsLocal())
+    setBlocks(loadBlocksLocal())
     loadExerciseConfig().then(setExerciseConfig)
     setMounted(true)
   }, [])
