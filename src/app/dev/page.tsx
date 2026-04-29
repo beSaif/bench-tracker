@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { loadSessionsLocal, loadBlocksLocal, saveAll } from "@/lib/storage"
+import { signOut } from "next-auth/react"
+import { loadSessionsLocal, loadBlocksLocal, saveAll, wipeLocalUserData } from "@/lib/storage"
 import { Session, TrainingBlock } from "@/lib/types"
 
 type KvStatus = "loading" | "ok" | "error"
@@ -58,6 +59,13 @@ export default function DevPage() {
 
   function pushToKV() {
     saveAll(localData.sessions, localData.blocks)
+  }
+
+  async function deleteAccount() {
+    if (!confirm("Delete everything? This wipes your profile, sessions, blocks, and exercises from KV and localStorage. Cannot be undone.")) return
+    await fetch("/api/profile", { method: "DELETE" })
+    wipeLocalUserData()
+    await signOut({ callbackUrl: "/welcome" })
   }
 
   const kvCount = kvData?.sessions.length ?? 0
@@ -196,7 +204,7 @@ export default function DevPage() {
       </section>
 
       {/* Sync actions */}
-      <section>
+      <section className="mb-6">
         <h2 className="text-sm font-semibold text-[#111111] mb-3">Sync</h2>
         <div className="flex flex-col gap-2">
           <button
@@ -214,6 +222,18 @@ export default function DevPage() {
             Push localStorage → KV
           </button>
         </div>
+      </section>
+
+      {/* Danger zone */}
+      <section className="border-t border-[#e8e8e8] pt-6">
+        <h2 className="text-sm font-semibold text-[#111111] mb-1">Danger zone</h2>
+        <p className="text-xs text-[#aaaaaa] mb-3">Wipes everything — profile, sessions, blocks, exercises. Signs you out. Use to re-test onboarding.</p>
+        <button
+          onClick={deleteAccount}
+          className="w-full py-3 rounded-xl border-2 border-red-200 text-sm font-semibold text-red-500 hover:bg-red-50 active:bg-red-100 transition-colors"
+        >
+          Delete account
+        </button>
       </section>
     </main>
   )
