@@ -10,7 +10,8 @@ export async function GET() {
 
   try {
     const data = await kv.get(sessionsKey(email))
-    if (!data) return NextResponse.json({ sessions: [], blocks: [] })
+    // 404 means "never synced" — client should fall back to localStorage for migration
+    if (!data) return NextResponse.json(null, { status: 404 })
     if (Array.isArray(data)) return NextResponse.json({ sessions: data, blocks: [] })
     return NextResponse.json(data)
   } catch {
