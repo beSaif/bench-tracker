@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Bench Tracker',
-    short_name: 'Bench',
-    description: "Saif's bench press progression tracker — road to 140kg",
+    name: 'Lift Tracker',
+    short_name: 'Lift',
+    description: 'Block periodization for your one main lift.',
     start_url: '/',
     display: 'standalone',
     background_color: '#111827',

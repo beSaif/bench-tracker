@@ -5,6 +5,7 @@ interface StatsGridProps {
   best: number | null
   sessions: number
   bw: number | null
+  target: number
 }
 
 interface StatCellProps {
@@ -30,7 +31,8 @@ function StatCell({ label, value, accent }: StatCellProps) {
   )
 }
 
-export default function StatsGrid({ e1rm, best, sessions, bw }: StatsGridProps) {
+export default function StatsGrid({ e1rm, best, sessions, bw, target }: StatsGridProps) {
+  void bw
   return (
     <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6">
       <div className="border-b border-r border-[#e8e8e8]">
@@ -43,7 +45,7 @@ export default function StatsGrid({ e1rm, best, sessions, bw }: StatsGridProps) 
       <div className="border-b border-[#e8e8e8]">
         <StatCell
           label="Target"
-          value="140kg"
+          value={`${target}kg`}
         />
       </div>
       <div className="border-r border-[#e8e8e8]">

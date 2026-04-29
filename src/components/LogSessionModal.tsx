@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import {
   Session,
-  BenchSet,
+  MainLiftSet,
   MuscleGroup,
   ExtraWorkout,
   ExtraSet,
@@ -38,9 +38,10 @@ interface LogSessionModalProps {
   previousSessions?: Session[]
   initialDraft?: SessionDraft
   exerciseConfig: MuscleGroupConfig[]
+  mainLiftLabel: string
 }
 
-interface EditableSet extends BenchSet {
+interface EditableSet extends MainLiftSet {
   _kgStr: string
   _repsStr: string
   _rpeStr: string
@@ -54,19 +55,19 @@ interface EditableExtraSet {
 type ExtraWorkoutState = Record<string, Record<string, EditableExtraSet[]>>
 
 type CarouselItem =
-  | { type: "bench"; set: EditableSet; globalIndex: number }
+  | { type: "main"; set: EditableSet; globalIndex: number }
   | { type: "extra"; muscle: MuscleGroup; exercise: string; setIndex: number }
 
 type ExerciseGroup =
-  | { kind: "bench" }
+  | { kind: "main" }
   | { kind: "extra"; muscle: MuscleGroup; exercise: string }
 
 function groupId(g: ExerciseGroup): string {
-  return g.kind === "bench" ? "bench" : `extra-${g.muscle}-${g.exercise}`
+  return g.kind === "main" ? "main" : `extra-${g.muscle}-${g.exercise}`
 }
 
 function buildDefaultOrder(session: Session, exerciseConfig: MuscleGroupConfig[]): ExerciseGroup[] {
-  const order: ExerciseGroup[] = [{ kind: "bench" }]
+  const order: ExerciseGroup[] = [{ kind: "main" }]
   for (const muscle of session.selectedMuscleGroups ?? []) {
     for (const exercise of getExercisesForMuscle(exerciseConfig, muscle)) {
       order.push({ kind: "extra", muscle, exercise })
@@ -81,8 +82,8 @@ function buildCarouselItems(
   extraState: ExtraWorkoutState
 ): CarouselItem[] {
   return order.flatMap((group): CarouselItem[] => {
-    if (group.kind === "bench") {
-      return sets.map((set, i) => ({ type: "bench" as const, set, globalIndex: i }))
+    if (group.kind === "main") {
+      return sets.map((set, i) => ({ type: "main" as const, set, globalIndex: i }))
     }
     return (extraState[group.muscle]?.[group.exercise] ?? []).map((_, setIndex) => ({
       type: "extra" as const,
@@ -100,6 +101,7 @@ function SortableGroupRow({
   extraState,
   completedSets,
   exerciseConfig,
+  mainLiftLabel,
 }: {
   id: string
   group: ExerciseGroup
@@ -107,14 +109,15 @@ function SortableGroupRow({
   extraState: ExtraWorkoutState
   completedSets: Set<string>
   exerciseConfig: MuscleGroupConfig[]
+  mainLiftLabel: string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   const label =
-    group.kind === "bench"
-      ? "Bench Press"
+    group.kind === "main"
+      ? mainLiftLabel
       : `${getMuscleLabel(exerciseConfig, group.muscle)} · ${group.exercise}`
 
   let count: number
@@ -122,11 +125,11 @@ function SortableGroupRow({
   let topKg: number | null = null
   let topReps: number | null = null
 
-  if (group.kind === "bench") {
+  if (group.kind === "main") {
     count = sets.length
-    const completedBench = sets.filter(s => completedSets.has(s.id))
-    completedCount = completedBench.length
-    const topSet = completedBench
+    const completedMain = sets.filter(s => completedSets.has(s.id))
+    completedCount = completedMain.length
+    const topSet = completedMain
       .filter(s => !s.isWarmup)
       .reduce<EditableSet | null>((best, s) =>
         !best || s.kg > best.kg || (s.kg === best.kg && s.reps > best.reps) ? s : best
@@ -193,7 +196,7 @@ function SortableGroupRow({
   )
 }
 
-function toEditable(set: BenchSet): EditableSet {
+function toEditable(set: MainLiftSet): EditableSet {
   return {
     ...set,
     _kgStr: String(set.kg),
@@ -250,7 +253,7 @@ function getTopSet(exerciseName: string, sessions: Session[]): ExtraSet | null {
 }
 
 function getItemKey(item: CarouselItem): string {
-  if (item.type === "bench") return item.set.id
+  if (item.type === "main") return item.set.id
   return `extra-${item.muscle}-${item.exercise}-${item.setIndex}`
 }
 
@@ -262,6 +265,7 @@ export default function LogSessionModal({
   previousSessions = [],
   initialDraft,
   exerciseConfig,
+  mainLiftLabel,
 }: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(
     () => initialDraft?.sets ?? session.sets.map(toEditable)
@@ -321,7 +325,7 @@ export default function LogSessionModal({
 
   const totalVolume = carouselItems.reduce((sum, item) => {
     if (!completedSets.has(getItemKey(item))) return sum
-    if (item.type === "bench") return sum + item.set.kg * item.set.reps
+    if (item.type === "main") return sum + item.set.kg * item.set.reps
     const s = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
     return s ? sum + parseFloat(s.kgStr) * parseInt(s.repsStr) : sum
   }, 0)
@@ -630,7 +634,7 @@ export default function LogSessionModal({
   const nextItem = carouselItems[currentSetIndex + 1] ?? null
 
   function getNextPreview(item: CarouselItem): string {
-    if (item.type === "bench") {
+    if (item.type === "main") {
       return item.set.isWarmup
         ? `${item.set.id} · ${item.set.kg}kg × ${item.set.reps} (warm-up)`
         : `${item.set.id} · ${item.set.kg}kg × ${item.set.reps}`
@@ -719,8 +723,8 @@ export default function LogSessionModal({
                   setTouchStartX(null)
                 }}
               >
-                {/* Bench set card (warmup or working) */}
-                {currentItem?.type === "bench" && (() => {
+                {/* Main lift set card (warmup or working) */}
+                {currentItem?.type === "main" && (() => {
                   const item = currentItem
                   const isDone = completedSets.has(item.set.id)
                   const isWarmup = item.set.isWarmup
@@ -731,7 +735,7 @@ export default function LogSessionModal({
                       }`}
                     >
                       <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
-                        Bench Press{isWarmup ? " · Warm-up" : ""}
+                        {mainLiftLabel}{isWarmup ? " · Warm-up" : ""}
                       </p>
                       <div className="flex items-center justify-between mb-5">
                         <span className="text-3xl font-bold text-[#111111] leading-none">
@@ -1011,6 +1015,7 @@ export default function LogSessionModal({
                         extraState={extraState}
                         completedSets={completedSets}
                         exerciseConfig={exerciseConfig}
+                        mainLiftLabel={mainLiftLabel}
                       />
                     ))}
                   </SortableContext>

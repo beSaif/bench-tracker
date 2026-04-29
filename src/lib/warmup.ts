@@ -1,7 +1,7 @@
-import { BenchSet } from "./types"
+import { MainLiftSet } from "./types"
 import { roundToPlate } from "./e1rm"
 
-export function generateWarmups(workingWeight: number): BenchSet[] {
+export function generateWarmups(workingWeight: number): MainLiftSet[] {
   return [
     {
       id: "W1",

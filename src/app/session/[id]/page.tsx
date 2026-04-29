@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { Session, BenchSet } from "@/lib/types"
-import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig } from "@/lib/storage"
+import { Session, MainLiftSet, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
+import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal } from "@/lib/storage"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 
 function formatDate(iso: string): string {
@@ -15,7 +15,7 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-function SetRow({ set }: { set: BenchSet }) {
+function SetRow({ set }: { set: MainLiftSet }) {
   const isWarmup = set.isWarmup
   const textColor = isWarmup ? "text-[#aaaaaa]" : "text-[#111111]"
   const e1rmColor = isWarmup ? "text-[#aaaaaa]" : "text-[#7a1f2e]"
@@ -50,6 +50,7 @@ export default function SessionDetailPage() {
 
   const [session, setSession] = useState<Session | null>(null)
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(loadExerciseConfigLocal)
+  const [profile, setProfile] = useState<UserProfile | null>(loadProfileLocal)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function SessionDetailPage() {
     setMounted(true)
 
     loadExerciseConfig().then(setExerciseConfig)
+    loadProfile().then((p) => { if (p) setProfile(p) })
 
     loadAll().then(({ sessions }) => {
       const updated = sessions.find((s) => s.id === id) ?? null
@@ -130,10 +132,10 @@ export default function SessionDetailPage() {
         </div>
       </header>
 
-      {/* Bench press section */}
+      {/* Main lift section */}
       <section className="mb-6">
         <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
-          Bench Press
+          {profile ? MAIN_LIFT_LABEL[profile.mainLift] : "Main Lift"}
         </p>
 
         {/* Quick stats */}
