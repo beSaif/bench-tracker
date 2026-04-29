@@ -9,6 +9,10 @@ type Step = 0 | 1 | 2 | 3 | 4
 
 const LIFTS: MainLift[] = ["bench", "deadlift", "squat"]
 
+function roundTo2p5(kg: number): number {
+  return Math.round(kg / 2.5) * 2.5
+}
+
 export default function OnboardingPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>(0)
@@ -71,6 +75,16 @@ export default function OnboardingPage() {
     return false
   })()
 
+  const anchorVal = parseFloat(anchor)
+  const targetSuggestions: { kg: number; label: string }[] =
+    Number.isFinite(anchorVal) && anchorVal > 0
+      ? [
+          { kg: roundTo2p5(anchorVal * 1.1), label: "+10%" },
+          { kg: roundTo2p5(anchorVal * 1.2), label: "+20%" },
+          { kg: roundTo2p5(anchorVal * 1.3), label: "+30%" },
+        ]
+      : []
+
   if (checking) {
     return <main className="min-h-dvh bg-white" />
   }
@@ -92,7 +106,7 @@ export default function OnboardingPage() {
       <div className="flex-1 flex items-center justify-center px-6">
         <div className="w-full max-w-[360px]">
           {step === 0 && (
-            <Question label="What should we call you?" hint="Your first name is fine.">
+            <Question label="what do we call you?" hint="first name is fine.">
               <input
                 autoFocus
                 value={name}
@@ -105,7 +119,7 @@ export default function OnboardingPage() {
           )}
 
           {step === 1 && (
-            <Question label="What's your bodyweight?" hint="In kilograms — we use this to track relative strength.">
+            <Question label="how much do you weigh?" hint="in kg — we use this to track your relative strength over time.">
               <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
                 <input
                   autoFocus
@@ -124,7 +138,7 @@ export default function OnboardingPage() {
           )}
 
           {step === 2 && (
-            <Question label="Which lift are you tracking?" hint="Pick the one whose progression you want to plan around.">
+            <Question label="what lift are you training?" hint="pick the one you're building your program around.">
               <div className="space-y-2">
                 {LIFTS.map((l) => (
                   <button
@@ -145,8 +159,8 @@ export default function OnboardingPage() {
 
           {step === 3 && (
             <Question
-              label={`What's your current 1RM on ${lift ? MAIN_LIFT_LABEL[lift].toLowerCase() : "your lift"}?`}
-              hint="Your honest best — every block is built around this anchor."
+              label={`what's your current 1 rep max on ${lift ? MAIN_LIFT_LABEL[lift].toLowerCase() : "your lift"}?`}
+              hint="be honest — your whole program is built around this number."
             >
               <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
                 <input
@@ -167,12 +181,29 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <Question
-              label="What's your target?"
-              hint="The number on the bar you're chasing."
+              label="what are you chasing?"
+              hint="pick one below or type your own."
             >
+              {targetSuggestions.length > 0 && (
+                <div className="flex gap-2 mb-6">
+                  {targetSuggestions.map(({ kg, label }) => (
+                    <button
+                      key={kg}
+                      onClick={() => setTarget(String(kg))}
+                      className={`flex-1 flex flex-col items-center py-3 rounded-xl border-2 transition-colors ${
+                        target === String(kg)
+                          ? "border-[#7a1f2e] bg-[#fdf5f6] text-[#7a1f2e]"
+                          : "border-[#e8e8e8] text-[#111111] hover:border-[#cccccc]"
+                      }`}
+                    >
+                      <span className="text-base font-semibold">{kg}kg</span>
+                      <span className="text-xs text-[#aaaaaa] mt-0.5">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
                 <input
-                  autoFocus
                   type="number"
                   inputMode="decimal"
                   step="2.5"
@@ -197,7 +228,7 @@ export default function OnboardingPage() {
               onClick={back}
               className="text-sm font-semibold text-[#777777] hover:text-[#111111] px-4 py-3"
             >
-              Back
+              back
             </button>
           )}
           <button
@@ -205,7 +236,7 @@ export default function OnboardingPage() {
             disabled={!canAdvance || submitting}
             className="flex-1 bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors disabled:opacity-40"
           >
-            {step === 4 ? (submitting ? "Saving…" : "Get started") : "Continue"}
+            {step === 4 ? (submitting ? "saving…" : "let's go") : "continue"}
           </button>
         </div>
       </div>

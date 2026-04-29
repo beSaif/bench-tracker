@@ -82,6 +82,23 @@ export async function GET() {
   }
 }
 
+export async function DELETE() {
+  const session = await auth()
+  const email = session?.user?.email
+  if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+
+  try {
+    await Promise.all([
+      kv.del(profileKey(email)),
+      kv.del(sessionsKey(email)),
+      kv.del(exercisesKey(email)),
+    ])
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: "KV delete failed" }, { status: 503 })
+  }
+}
+
 export async function POST(request: Request) {
   const session = await auth()
   const email = session?.user?.email

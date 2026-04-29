@@ -5,14 +5,13 @@ export default function WelcomePage() {
     <main className="min-h-dvh flex flex-col items-center justify-center px-6 bg-white">
       <div className="w-full max-w-[360px] flex flex-col items-center text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#aaaaaa] mb-3">
-          Lift Tracker
+          lift tracker
         </p>
         <h1 className="text-[34px] font-semibold text-[#111111] tracking-tight leading-tight mb-3">
-          Best workout tracker.
+          best workout tracker.
         </h1>
         <p className="text-sm text-[#777777] mb-12 leading-relaxed">
-          Block periodization for your one main lift. Logs the work,
-          plans the next session, and gets out of the way.
+          built around your one main lift. logs the work, plans what's next, and stays out of the way.
         </p>
 
         <form
