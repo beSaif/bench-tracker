@@ -1,13 +1,16 @@
 import { kv } from "@vercel/kv"
 import { NextResponse } from "next/server"
-
-const KV_KEY = "bench-tracker-sessions"
+import { auth } from "@/auth"
+import { sessionsKey } from "@/lib/userKeys"
 
 export async function GET() {
+  const session = await auth()
+  const email = session?.user?.email
+  if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+
   try {
-    const data = await kv.get(KV_KEY)
+    const data = await kv.get(sessionsKey(email))
     if (!data) return NextResponse.json({ sessions: [], blocks: [] })
-    // Handle legacy format (plain array of sessions)
     if (Array.isArray(data)) return NextResponse.json({ sessions: data, blocks: [] })
     return NextResponse.json(data)
   } catch {
@@ -16,11 +19,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await auth()
+  const email = session?.user?.email
+  if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+
   try {
     const body = await request.json()
-    // Accept both legacy (array) and new ({sessions, blocks}) formats
     const payload = Array.isArray(body) ? { sessions: body, blocks: [] } : body
-    await kv.set(KV_KEY, payload)
+    await kv.set(sessionsKey(email), payload)
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: "KV write failed" }, { status: 503 })

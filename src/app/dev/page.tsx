@@ -45,8 +45,8 @@ export default function DevPage() {
 
   function clearLocal() {
     if (!confirm("Clear localStorage? This cannot be undone.")) return
-    localStorage.removeItem("bench-tracker-sessions")
-    localStorage.removeItem("bench-tracker-blocks")
+    localStorage.removeItem("lift-tracker-sessions")
+    localStorage.removeItem("lift-tracker-blocks")
     setLocalData({ sessions: [], blocks: [] })
   }
 

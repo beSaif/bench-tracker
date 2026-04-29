@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft } from "@/lib/storage"
+import { useRouter } from "next/navigation"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, MAIN_LIFT_SHORT } from "@/lib/types"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
   createNextBlock,
-  deriveInitialAnchor,
   migrateSessionTypes,
   BLOCK_LENGTHS,
   PHASE_LABEL,
@@ -23,7 +23,6 @@ import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 
-const TARGET = 140
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 function relativeTime(isoString: string): string {
@@ -101,7 +100,8 @@ function getCurrentCycleCompletedBlocks(blocks: TrainingBlock[]): TrainingBlock[
 function createUpcomingSession(
   sessions: Session[],
   blocks: TrainingBlock[],
-  config: MuscleGroupConfig[]
+  config: MuscleGroupConfig[],
+  profile: UserProfile
 ): Session {
   const activeBlock = getActiveBlock(blocks)
 
@@ -113,7 +113,7 @@ function createUpcomingSession(
     prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
     blockId = activeBlock.id
   } else {
-    prescription = prescribeBlockSession("accumulation", 0, 100)
+    prescription = prescribeBlockSession("accumulation", 0, profile.anchor)
   }
 
   const warmups = generateWarmups(prescription.weight)
@@ -130,7 +130,7 @@ function createUpcomingSession(
 
   const sessionIndex = activeBlock ? activeBlock.sessionIds.length : 0
   const phase = activeBlock?.phase ?? "accumulation"
-  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the legs.`
+  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
   const muscleRotation = buildMuscleRotation(config)
 
@@ -166,6 +166,8 @@ function sortSessions(sessions: Session[]): Session[] {
 }
 
 export default function Page() {
+  const router = useRouter()
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
@@ -193,52 +195,78 @@ export default function Page() {
   }
 
   useEffect(() => {
-    // Sync load from localStorage immediately
-    const localSessions = loadSessionsLocal()
-    const localBlocks = loadBlocksLocal()
-    const localConfig = loadExerciseConfigLocal()
+    let cancelled = false
 
-    if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
-    if (localBlocks.length > 0) setBlocks(localBlocks)
-    setExerciseConfig(localConfig)
-    setMounted(true)
-
-    // Async load from KV
-    Promise.all([loadAll(), loadExerciseConfig()]).then(
-      ([{ sessions: data, blocks: loadedBlocks }, config]) => {
-        setExerciseConfig(config)
-
-        let finalSessions = backfillMuscles(data, config)
-
-        // One-time migration for historical "Push" sessions
-        const migrated = migrateSessionTypes(finalSessions)
-        if (migrated !== null) finalSessions = migrated
-
-        let finalBlocks = loadedBlocks
-
-        // First-time block setup: no blocks exist yet — prompt user for anchor
-        if (finalBlocks.length === 0) {
-          const confirmed = finalSessions.filter((s) => s.confirmed)
-          setSessions(confirmed)
-          setAnchorInput(String(deriveInitialAnchor(confirmed)))
-          setAnchorPrompt(true)
-          return
-        }
-
-        // Normal load: ensure an upcoming session exists
-        const hasUpcoming = finalSessions.some((s) => !s.confirmed)
-        if (!hasUpcoming) {
-          const confirmed = finalSessions.filter((s) => s.confirmed)
-          const upcoming = createUpcomingSession(confirmed, finalBlocks, config)
-          finalSessions = sortSessions([...confirmed, upcoming])
-          saveAll(finalSessions, finalBlocks)
-        }
-
-        setSessions(finalSessions)
-        setBlocks(finalBlocks)
+    loadProfile().then((p) => {
+      if (cancelled) return
+      if (!p) {
+        router.replace("/onboarding")
+        return
       }
-    )
-  }, [])
+      setProfile(p)
+
+      // Sync load from localStorage immediately
+      const localSessions = loadSessionsLocal()
+      const localBlocks = loadBlocksLocal()
+      const localConfig = loadExerciseConfigLocal()
+
+      if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
+      if (localBlocks.length > 0) setBlocks(localBlocks)
+      setExerciseConfig(localConfig)
+      setMounted(true)
+
+      // Async load from KV
+      Promise.all([loadAll(), loadExerciseConfig()]).then(
+        ([{ sessions: data, blocks: loadedBlocks }, config]) => {
+          if (cancelled) return
+          setExerciseConfig(config)
+
+          let finalSessions = backfillMuscles(data, config)
+
+          // One-time migration for historical "Push" sessions
+          const migrated = migrateSessionTypes(finalSessions)
+          if (migrated !== null) finalSessions = migrated
+
+          let finalBlocks = loadedBlocks
+
+          // First-time block setup: seed first block from profile anchor
+          if (finalBlocks.length === 0) {
+            const confirmed = finalSessions.filter((s) => s.confirmed)
+            const seededBlocks: TrainingBlock[] = [{
+              id: 1,
+              phase: "accumulation",
+              status: "active",
+              sessionIds: [],
+              anchorWeight: roundToPlate(p.anchor),
+              startDate: null,
+              endDate: null,
+            }]
+            const upcoming = createUpcomingSession(confirmed, seededBlocks, config, p)
+            finalSessions = sortSessions([...confirmed, upcoming])
+            finalBlocks = seededBlocks
+            saveAll(finalSessions, finalBlocks)
+            setSessions(finalSessions)
+            setBlocks(finalBlocks)
+            return
+          }
+
+          // Normal load: ensure an upcoming session exists
+          const hasUpcoming = finalSessions.some((s) => !s.confirmed)
+          if (!hasUpcoming) {
+            const confirmed = finalSessions.filter((s) => s.confirmed)
+            const upcoming = createUpcomingSession(confirmed, finalBlocks, config, p)
+            finalSessions = sortSessions([...confirmed, upcoming])
+            saveAll(finalSessions, finalBlocks)
+          }
+
+          setSessions(finalSessions)
+          setBlocks(finalBlocks)
+        }
+      )
+    })
+
+    return () => { cancelled = true }
+  }, [router])
 
   function handleStartLogging(session: Session) {
     const draft = loadDraft()
@@ -262,6 +290,7 @@ export default function Page() {
   }
 
   function handleConfirmAnchor() {
+    if (!profile) return
     const parsed = parseFloat(anchorInput)
     if (isNaN(parsed) || parsed <= 0) return
     const anchor = roundToPlate(parsed)
@@ -285,7 +314,7 @@ export default function Page() {
       }]
     }
 
-    const upcoming = createUpcomingSession(confirmed, finalBlocks, exerciseConfig)
+    const upcoming = createUpcomingSession(confirmed, finalBlocks, exerciseConfig, profile)
     const finalSessions = sortSessions([...confirmed, upcoming])
     saveAll(finalSessions, finalBlocks)
     setSessions(finalSessions)
@@ -294,6 +323,7 @@ export default function Page() {
   }
 
   function handleConfirmSession(updatedSession: Session) {
+    if (!profile) return
     const currentSessions = sessions
     const currentBlocks = blocks
 
@@ -328,7 +358,7 @@ export default function Page() {
       }
     }
 
-    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig)
+    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig, profile)
     const final = sortSessions([...confirmedSessions, newUpcoming])
 
     setSessions(final)
@@ -369,6 +399,7 @@ export default function Page() {
   }
 
   function handleUnlogSession(session: Session) {
+    if (!profile) return
     if (!window.confirm(`Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`)) return
 
     const remaining = sessions.filter((s) => s.confirmed && s.id !== session.id)
@@ -396,7 +427,7 @@ export default function Page() {
       )
     }
 
-    const newUpcoming = createUpcomingSession(remaining, newBlocks, exerciseConfig)
+    const newUpcoming = createUpcomingSession(remaining, newBlocks, exerciseConfig, profile)
     const final = sortSessions([...remaining, newUpcoming])
 
     setSessions(final)
@@ -404,7 +435,7 @@ export default function Page() {
     saveAll(final, newBlocks)
   }
 
-  if (!mounted) {
+  if (!mounted || !profile) {
     return (
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         <div className="h-8 w-40 bg-[#e8e8e8] rounded animate-pulse mb-1" />
@@ -450,6 +481,9 @@ export default function Page() {
   const bestWeight = getBestWeight(sessions)
   const latestBW = getLatestBW(sessions)
 
+  const liftLabel = MAIN_LIFT_LABEL[profile.mainLift]
+  const liftShort = MAIN_LIFT_SHORT[profile.mainLift]
+
   return (
     <>
       <NavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
@@ -464,7 +498,7 @@ export default function Page() {
               onPointerUp={handleTitlePointerUp}
               onPointerLeave={handleTitlePointerUp}
             >
-              Bench Tracker
+              {liftShort} Tracker
             </h1>
             <button
               onClick={() => setDrawerOpen(true)}
@@ -479,12 +513,12 @@ export default function Page() {
             </button>
           </div>
           <p className="text-sm text-[#777777]">
-            Saif · {confirmed.length} sessions · BW {latestBW ?? 54}kg
+            {profile.name} · {confirmed.length} sessions · BW {latestBW ?? profile.bw}kg
           </p>
         </header>
 
         {/* Progress Bar */}
-        <ProgressBar current={latestE1RM} target={TARGET} />
+        <ProgressBar current={latestE1RM} target={profile.target} />
 
         {/* Stats Grid */}
         <StatsGrid
@@ -492,6 +526,7 @@ export default function Page() {
           best={bestWeight}
           sessions={confirmed.length}
           bw={latestBW}
+          target={profile.target}
         />
 
         {/* Program timeline */}
@@ -553,6 +588,7 @@ export default function Page() {
           previousSessions={confirmedSorted}
           initialDraft={activeDraft ?? undefined}
           exerciseConfig={exerciseConfig}
+          mainLiftLabel={liftLabel}
         />
       )}
 
@@ -565,6 +601,7 @@ export default function Page() {
           onClose={() => setEditingSession(null)}
           previousSessions={confirmedSorted}
           exerciseConfig={exerciseConfig}
+          mainLiftLabel={liftLabel}
         />
       )}
 

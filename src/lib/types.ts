@@ -1,4 +1,4 @@
-export interface BenchSet {
+export interface MainLiftSet {
   id: string
   kg: number
   reps: number
@@ -15,7 +15,7 @@ export interface Session {
   date: string | null
   type: SessionType
   bw: number | null
-  sets: BenchSet[]
+  sets: MainLiftSet[]
   confirmed: boolean
   coachNote: string
   selectedMuscleGroups?: MuscleGroup[]
@@ -36,14 +36,35 @@ export interface TrainingBlock {
   endDate: string | null
 }
 
-export const ATHLETE_NAME = "Saif"
-export const TARGET_E1RM = 140
-export const TARGET_BW = 60
-export const START_DATE = "2026-03-21"
-export const STORAGE_KEY = "bench-tracker-sessions"
-export const DRAFT_KEY = "bench-tracker-draft"
-export const BLOCKS_KEY = "bench-tracker-blocks"
-export const EXERCISES_KEY = "bench-tracker-exercises"
+export type MainLift = "bench" | "deadlift" | "squat"
+
+export const MAIN_LIFT_LABEL: Record<MainLift, string> = {
+  bench: "Bench Press",
+  deadlift: "Deadlift",
+  squat: "Squat",
+}
+
+export const MAIN_LIFT_SHORT: Record<MainLift, string> = {
+  bench: "Bench",
+  deadlift: "Deadlift",
+  squat: "Squat",
+}
+
+export interface UserProfile {
+  email: string
+  name: string
+  bw: number
+  mainLift: MainLift
+  anchor: number
+  target: number
+  createdAt: string
+}
+
+export const STORAGE_KEY = "lift-tracker-sessions"
+export const DRAFT_KEY = "lift-tracker-draft"
+export const BLOCKS_KEY = "lift-tracker-blocks"
+export const EXERCISES_KEY = "lift-tracker-exercises"
+export const PROFILE_KEY = "lift-tracker-profile"
 
 export interface SessionDraft {
   sessionId: number
@@ -65,7 +86,7 @@ export interface SessionDraft {
   coachNote: string
   currentSetIndex: number
   exerciseOrder?: Array<
-    | { kind: "bench" }
+    | { kind: "main" }
     | { kind: "extra"; muscle: MuscleGroup; exercise: string }
   >
 }

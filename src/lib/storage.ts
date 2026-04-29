@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, UserProfile } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -36,6 +36,16 @@ export function loadExerciseConfigLocal(): MuscleGroupConfig[] {
   }
 }
 
+export function loadProfileLocal(): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as UserProfile
+  } catch {
+    return null
+  }
+}
+
 function saveLocal(sessions: Session[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
@@ -46,6 +56,52 @@ function saveBlocksLocal(blocks: TrainingBlock[]): void {
 
 function saveExerciseConfigLocal(config: MuscleGroupConfig[]): void {
   localStorage.setItem(EXERCISES_KEY, JSON.stringify(config))
+}
+
+function saveProfileLocal(profile: UserProfile): void {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+}
+
+export async function loadProfile(): Promise<UserProfile | null> {
+  try {
+    const res = await fetch("/api/profile")
+    if (res.ok) {
+      const data = await res.json()
+      if (data && typeof data === "object" && data.email) {
+        saveProfileLocal(data)
+        return data as UserProfile
+      }
+      return null
+    }
+  } catch {
+    // fall through
+  }
+  return loadProfileLocal()
+}
+
+export async function saveProfile(profile: Omit<UserProfile, "email" | "createdAt">): Promise<UserProfile | null> {
+  try {
+    const res = await fetch("/api/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as UserProfile
+    saveProfileLocal(data)
+    return data
+  } catch {
+    return null
+  }
+}
+
+/** Wipe all per-user local data — call on sign out. */
+export function wipeLocalUserData(): void {
+  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(BLOCKS_KEY)
+  localStorage.removeItem(EXERCISES_KEY)
+  localStorage.removeItem(PROFILE_KEY)
+  localStorage.removeItem(DRAFT_KEY)
 }
 
 /** Load sessions + blocks from KV, falling back to localStorage. */

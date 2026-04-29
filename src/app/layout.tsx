@@ -11,12 +11,12 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "Bench Tracker",
-  description: "Bench press progression tracker — Saif's road to 140kg",
+  title: "Lift Tracker",
+  description: "Block periodization for your one main lift.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Bench Tracker",
+    title: "Lift Tracker",
   },
 }
 

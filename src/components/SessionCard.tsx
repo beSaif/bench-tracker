@@ -23,7 +23,7 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-function BenchSummaryLine({ session }: { session: Session }) {
+function MainLiftSummaryLine({ session }: { session: Session }) {
   const working = session.sets.filter((s) => !s.isWarmup)
   if (working.length === 0) return null
 
@@ -102,8 +102,8 @@ export default function SessionCard({
         <p className="text-xs text-[#777777] mb-2">{session.bw}kg BW</p>
       )}
 
-      {/* Compact bench summary */}
-      <BenchSummaryLine session={session} />
+      {/* Compact main-lift summary */}
+      <MainLiftSummaryLine session={session} />
     </div>
   )
 

@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { signOut } from "next-auth/react"
+import { wipeLocalUserData } from "@/lib/storage"
 
 interface NavDrawerProps {
   open: boolean
@@ -10,6 +12,11 @@ interface NavDrawerProps {
 
 export default function NavDrawer({ open, onClose }: NavDrawerProps) {
   const pathname = usePathname()
+
+  function handleSignOut() {
+    wipeLocalUserData()
+    signOut({ callbackUrl: "/welcome" })
+  }
 
   return (
     <>
@@ -82,6 +89,20 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               History
             </Link>
           </nav>
+
+          <div className="mt-8 pt-4 border-t border-[#f0f0f0]">
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#777777] hover:bg-[#f5f5f5] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3" />
+                <polyline points="10.5,11.5 14,8 10.5,4.5" />
+                <line x1="14" y1="8" x2="6" y2="8" />
+              </svg>
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </>
