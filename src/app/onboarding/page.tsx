@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { MainLift, MAIN_LIFT_LABEL } from "@/lib/types"
 import { loadProfile, saveProfile } from "@/lib/storage"
+import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
 
 type Step = 0 | 1 | 2 | 3 | 4
 
@@ -18,6 +19,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(0)
   const [checking, setChecking] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const installGuide = useInstallGuide()
 
   const [name, setName] = useState("")
   const [bw, setBw] = useState("")
@@ -54,7 +56,7 @@ export default function OnboardingPage() {
       target: parseFloat(target),
     })
     setSubmitting(false)
-    if (result) router.replace("/")
+    if (result) installGuide.trigger()
   }
 
   const canAdvance = (() => {
@@ -87,6 +89,19 @@ export default function OnboardingPage() {
 
   if (checking) {
     return <main className="min-h-dvh bg-white" />
+  }
+
+  if (installGuide.show) {
+    return (
+      <main className="min-h-dvh bg-white">
+        <InstallGuideModal
+          onDismiss={() => {
+            installGuide.dismiss()
+            router.replace("/")
+          }}
+        />
+      </main>
+    )
   }
 
   return (

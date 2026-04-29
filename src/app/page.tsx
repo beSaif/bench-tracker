@@ -22,6 +22,7 @@ import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
+import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
@@ -179,6 +180,7 @@ export default function Page() {
   const [anchorInput, setAnchorInput] = useState("")
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function handleTitlePointerDown() {
@@ -204,6 +206,7 @@ export default function Page() {
         return
       }
       setProfile(p)
+      installGuide.trigger()
 
       // Sync load from localStorage immediately
       const localSessions = loadSessionsLocal()
@@ -487,6 +490,10 @@ export default function Page() {
   return (
     <>
       <NavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      {installGuide.show && (
+        <InstallGuideModal onDismiss={installGuide.dismiss} />
+      )}
 
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
