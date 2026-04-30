@@ -27,8 +27,24 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { DrumRollPicker } from "@/components/DrumRollPicker"
 
 const REST_DURATION = 180 // seconds
+
+const KG_VALUES = Array.from(
+  { length: Math.floor((300 - 20) / 2.5) + 1 },
+  (_, i) => 20 + i * 2.5
+)
+const REPS_VALUES = Array.from({ length: 20 }, (_, i) => i + 1)
+const RPE_VALUES: (number | null)[] = [
+  null,
+  ...Array.from({ length: 19 }, (_, i) => 1 + i * 0.5),
+]
+const EXTRA_KG_VALUES = Array.from(
+  { length: Math.floor(150 / 2.5) + 1 },
+  (_, i) => i * 2.5
+)
+const EXTRA_REPS_VALUES = Array.from({ length: 30 }, (_, i) => i + 1)
 
 interface LogSessionModalProps {
   session: Session
@@ -209,7 +225,11 @@ function defaultExtraSet(): EditableExtraSet {
   return { kgStr: "0", repsStr: "10" }
 }
 
-function initExtraWorkoutState(session: Session, exerciseConfig: MuscleGroupConfig[]): ExtraWorkoutState {
+function initExtraWorkoutState(
+  session: Session,
+  exerciseConfig: MuscleGroupConfig[],
+  previousSessions: Session[] = []
+): ExtraWorkoutState {
   const groups = session.selectedMuscleGroups ?? []
   if (groups.length === 0) return {}
 
@@ -231,10 +251,35 @@ function initExtraWorkoutState(session: Session, exerciseConfig: MuscleGroupConf
   for (const muscle of groups) {
     state[muscle] = {}
     for (const exerciseName of getExercisesForMuscle(exerciseConfig, muscle)) {
-      state[muscle][exerciseName] = [defaultExtraSet(), defaultExtraSet(), defaultExtraSet()]
+      const lastSets = getLastSetsForExercise(exerciseName, previousSessions)
+      if (lastSets && lastSets.length > 0) {
+        state[muscle][exerciseName] = Array.from({ length: 3 }, (_, i) =>
+          i < lastSets.length
+            ? { kgStr: String(lastSets[i].kg), repsStr: String(lastSets[i].reps) }
+            : defaultExtraSet()
+        )
+      } else {
+        state[muscle][exerciseName] = [defaultExtraSet(), defaultExtraSet(), defaultExtraSet()]
+      }
     }
   }
   return state
+}
+
+function getLastSetsForExercise(
+  exerciseName: string,
+  previousSessions: Session[]
+): Array<{ kg: number; reps: number }> | null {
+  for (const session of previousSessions) {
+    for (const workout of session.extraWorkouts ?? []) {
+      for (const exercise of workout.exercises) {
+        if (exercise.name === exerciseName && exercise.sets.length > 0) {
+          return exercise.sets.map((s) => ({ kg: s.kg, reps: s.reps }))
+        }
+      }
+    }
+  }
+  return null
 }
 
 function getTopSet(exerciseName: string, sessions: Session[]): ExtraSet | null {
@@ -280,7 +325,7 @@ export default function LogSessionModal({
   const [restSeconds, setRestSeconds] = useState(0)
   const restActive = restEndTime !== null
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
-    () => initialDraft?.extraState ?? initExtraWorkoutState(session, exerciseConfig)
+    () => initialDraft?.extraState ?? initExtraWorkoutState(session, exerciseConfig, previousSessions)
   )
   const [currentSetIndex, setCurrentSetIndex] = useState(
     initialDraft?.currentSetIndex ?? 0
@@ -757,38 +802,28 @@ export default function LogSessionModal({
                           <span className="text-sm text-[#aaaaaa]">&times; {item.set.reps} reps</span>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-3 gap-3 mb-5">
-                          <div>
-                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
-                            <input
-                              type="number" step="2.5" min="20" max="300"
-                              disabled={isDone && mode !== "edit"}
-                              value={item.set._kgStr}
-                              onChange={(e) => updateSet(item.globalIndex, "kg", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
-                            <input
-                              type="number" step="1" min="1" max="20"
-                              disabled={isDone && mode !== "edit"}
-                              value={item.set._repsStr}
-                              onChange={(e) => updateSet(item.globalIndex, "reps", e.target.value)}
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">RPE</label>
-                            <input
-                              type="number" step="0.5" min="1" max="10"
-                              disabled={isDone && mode !== "edit"}
-                              value={item.set._rpeStr}
-                              onChange={(e) => updateSet(item.globalIndex, "rpe", e.target.value)}
-                              placeholder="—"
-                              className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
-                            />
-                          </div>
+                        <div key={item.set.id} className="flex gap-2 mb-5">
+                          <DrumRollPicker
+                            values={KG_VALUES}
+                            selected={item.set.kg}
+                            onChange={(v) => { if (v !== null) updateSet(item.globalIndex, "kg", String(v)) }}
+                            label="kg"
+                            disabled={isDone && mode !== "edit"}
+                          />
+                          <DrumRollPicker
+                            values={REPS_VALUES}
+                            selected={item.set.reps}
+                            onChange={(v) => { if (v !== null) updateSet(item.globalIndex, "reps", String(v)) }}
+                            label="reps"
+                            disabled={isDone && mode !== "edit"}
+                          />
+                          <DrumRollPicker
+                            values={RPE_VALUES}
+                            selected={item.set.rpe}
+                            onChange={(v) => updateSet(item.globalIndex, "rpe", v === null ? "" : String(v))}
+                            label="rpe"
+                            disabled={isDone && mode !== "edit"}
+                          />
                         </div>
                       )}
 
@@ -847,31 +882,25 @@ export default function LogSessionModal({
                         </div>
                         {topSet && (
                           <span className="text-xs text-[#aaaaaa] mt-0.5">
-                            last: {topSet.kg}kg &times; {topSet.reps}
+                            best: {topSet.kg}kg &times; {topSet.reps}
                           </span>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3 mb-5">
-                        <div>
-                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">kg</label>
-                          <input
-                            type="number" step="2.5" min="0"
-                            disabled={isDone && mode !== "edit"}
-                            value={currentExtraSet?.kgStr ?? "0"}
-                            onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-1.5">Reps</label>
-                          <input
-                            type="number" step="1" min="1"
-                            disabled={isDone && mode !== "edit"}
-                            value={currentExtraSet?.repsStr ?? "10"}
-                            onChange={(e) => updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", e.target.value)}
-                            className="w-full border border-[#e8e8e8] rounded-xl px-3 py-3 text-base text-[#111111] focus:outline-none focus:border-[#7a1f2e] disabled:opacity-40 disabled:bg-[#f5f5f5]"
-                          />
-                        </div>
+                      <div key={`${item.muscle}-${item.exercise}-${item.setIndex}`} className="flex gap-2 mb-5">
+                        <DrumRollPicker
+                          values={EXTRA_KG_VALUES}
+                          selected={parseFloat(currentExtraSet?.kgStr ?? "0")}
+                          onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", String(v)) }}
+                          label="kg"
+                          disabled={isDone && mode !== "edit"}
+                        />
+                        <DrumRollPicker
+                          values={EXTRA_REPS_VALUES}
+                          selected={parseInt(currentExtraSet?.repsStr ?? "10", 10)}
+                          onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", String(v)) }}
+                          label="reps"
+                          disabled={isDone && mode !== "edit"}
+                        />
                       </div>
                       <button
                         onClick={() => markSetDone(key)}
