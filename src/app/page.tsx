@@ -177,6 +177,7 @@ export default function Page() {
   const friendEmailsRef = useRef<Set<string>>(new Set())
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
+  const [showNotifBanner, setShowNotifBanner] = useState(false)
   const presenceInitialisedRef = useRef(false)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -318,13 +319,7 @@ export default function Page() {
       .catch(() => {})
   }, [profile])
 
-  // Register push subscription once profile is loaded
-  useEffect(() => {
-    if (!profile) return
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
-    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-    if (!vapidKey) return
-
+  function subscribeAndStore(vapidKey: string) {
     navigator.serviceWorker.ready
       .then((reg) =>
         reg.pushManager.getSubscription().then((existing) => {
@@ -344,7 +339,32 @@ export default function Page() {
         }).catch(() => {})
       })
       .catch(() => {})
+  }
+
+  // Register push subscription once profile is loaded.
+  // iOS requires Notification.requestPermission() from a user gesture — we
+  // can't auto-subscribe there, so we show a banner instead.
+  useEffect(() => {
+    if (!profile) return
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    if (!vapidKey) return
+
+    if (Notification.permission === "granted") {
+      subscribeAndStore(vapidKey)
+    } else if (Notification.permission === "default") {
+      setShowNotifBanner(true)
+    }
   }, [profile])
+
+  async function handleEnableNotifications() {
+    setShowNotifBanner(false)
+    const permission = await Notification.requestPermission()
+    if (permission === "granted") {
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (vapidKey) subscribeAndStore(vapidKey)
+    }
+  }
 
   function signalPresence(inSession: boolean) {
     fetch("/api/presence", {
@@ -615,6 +635,30 @@ export default function Page() {
 
         {/* Friends presence */}
         <FriendPresenceStrip presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))} currentUserEmail={profile.email} />
+
+        {/* Notification opt-in banner (needed on iOS PWA where auto-subscribe is blocked) */}
+        {showNotifBanner && (
+          <div className="flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-xl bg-[#f5f5f5] border border-[#e8e8e8]">
+            <span className="text-sm text-[#444444]">Enable notifications for friend requests</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleEnableNotifications}
+                className="text-sm font-medium text-[#111111] bg-white border border-[#d0d0d0] rounded-lg px-3 py-1 active:opacity-70"
+              >
+                Enable
+              </button>
+              <button
+                onClick={() => setShowNotifBanner(false)}
+                className="text-[#999999] active:opacity-70"
+                aria-label="Dismiss"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+                  <path d="M1.41 0L0 1.41 5.59 7 0 12.59 1.41 14 7 8.41 12.59 14 14 12.59 8.41 7 14 1.41 12.59 0 7 5.59 1.41 0z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Progress Bar */}
         <ProgressBar current={latestE1RM} target={profile.target} />
