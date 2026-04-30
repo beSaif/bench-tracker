@@ -16,6 +16,18 @@ export function exercisesKey(email: string): string {
   return `user:${normalize(email)}:exercises`
 }
 
+export function reactionsKey(ownerEmail: string, sessionId: number): string {
+  return `session:${normalize(ownerEmail)}:${sessionId}:reactions`
+}
+
+export function commentsKey(ownerEmail: string, sessionId: number): string {
+  return `session:${normalize(ownerEmail)}:${sessionId}:comments`
+}
+
+export function pushSubKey(email: string): string {
+  return `user:${normalize(email)}:push-sub`
+}
+
 export const LEGACY_SESSIONS_KEY = "bench-tracker-sessions"
 export const LEGACY_EXERCISES_KEY = "bench-tracker-exercises"
 

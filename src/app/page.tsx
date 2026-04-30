@@ -298,6 +298,34 @@ export default function Page() {
     return () => clearInterval(interval)
   }, [profile])
 
+  // Register push subscription once profile is loaded
+  useEffect(() => {
+    if (!profile) return
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    if (!vapidKey) return
+
+    navigator.serviceWorker.ready
+      .then((reg) =>
+        reg.pushManager.getSubscription().then((existing) => {
+          if (existing) return existing
+          const padding = "=".repeat((4 - (vapidKey.length % 4)) % 4)
+          const base64 = (vapidKey + padding).replace(/-/g, "+").replace(/_/g, "/")
+          const raw = atob(base64)
+          const key = Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+        })
+      )
+      .then((sub) => {
+        fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        }).catch(() => {})
+      })
+      .catch(() => {})
+  }, [profile])
+
   function signalPresence(inSession: boolean) {
     fetch("/api/presence", {
       method: "POST",
@@ -417,8 +445,8 @@ export default function Page() {
       body: JSON.stringify({
         type: isNewPR ? "pr_hit" : "session_logged",
         payload: isNewPR
-          ? { weight: newBestE1RM }
-          : { sessionType: updatedSession.type },
+          ? { weight: newBestE1RM, sessionId: updatedSession.id }
+          : { sessionType: updatedSession.type, sessionId: updatedSession.id },
       }),
     }).catch(() => {})
   }

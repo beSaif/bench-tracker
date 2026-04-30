@@ -54,12 +54,46 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  const url = event.notification.data?.url ?? '/'
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
         if ('focus' in client) return client.focus()
       }
-      if (clients.openWindow) return clients.openWindow('/')
+      if (clients.openWindow) return clients.openWindow(url)
     })
+  )
+})
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'Lift Tracker', body: '' }
+  try { data = event.data.json() } catch { data.body = event.data?.text() ?? '' }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/apple-icon.png',
+      badge: '/apple-icon.png',
+      tag: data.tag ?? 'lift-push',
+      vibrate: [200, 100, 200],
+      data: { url: data.url ?? '/gymbros' },
+    })
+  )
+})
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: event.oldSubscription?.options.applicationServerKey,
+      })
+      .then((sub) =>
+        fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub),
+        })
+      )
   )
 })

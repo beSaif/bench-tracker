@@ -111,8 +111,33 @@ export interface ActivityEvent {
   payload: {
     weight?: number
     sessionType?: string
+    sessionId?: number
   }
   timestamp: string
+}
+
+export type ReactionEmoji = "🔥" | "💪" | "💀"
+export const REACTION_EMOJIS: ReactionEmoji[] = ["🔥", "💪", "💀"]
+export type ReactionsMap = Record<ReactionEmoji, string[]>
+
+export interface Comment {
+  email: string
+  name: string
+  text: string
+  timestamp: string
+}
+
+export interface LeaderEntry {
+  rank: number
+  name: string
+  email: string
+  value: number
+}
+
+export interface LeaderboardResult {
+  bySessionCount: LeaderEntry[]
+  byE1RM: LeaderEntry[]
+  weekStart: string
 }
 
 export type MuscleGroup = string
