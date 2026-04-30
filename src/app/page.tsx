@@ -173,6 +173,8 @@ export default function Page() {
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [presences, setPresences] = useState<UserPresence[]>([])
+  const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
+  const prevPresencesRef = useRef<UserPresence[]>([])
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -270,7 +272,24 @@ export default function Page() {
     const fetchPresences = () => {
       fetch("/api/presence")
         .then((r) => r.ok ? r.json() : [])
-        .then((data: UserPresence[]) => setPresences(Array.isArray(data) ? data : []))
+        .then((data: UserPresence[]) => {
+          if (!Array.isArray(data)) return
+          const prev = prevPresencesRef.current
+          data
+            .filter(
+              (p) =>
+                p.inSession &&
+                p.email !== profile.email &&
+                !prev.find((q) => q.email === p.email && q.inSession)
+            )
+            .forEach((p) => {
+              const id = `${Date.now()}-${p.email}`
+              setToasts((t) => [...t, { id, name: p.name.split(" ")[0] }])
+              setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
+            })
+          prevPresencesRef.current = data
+          setPresences(data)
+        })
         .catch(() => {})
     }
 
@@ -633,8 +652,6 @@ export default function Page() {
           initialDraft={activeDraft ?? undefined}
           exerciseConfig={exerciseConfig}
           mainLiftLabel={liftLabel}
-          presences={presences}
-          currentUserEmail={profile.email}
         />
       )}
 
@@ -648,8 +665,6 @@ export default function Page() {
           previousSessions={confirmedSorted}
           exerciseConfig={exerciseConfig}
           mainLiftLabel={liftLabel}
-          presences={presences}
-          currentUserEmail={profile.email}
         />
       )}
 
@@ -712,6 +727,24 @@ export default function Page() {
               Start Block 1: Accumulation
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Friend online toasts */}
+      {toasts.length > 0 && (
+        <div className="fixed top-4 left-0 right-0 z-[60] flex flex-col items-center gap-2 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className="flex items-center gap-2 bg-white border border-[#e8e8e8] rounded-full px-4 py-2 shadow-md text-sm text-[#333333]"
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              {toast.name} started lifting
+            </div>
+          ))}
         </div>
       )}
     </>
