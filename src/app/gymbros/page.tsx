@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { UserProfile, MAIN_LIFT_LABEL, UserPresence, ActivityEvent } from "@/lib/types"
+import { UserProfile, MAIN_LIFT_LABEL, UserPresence, ActivityEvent, LeaderboardResult } from "@/lib/types"
 import ActivityFeed from "@/components/ActivityFeed"
+import WeeklyLeaderboard from "@/components/WeeklyLeaderboard"
 
 function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
   const colours: Record<UserProfile["mainLift"], string> = {
@@ -22,6 +23,7 @@ export default function GymBrosPage() {
   const [bros, setBros] = useState<UserProfile[]>([])
   const [presences, setPresences] = useState<UserPresence[]>([])
   const [activity, setActivity] = useState<ActivityEvent[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState<string>("")
 
@@ -40,11 +42,13 @@ export default function GymBrosPage() {
       Promise.all([
         fetch("/api/users").then((r) => r.json()),
         fetch("/api/activity").then((r) => r.json()),
+        fetch("/api/leaderboard").then((r) => r.json()),
       ])
-        .then(([users, acts]: [UserProfile[], ActivityEvent[]]) => {
+        .then(([users, acts, board]: [UserProfile[], ActivityEvent[], LeaderboardResult]) => {
           const sorted = [...users].sort((a, b) => a.name.localeCompare(b.name))
           setBros(sorted)
           setActivity(Array.isArray(acts) ? acts : [])
+          if (board && board.weekStart) setLeaderboard(board)
         })
         .catch(() => {})
         .finally(() => setLoading(false))
@@ -94,6 +98,7 @@ export default function GymBrosPage() {
       </header>
 
       <ActivityFeed events={activity} currentUserEmail={currentEmail} />
+      {leaderboard && <WeeklyLeaderboard data={leaderboard} currentEmail={currentEmail} />}
 
       {loading ? (
         <div className="space-y-3">

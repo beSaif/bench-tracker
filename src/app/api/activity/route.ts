@@ -43,6 +43,19 @@ export async function POST(request: Request) {
     await kv.lpush(FEED_KEY, event)
     await kv.ltrim(FEED_KEY, 0, MAX_EVENTS - 1)
 
+    if (event.type === "pr_hit") {
+      import("@/lib/pushNotify")
+        .then(({ sendPushToAll }) =>
+          sendPushToAll(email, {
+            title: `${name} hit a new PR!`,
+            body: `${event.payload.weight}kg — go react 🔥`,
+            tag: "pr",
+            url: "/gymbros",
+          })
+        )
+        .catch(() => {})
+    }
+
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: "KV write failed" }, { status: 503 })
