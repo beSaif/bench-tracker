@@ -1,10 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { UserProfile, MAIN_LIFT_LABEL, UserPresence, ActivityEvent, LeaderboardResult } from "@/lib/types"
-import ActivityFeed from "@/components/ActivityFeed"
-import WeeklyLeaderboard from "@/components/WeeklyLeaderboard"
+import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest } from "@/lib/types"
 
 function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
   const colours: Record<UserProfile["mainLift"], string> = {
@@ -19,112 +17,260 @@ function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
   )
 }
 
+type AddState = "idle" | "sending" | "sent" | "not_found" | "already_friends" | "already_pending" | "self" | "error"
+
 export default function GymBrosPage() {
-  const [bros, setBros] = useState<UserProfile[]>([])
+  const [friends, setFriends] = useState<UserProfile[]>([])
   const [presences, setPresences] = useState<UserPresence[]>([])
-  const [activity, setActivity] = useState<ActivityEvent[]>([])
-  const [leaderboard, setLeaderboard] = useState<LeaderboardResult | null>(null)
+  const [requests, setRequests] = useState<FriendRequest[]>([])
+  const [pendingCount, setPendingCount] = useState(0)
+  const [requestsOpen, setRequestsOpen] = useState(false)
+  const [addEmail, setAddEmail] = useState("")
+  const [addState, setAddState] = useState<AddState>("idle")
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState<string>("")
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null)
+  const addInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    const fetchPresence = () => {
-      Promise.all([
-        fetch("/api/presence").then((r) => r.json()),
-      ])
-        .then(([pres]: [UserPresence[]]) => {
-          setPresences(Array.isArray(pres) ? pres : [])
-        })
-        .catch(() => {})
-    }
+  function fetchAll() {
+    Promise.all([
+      fetch("/api/friends").then((r) => r.json()),
+      fetch("/api/friends/requests").then((r) => r.json()),
+    ])
+      .then(([f, req]: [UserProfile[], { requests: FriendRequest[]; count: number }]) => {
+        setFriends(Array.isArray(f) ? f : [])
+        setRequests(req?.requests ?? [])
+        setPendingCount(req?.count ?? 0)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
 
-    const fetchActivity = () => {
-      Promise.all([
-        fetch("/api/users").then((r) => r.json()),
-        fetch("/api/activity").then((r) => r.json()),
-        fetch("/api/leaderboard").then((r) => r.json()),
-      ])
-        .then(([users, acts, board]: [UserProfile[], ActivityEvent[], LeaderboardResult]) => {
-          const sorted = [...users].sort((a, b) => a.name.localeCompare(b.name))
-          setBros(sorted)
-          setActivity(Array.isArray(acts) ? acts : [])
-          if (board && board.weekStart) setLeaderboard(board)
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-    }
-
-    fetchPresence()
-    fetchActivity()
-    const presenceInterval = setInterval(fetchPresence, 15000)
-    const activityInterval = setInterval(fetchActivity, 30000)
-    return () => {
-      clearInterval(presenceInterval)
-      clearInterval(activityInterval)
-    }
-  }, [])
+  function fetchPresence() {
+    fetch("/api/presence")
+      .then((r) => r.json())
+      .then((data: UserPresence[]) => { if (Array.isArray(data)) setPresences(data) })
+      .catch(() => {})
+  }
 
   useEffect(() => {
     fetch("/api/profile")
       .then((r) => r.json())
       .then((p) => { if (p?.email) setCurrentEmail(p.email) })
       .catch(() => {})
+
+    fetchAll()
+    fetchPresence()
+
+    const presenceInterval = setInterval(fetchPresence, 15000)
+    const friendsInterval = setInterval(fetchAll, 30000)
+    return () => {
+      clearInterval(presenceInterval)
+      clearInterval(friendsInterval)
+    }
   }, [])
 
   function getPresence(email: string): UserPresence | undefined {
     return presences.find((p) => p.email === email)
   }
 
+  async function handleAddFriend(e: React.FormEvent) {
+    e.preventDefault()
+    const email = addEmail.trim().toLowerCase()
+    if (!email) return
+    setAddState("sending")
+    try {
+      const res = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetEmail: email }),
+      })
+      if (res.ok) {
+        setAddState("sent")
+        setAddEmail("")
+      } else {
+        const body = await res.json()
+        if (body.error === "user not found") setAddState("not_found")
+        else if (body.error === "already friends") setAddState("already_friends")
+        else if (body.error === "request already sent") setAddState("already_pending")
+        else if (body.error === "cannot add yourself") setAddState("self")
+        else setAddState("error")
+      }
+    } catch {
+      setAddState("error")
+    }
+    setTimeout(() => setAddState("idle"), 3000)
+  }
+
+  async function handleAccept(requesterEmail: string) {
+    await fetch("/api/friends/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requesterEmail }),
+    })
+    fetchAll()
+  }
+
+  async function handleReject(requesterEmail: string) {
+    await fetch("/api/friends/reject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requesterEmail }),
+    })
+    fetchAll()
+  }
+
+  async function handleRemoveFriend(friendEmail: string) {
+    setRemovingEmail(friendEmail)
+    await fetch("/api/friends", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ friendEmail }),
+    })
+    setRemovingEmail(null)
+    fetchAll()
+  }
+
+  const addFeedback: Record<AddState, string> = {
+    idle: "",
+    sending: "",
+    sent: "Request sent",
+    not_found: "No user with that email",
+    already_friends: "Already friends",
+    already_pending: "Request already sent",
+    self: "That's you",
+    error: "Something went wrong",
+  }
+
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 py-6">
       <header className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <Link
-            href="/"
-            className="p-1 -ml-1 text-[#555555] hover:text-[#111111] transition-colors"
-            aria-label="Back to home"
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-1 -ml-1 text-[#555555] hover:text-[#111111] transition-colors"
+              aria-label="Back to home"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="11,4 6,9 11,14" />
+              </svg>
+            </Link>
+            <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">Gymbros</h1>
+          </div>
+          <button
+            onClick={() => setRequestsOpen((o) => !o)}
+            className="relative p-1.5 text-[#555555] hover:text-[#111111] transition-colors"
+            aria-label="Friend requests"
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="11,4 6,9 11,14" />
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M10 2a5 5 0 0 1 5 5c0 1.5-.5 2.8-1.4 3.8L17 17H3l3.4-6.2A5 5 0 0 1 5 7a5 5 0 0 1 5-5z" />
+              <line x1="10" y1="17" x2="10" y2="19" />
             </svg>
-          </Link>
-          <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">Gymbros</h1>
+            {pendingCount > 0 && (
+              <span className="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-0.5 leading-none">
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            )}
+          </button>
         </div>
         {!loading && (
           <p className="text-sm text-[#777777] ml-8">
-            {bros.length} member{bros.length !== 1 ? "s" : ""}
+            {friends.length} gymbro{friends.length !== 1 ? "s" : ""}
           </p>
         )}
       </header>
 
-      <ActivityFeed events={activity} currentUserEmail={currentEmail} />
-      {leaderboard && <WeeklyLeaderboard data={leaderboard} currentEmail={currentEmail} />}
+      {/* Requests panel */}
+      {requestsOpen && (
+        <div className="mb-5 bg-white border border-[#eeeeee] rounded-xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#f5f5f5]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#aaaaaa]">Pending requests</p>
+          </div>
+          {requests.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-[#aaaaaa]">No pending requests</p>
+          ) : (
+            <ul className="divide-y divide-[#f5f5f5]">
+              {requests.map((req) => (
+                <li key={req.email} className="flex items-center justify-between px-4 py-3 gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#111111] truncate">{req.name}</p>
+                    <p className="text-[11px] text-[#aaaaaa] truncate">{req.email}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleAccept(req.email)}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#111111] text-white hover:bg-[#333333] transition-colors"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleReject(req.email)}
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#f5f5f5] text-[#555555] hover:bg-[#eeeeee] transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
+      {/* Add friend */}
+      <form onSubmit={handleAddFriend} className="mb-5">
+        <div className="flex gap-2">
+          <input
+            ref={addInputRef}
+            type="email"
+            value={addEmail}
+            onChange={(e) => setAddEmail(e.target.value)}
+            placeholder="Add gymbro by email"
+            className="flex-1 text-sm px-3 py-2.5 border border-[#dddddd] rounded-xl bg-white text-[#111111] placeholder-[#bbbbbb] focus:outline-none focus:border-[#111111] transition-colors"
+          />
+          <button
+            type="submit"
+            disabled={addState === "sending" || !addEmail.trim()}
+            className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-[#111111] text-white disabled:opacity-40 hover:bg-[#333333] transition-colors shrink-0"
+          >
+            {addState === "sending" ? "…" : "Add"}
+          </button>
+        </div>
+        {addState !== "idle" && addState !== "sending" && (
+          <p className={`mt-1.5 text-[12px] ml-1 ${addState === "sent" ? "text-green-600" : "text-red-500"}`}>
+            {addFeedback[addState]}
+          </p>
+        )}
+      </form>
+
+      {/* Friends list */}
       {loading ? (
         <div className="space-y-3">
-          {[...Array(4)].map((_, i) => (
+          {[...Array(3)].map((_, i) => (
             <div key={i} className="h-20 bg-[#e8e8e8] rounded-xl animate-pulse" />
           ))}
         </div>
-      ) : bros.length === 0 ? (
-        <p className="text-sm text-[#aaaaaa] text-center mt-16">No gymbros yet</p>
+      ) : friends.length === 0 ? (
+        <p className="text-sm text-[#aaaaaa] text-center mt-16">No gymbros yet — add one by email above</p>
       ) : (
         <ul className="space-y-3">
-          {bros.map((bro) => {
+          {friends.map((bro) => {
             const presence = getPresence(bro.email)
             const isLive = presence?.inSession ?? false
+            const isRemoving = removingEmail === bro.email
             return (
               <li
                 key={bro.email}
                 className={`bg-white border rounded-xl px-4 py-3.5 shadow-sm transition-colors ${
                   isLive ? "border-green-300 bg-green-50/30" : "border-[#eeeeee]"
-                }`}
+                } ${isRemoving ? "opacity-50" : ""}`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[#111111]">{bro.name}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-[#111111] truncate">{bro.name}</span>
                     {isLive && (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-green-600 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
                         <span className="relative flex h-1.5 w-1.5">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
                           <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
@@ -133,20 +279,33 @@ export default function GymBrosPage() {
                       </span>
                     )}
                   </div>
-                  <LiftBadge lift={bro.mainLift} />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <LiftBadge lift={bro.mainLift} />
+                    <button
+                      onClick={() => handleRemoveFriend(bro.email)}
+                      disabled={isRemoving}
+                      className="text-[#cccccc] hover:text-red-400 transition-colors p-0.5"
+                      aria-label={`Remove ${bro.name}`}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                        <line x1="2" y1="2" x2="12" y2="12" />
+                        <line x1="12" y1="2" x2="2" y2="12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-4">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Anchor</p>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">BW</p>
+                    <p className="text-sm font-medium text-[#333333]">{bro.bw} kg</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Current</p>
                     <p className="text-sm font-medium text-[#333333]">{bro.anchor} kg</p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Target</p>
                     <p className="text-sm font-medium text-[#333333]">{bro.target} kg</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">BW</p>
-                    <p className="text-sm font-medium text-[#333333]">{bro.bw} kg</p>
                   </div>
                 </div>
               </li>

@@ -28,16 +28,3 @@ export async function sendPushToUser(email: string, payload: PushPayload): Promi
   }
 }
 
-export async function sendPushToAll(
-  excludeEmail: string,
-  payload: PushPayload
-): Promise<void> {
-  const profileKeys = await kv.keys("user:*:profile")
-  const emails = profileKeys.map((k) => {
-    // extract email from "user:{email}:profile"
-    const match = k.match(/^user:(.+):profile$/)
-    return match ? match[1] : null
-  }).filter((e): e is string => e !== null && e !== excludeEmail.trim().toLowerCase())
-
-  await Promise.allSettled(emails.map((e) => sendPushToUser(e, payload)))
-}
