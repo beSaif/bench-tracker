@@ -175,6 +175,7 @@ export default function Page() {
   const [presences, setPresences] = useState<UserPresence[]>([])
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
+  const presenceInitialisedRef = useRef(false)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -275,18 +276,21 @@ export default function Page() {
         .then((data: UserPresence[]) => {
           if (!Array.isArray(data)) return
           const prev = prevPresencesRef.current
-          data
-            .filter(
-              (p) =>
-                p.inSession &&
-                p.email !== profile.email &&
-                !prev.find((q) => q.email === p.email && q.inSession)
-            )
-            .forEach((p) => {
-              const id = `${Date.now()}-${p.email}`
-              setToasts((t) => [...t, { id, name: p.name.split(" ")[0] }])
-              setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
-            })
+          if (presenceInitialisedRef.current) {
+            data
+              .filter(
+                (p) =>
+                  p.inSession &&
+                  p.email !== profile.email &&
+                  !prev.find((q) => q.email === p.email && q.inSession)
+              )
+              .forEach((p) => {
+                const id = `${Date.now()}-${p.email}`
+                setToasts((t) => [...t, { id, name: p.name.split(" ")[0] }])
+                setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
+              })
+          }
+          presenceInitialisedRef.current = true
           prevPresencesRef.current = data
           setPresences(data)
         })
