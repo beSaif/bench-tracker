@@ -37,8 +37,8 @@ export default function StatsGrid({ e1rm, best, sessions, bw, target }: StatsGri
     <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6">
       <div className="border-b border-r border-[#e8e8e8]">
         <StatCell
-          label="Current e1RM"
-          value={e1rm != null ? `${e1rm}kg` : "—"}
+          label="Current Best"
+          value={best != null ? `${best}kg` : "—"}
           accent
         />
       </div>
@@ -50,14 +50,14 @@ export default function StatsGrid({ e1rm, best, sessions, bw, target }: StatsGri
       </div>
       <div className="border-r border-[#e8e8e8]">
         <StatCell
-          label="Sessions"
-          value={String(sessions)}
+          label="e1RM"
+          value={e1rm != null ? `${e1rm}kg` : "—"}
         />
       </div>
       <div>
         <StatCell
-          label="Current Best"
-          value={best != null ? `${best}kg` : "—"}
+          label="Sessions"
+          value={String(sessions)}
         />
       </div>
     </div>
