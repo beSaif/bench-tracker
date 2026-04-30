@@ -173,6 +173,8 @@ export default function Page() {
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [presences, setPresences] = useState<UserPresence[]>([])
+  const [friendEmails, setFriendEmails] = useState<Set<string>>(new Set())
+  const friendEmailsRef = useRef<Set<string>>(new Set())
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
   const presenceInitialisedRef = useRef(false)
@@ -282,6 +284,7 @@ export default function Page() {
                 (p) =>
                   p.inSession &&
                   p.email !== profile.email &&
+                  friendEmailsRef.current.has(p.email.trim().toLowerCase()) &&
                   !prev.find((q) => q.email === p.email && q.inSession)
               )
               .forEach((p) => {
@@ -300,6 +303,19 @@ export default function Page() {
     fetchPresences()
     const interval = setInterval(fetchPresences, 15000)
     return () => clearInterval(interval)
+  }, [profile])
+
+  useEffect(() => {
+    if (!profile) return
+    fetch("/api/friends")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { email: string }[]) => {
+        if (!Array.isArray(data)) return
+        const emails = new Set(data.map((f) => f.email.trim().toLowerCase()))
+        friendEmailsRef.current = emails
+        setFriendEmails(emails)
+      })
+      .catch(() => {})
   }, [profile])
 
   // Register push subscription once profile is loaded
@@ -441,18 +457,6 @@ export default function Page() {
 
     signalPresence(false)
 
-    const newBestE1RM = getBestE1RM(final.filter((s) => s.confirmed))
-    const isNewPR = newBestE1RM !== null && (prevBestE1RM === null || newBestE1RM > prevBestE1RM)
-    fetch("/api/activity", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: isNewPR ? "pr_hit" : "session_logged",
-        payload: isNewPR
-          ? { weight: newBestE1RM, sessionId: updatedSession.id }
-          : { sessionType: updatedSession.type, sessionId: updatedSession.id },
-      }),
-    }).catch(() => {})
   }
 
   function handleCloseModal() {
@@ -610,7 +614,7 @@ export default function Page() {
         </header>
 
         {/* Friends presence */}
-        <FriendPresenceStrip presences={presences} currentUserEmail={profile.email} />
+        <FriendPresenceStrip presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))} currentUserEmail={profile.email} />
 
         {/* Progress Bar */}
         <ProgressBar current={latestE1RM} target={profile.target} />

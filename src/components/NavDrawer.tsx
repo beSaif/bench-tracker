@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
@@ -12,6 +13,14 @@ interface NavDrawerProps {
 
 export default function NavDrawer({ open, onClose }: NavDrawerProps) {
   const pathname = usePathname()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    fetch("/api/friends/requests")
+      .then((r) => r.ok ? r.json() : { count: 0 })
+      .then((d) => { if (typeof d.count === "number") setPendingCount(d.count) })
+      .catch(() => {})
+  }, [])
 
   function handleSignOut() {
     wipeLocalUserData()
@@ -98,12 +107,19 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
                   : "text-[#333333] hover:bg-[#f5f5f5]"
               }`}
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="5.5" cy="5" r="2.5" />
-                <circle cx="10.5" cy="5" r="2.5" />
-                <path d="M1 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" />
-                <path d="M10.5 9.5c2 0 4 1 4 4" />
-              </svg>
+              <span className="relative">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="5.5" cy="5" r="2.5" />
+                  <circle cx="10.5" cy="5" r="2.5" />
+                  <path d="M1 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" />
+                  <path d="M10.5 9.5c2 0 4 1 4 4" />
+                </svg>
+                {pendingCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 leading-none">
+                    {pendingCount > 9 ? "9+" : pendingCount}
+                  </span>
+                )}
+              </span>
               Gymbros
             </Link>
           </nav>

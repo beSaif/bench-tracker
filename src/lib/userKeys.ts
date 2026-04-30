@@ -28,6 +28,18 @@ export function pushSubKey(email: string): string {
   return `user:${normalize(email)}:push-sub`
 }
 
+export function friendsKey(email: string): string {
+  return `user:${normalize(email)}:friends`
+}
+
+export function friendRequestsInKey(email: string): string {
+  return `user:${normalize(email)}:friend-requests-in`
+}
+
+export function friendRequestsOutKey(email: string): string {
+  return `user:${normalize(email)}:friend-requests-out`
+}
+
 export const LEGACY_SESSIONS_KEY = "bench-tracker-sessions"
 export const LEGACY_EXERCISES_KEY = "bench-tracker-exercises"
 
