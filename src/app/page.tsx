@@ -18,6 +18,7 @@ import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, buildMuscleRotation } from "@
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
+import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
@@ -551,11 +552,8 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         <div className="h-3 w-32 bg-[#e8e8e8] rounded animate-pulse mb-1" />
         <div className="h-8 w-40 bg-[#e8e8e8] rounded animate-pulse mb-6" />
-        <div className="h-[2px] w-full bg-[#e8e8e8] rounded mb-4" />
-        <div className="flex gap-4 mb-6">
-          <div className="h-8 w-16 bg-[#e8e8e8] rounded animate-pulse" />
-          <div className="h-8 w-16 bg-[#e8e8e8] rounded animate-pulse" />
-        </div>
+        <div className="h-[2px] w-full bg-[#e8e8e8] rounded mb-6" />
+        <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6 h-24" />
       </main>
     )
   }
@@ -663,20 +661,16 @@ export default function Page() {
         )}
 
         {/* Progress Bar */}
-        <ProgressBar current={latestE1RM} target={profile.target} />
+        <ProgressBar current={bestWeight} target={profile.target} />
 
-        {/* Slim stats row */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest">Sessions</span>
-            <span className="text-base font-semibold text-[#111111]">{confirmed.length}</span>
-          </div>
-          <div className="w-px h-7 bg-[#e8e8e8]" />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest">Best</span>
-            <span className="text-base font-semibold text-[#111111]">{bestWeight != null ? `${bestWeight}kg` : "—"}</span>
-          </div>
-        </div>
+        {/* Stats Grid */}
+        <StatsGrid
+          e1rm={latestE1RM}
+          best={bestWeight}
+          sessions={confirmed.length}
+          bw={latestBW}
+          target={profile.target}
+        />
 
         {/* Program timeline */}
         {blocks.length > 0 && <ProgramTimeline blocks={blocks} sessions={confirmed} />}
