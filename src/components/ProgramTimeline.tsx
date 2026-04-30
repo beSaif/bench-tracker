@@ -13,6 +13,13 @@ const PHASE_SHORT: Record<BlockPhase, string> = {
   deload: "Deload",
 }
 
+const PHASE_DESC: Record<BlockPhase, string> = {
+  accumulation: "building capacity — moderate weight, higher reps",
+  transmutation: "getting heavier — fewer reps, more intensity",
+  realization: "peak week — close to your max",
+  deload: "back off. let the body absorb the work",
+}
+
 const PHASE_COLOR: Record<BlockPhase, string> = {
   accumulation: "#2d6a2d",
   transmutation: "#5a2d8a",
@@ -136,11 +143,12 @@ function UpcomingPreview({ phase, anchorWeight }: { phase: BlockPhase; anchorWei
   return (
     <div>
       <p
-        className="text-[10px] font-semibold uppercase tracking-widest mb-2.5"
+        className="text-[10px] font-semibold uppercase tracking-widest mb-1"
         style={{ color }}
       >
         {PHASE_SHORT[phase]} · {anchorWeight}kg anchor
       </p>
+      <p className="text-xs text-[#777777] mb-2.5">{PHASE_DESC[phase]}</p>
       <div className="space-y-1.5">
         {Array.from({ length: count }, (_, i) => {
           const p = prescribeBlockSession(phase, i, anchorWeight)

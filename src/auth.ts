@@ -10,10 +10,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user
       const path = nextUrl.pathname
-      const publicPaths = ["/welcome"]
+      const publicPaths = ["/welcome", "/onboarding"]
       const isPublic = publicPaths.includes(path)
       if (isPublic) {
-        if (isLoggedIn) return Response.redirect(new URL("/", nextUrl))
+        if (isLoggedIn && path === "/welcome") return Response.redirect(new URL("/", nextUrl))
         return true
       }
       return isLoggedIn
