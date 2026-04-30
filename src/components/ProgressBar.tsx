@@ -16,7 +16,7 @@ export default function ProgressBar({ current, target }: ProgressBarProps) {
           Road to {target}kg
         </span>
         <span className="text-xs text-[#777777]">
-          {current != null ? `${current}kg` : "—"} / {target}kg
+          best {current != null ? `${current}kg` : "—"} / {target}kg
           <span className="ml-2 text-[#7a1f2e] font-medium">{pctStr}%</span>
         </span>
       </div>

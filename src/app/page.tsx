@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, MAIN_LIFT_SHORT, UserPresence } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -550,8 +550,8 @@ export default function Page() {
   if (!mounted || !profile) {
     return (
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
-        <div className="h-8 w-40 bg-[#e8e8e8] rounded animate-pulse mb-1" />
-        <div className="h-4 w-24 bg-[#e8e8e8] rounded animate-pulse mb-8" />
+        <div className="h-3 w-32 bg-[#e8e8e8] rounded animate-pulse mb-1" />
+        <div className="h-8 w-40 bg-[#e8e8e8] rounded animate-pulse mb-6" />
         <div className="h-[2px] w-full bg-[#e8e8e8] rounded mb-6" />
         <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6 h-24" />
       </main>
@@ -594,7 +594,7 @@ export default function Page() {
   const latestBW = getLatestBW(sessions)
 
   const liftLabel = MAIN_LIFT_LABEL[profile.mainLift]
-  const liftShort = MAIN_LIFT_SHORT[profile.mainLift]
+  const firstName = profile.name.split(" ")[0]
 
   return (
     <>
@@ -607,15 +607,18 @@ export default function Page() {
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
         {/* Header */}
         <header className="mb-6">
-          <div className="flex items-center justify-between mb-1">
-            <h1
-              className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
-              onPointerDown={handleTitlePointerDown}
-              onPointerUp={handleTitlePointerUp}
-              onPointerLeave={handleTitlePointerUp}
-            >
-              {liftShort} Tracker
-            </h1>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-[#bbbbbb] lowercase mb-0.5">best workout tracker.</p>
+              <h1
+                className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
+                onPointerDown={handleTitlePointerDown}
+                onPointerUp={handleTitlePointerUp}
+                onPointerLeave={handleTitlePointerUp}
+              >
+                hello, {firstName}
+              </h1>
+            </div>
             <button
               onClick={() => setDrawerOpen(true)}
               className="p-1 -mr-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
@@ -628,9 +631,6 @@ export default function Page() {
               </svg>
             </button>
           </div>
-          <p className="text-sm text-[#777777]">
-            {profile.name} · {confirmed.length} sessions · BW {latestBW ?? profile.bw}kg
-          </p>
         </header>
 
         {/* Friends presence */}
@@ -661,7 +661,7 @@ export default function Page() {
         )}
 
         {/* Progress Bar */}
-        <ProgressBar current={latestE1RM} target={profile.target} />
+        <ProgressBar current={bestWeight} target={profile.target} />
 
         {/* Stats Grid */}
         <StatsGrid
