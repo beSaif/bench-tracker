@@ -633,6 +633,8 @@ export default function Page() {
           initialDraft={activeDraft ?? undefined}
           exerciseConfig={exerciseConfig}
           mainLiftLabel={liftLabel}
+          presences={presences}
+          currentUserEmail={profile.email}
         />
       )}
 
@@ -646,6 +648,8 @@ export default function Page() {
           previousSessions={confirmedSorted}
           exerciseConfig={exerciseConfig}
           mainLiftLabel={liftLabel}
+          presences={presences}
+          currentUserEmail={profile.email}
         />
       )}
 

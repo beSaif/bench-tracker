@@ -7,6 +7,7 @@ import {
   MuscleGroup,
   ExtraWorkout,
   ExtraSet,
+  UserPresence,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft } from "@/lib/storage"
@@ -39,6 +40,8 @@ interface LogSessionModalProps {
   initialDraft?: SessionDraft
   exerciseConfig: MuscleGroupConfig[]
   mainLiftLabel: string
+  presences?: UserPresence[]
+  currentUserEmail?: string
 }
 
 interface EditableSet extends MainLiftSet {
@@ -266,6 +269,8 @@ export default function LogSessionModal({
   initialDraft,
   exerciseConfig,
   mainLiftLabel,
+  presences,
+  currentUserEmail,
 }: LogSessionModalProps) {
   const [sets, setSets] = useState<EditableSet[]>(
     () => initialDraft?.sets ?? session.sets.map(toEditable)
@@ -642,10 +647,20 @@ export default function LogSessionModal({
     return `${item.exercise} · Set ${item.setIndex + 1}`
   }
 
+  const activeFriends = (presences ?? [])
+    .filter((p) => p.inSession && p.email !== currentUserEmail)
+    .map((p) => p.name.split(" ")[0])
+
   // Full-screen rest timer
   if (restActive) {
     return (
       <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
+        {activeFriends.length > 0 && (
+          <p className="absolute top-8 text-[11px] text-white/60 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+            {activeFriends.join(" & ")} also lifting
+          </p>
+        )}
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
           Rest · {completedCount} / {carouselItems.length}
         </p>
@@ -688,6 +703,16 @@ export default function LogSessionModal({
               ×
             </button>
           </div>
+
+          {activeFriends.length > 0 && (
+            <p className="text-[11px] text-[#777777] -mt-3 mb-3 flex items-center gap-1.5">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+              </span>
+              {activeFriends.join(" & ")} also lifting
+            </p>
+          )}
 
           {mode === "log" && carouselItems.length > 0 && (
             <div>
