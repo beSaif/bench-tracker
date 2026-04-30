@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, MAIN_LIFT_SHORT } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, MAIN_LIFT_SHORT, UserPresence } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -23,18 +23,10 @@ import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
+import FriendPresenceStrip from "@/components/FriendPresenceStrip"
+import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
-
-function relativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
 
 function suggestNextMuscles(confirmedSessions: Session[], muscleRotation: string[][]): MuscleGroup[] {
   if (muscleRotation.length === 0) return []
@@ -180,6 +172,7 @@ export default function Page() {
   const [anchorInput, setAnchorInput] = useState("")
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [presences, setPresences] = useState<UserPresence[]>([])
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -271,6 +264,29 @@ export default function Page() {
     return () => { cancelled = true }
   }, [router])
 
+  useEffect(() => {
+    if (!profile) return
+
+    const fetchPresences = () => {
+      fetch("/api/presence")
+        .then((r) => r.ok ? r.json() : [])
+        .then((data: UserPresence[]) => setPresences(Array.isArray(data) ? data : []))
+        .catch(() => {})
+    }
+
+    fetchPresences()
+    const interval = setInterval(fetchPresences, 30000)
+    return () => clearInterval(interval)
+  }, [profile])
+
+  function signalPresence(inSession: boolean) {
+    fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inSession }),
+    }).catch(() => {})
+  }
+
   function handleStartLogging(session: Session) {
     const draft = loadDraft()
     const isLive =
@@ -279,6 +295,7 @@ export default function Page() {
       draft.completedSets.length > 0 &&
       Date.now() - new Date(draft.savedAt).getTime() < DRAFT_MAX_AGE_MS
 
+    signalPresence(true)
     if (isLive) {
       setDraftPrompt({ session: JSON.parse(JSON.stringify(session)), draft })
     } else {
@@ -327,6 +344,7 @@ export default function Page() {
 
   function handleConfirmSession(updatedSession: Session) {
     if (!profile) return
+    const prevBestE1RM = getBestE1RM(sessions.filter((s) => s.confirmed))
     const currentSessions = sessions
     const currentBlocks = blocks
 
@@ -369,9 +387,25 @@ export default function Page() {
     saveAll(final, finalBlocks)
     setLoggingSession(null)
     setActiveDraft(null)
+
+    signalPresence(false)
+
+    const newBestE1RM = getBestE1RM(final.filter((s) => s.confirmed))
+    const isNewPR = newBestE1RM !== null && (prevBestE1RM === null || newBestE1RM > prevBestE1RM)
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: isNewPR ? "pr_hit" : "session_logged",
+        payload: isNewPR
+          ? { weight: newBestE1RM }
+          : { sessionType: updatedSession.type },
+      }),
+    }).catch(() => {})
   }
 
   function handleCloseModal() {
+    signalPresence(false)
     setLoggingSession(null)
     setActiveDraft(null)
   }
@@ -523,6 +557,9 @@ export default function Page() {
             {profile.name} · {confirmed.length} sessions · BW {latestBW ?? profile.bw}kg
           </p>
         </header>
+
+        {/* Friends presence */}
+        <FriendPresenceStrip presences={presences} currentUserEmail={profile.email} />
 
         {/* Progress Bar */}
         <ProgressBar current={latestE1RM} target={profile.target} />

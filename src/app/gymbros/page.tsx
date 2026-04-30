@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
+import { UserProfile, MAIN_LIFT_LABEL, UserPresence, ActivityEvent } from "@/lib/types"
+import ActivityFeed from "@/components/ActivityFeed"
 
 function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
   const colours: Record<UserProfile["mainLift"], string> = {
@@ -19,20 +20,43 @@ function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
 
 export default function GymBrosPage() {
   const [bros, setBros] = useState<UserProfile[]>([])
+  const [presences, setPresences] = useState<UserPresence[]>([])
+  const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentEmail, setCurrentEmail] = useState<string>("")
 
   useEffect(() => {
-    fetch("/api/users")
-      .then((r) => r.json())
-      .then((data: UserProfile[]) => {
-        const sorted = [...data].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        )
-        setBros(sorted)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    const fetchAll = () => {
+      Promise.all([
+        fetch("/api/users").then((r) => r.json()),
+        fetch("/api/presence").then((r) => r.json()),
+        fetch("/api/activity").then((r) => r.json()),
+      ])
+        .then(([users, pres, acts]: [UserProfile[], UserPresence[], ActivityEvent[]]) => {
+          const sorted = [...users].sort((a, b) => a.name.localeCompare(b.name))
+          setBros(sorted)
+          setPresences(Array.isArray(pres) ? pres : [])
+          setActivity(Array.isArray(acts) ? acts : [])
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    }
+
+    fetchAll()
+    const interval = setInterval(fetchAll, 30000)
+    return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((p) => { if (p?.email) setCurrentEmail(p.email) })
+      .catch(() => {})
+  }, [])
+
+  function getPresence(email: string): UserPresence | undefined {
+    return presences.find((p) => p.email === email)
+  }
 
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 py-6">
@@ -56,6 +80,8 @@ export default function GymBrosPage() {
         )}
       </header>
 
+      <ActivityFeed events={activity} currentUserEmail={currentEmail} />
+
       {loading ? (
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
@@ -66,31 +92,48 @@ export default function GymBrosPage() {
         <p className="text-sm text-[#aaaaaa] text-center mt-16">No gymbros yet</p>
       ) : (
         <ul className="space-y-3">
-          {bros.map((bro) => (
-            <li
-              key={bro.email}
-              className="bg-white border border-[#eeeeee] rounded-xl px-4 py-3.5 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-[#111111]">{bro.name}</span>
-                <LiftBadge lift={bro.mainLift} />
-              </div>
-              <div className="flex gap-4">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Anchor</p>
-                  <p className="text-sm font-medium text-[#333333]">{bro.anchor} kg</p>
+          {bros.map((bro) => {
+            const presence = getPresence(bro.email)
+            const isLive = presence?.inSession ?? false
+            return (
+              <li
+                key={bro.email}
+                className={`bg-white border rounded-xl px-4 py-3.5 shadow-sm transition-colors ${
+                  isLive ? "border-green-300 bg-green-50/30" : "border-[#eeeeee]"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[#111111]">{bro.name}</span>
+                    {isLive && (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+                        </span>
+                        In session
+                      </span>
+                    )}
+                  </div>
+                  <LiftBadge lift={bro.mainLift} />
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Target</p>
-                  <p className="text-sm font-medium text-[#333333]">{bro.target} kg</p>
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Anchor</p>
+                    <p className="text-sm font-medium text-[#333333]">{bro.anchor} kg</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Target</p>
+                    <p className="text-sm font-medium text-[#333333]">{bro.target} kg</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">BW</p>
+                    <p className="text-sm font-medium text-[#333333]">{bro.bw} kg</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">BW</p>
-                  <p className="text-sm font-medium text-[#333333]">{bro.bw} kg</p>
-                </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
     </main>
