@@ -91,6 +91,30 @@ export interface SessionDraft {
   >
 }
 
+export interface PresenceRecord {
+  inSession: boolean
+  startedAt: string | null
+}
+
+export interface UserPresence extends PresenceRecord {
+  email: string
+  name: string
+}
+
+export type ActivityEventType = "session_logged" | "pr_hit"
+
+export interface ActivityEvent {
+  id: string
+  email: string
+  name: string
+  type: ActivityEventType
+  payload: {
+    weight?: number
+    sessionType?: string
+  }
+  timestamp: string
+}
+
 export type MuscleGroup = string
 
 export interface ExtraSet {

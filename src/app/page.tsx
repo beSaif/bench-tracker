@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, MAIN_LIFT_SHORT } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, MAIN_LIFT_SHORT, UserPresence } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -23,18 +23,10 @@ import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
+import FriendPresenceStrip from "@/components/FriendPresenceStrip"
+import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
-
-function relativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
 
 function suggestNextMuscles(confirmedSessions: Session[], muscleRotation: string[][]): MuscleGroup[] {
   if (muscleRotation.length === 0) return []
@@ -180,6 +172,9 @@ export default function Page() {
   const [anchorInput, setAnchorInput] = useState("")
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [presences, setPresences] = useState<UserPresence[]>([])
+  const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
+  const prevPresencesRef = useRef<UserPresence[]>([])
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -271,6 +266,46 @@ export default function Page() {
     return () => { cancelled = true }
   }, [router])
 
+  useEffect(() => {
+    if (!profile) return
+
+    const fetchPresences = () => {
+      fetch("/api/presence")
+        .then((r) => r.ok ? r.json() : [])
+        .then((data: UserPresence[]) => {
+          if (!Array.isArray(data)) return
+          const prev = prevPresencesRef.current
+          data
+            .filter(
+              (p) =>
+                p.inSession &&
+                p.email !== profile.email &&
+                !prev.find((q) => q.email === p.email && q.inSession)
+            )
+            .forEach((p) => {
+              const id = `${Date.now()}-${p.email}`
+              setToasts((t) => [...t, { id, name: p.name.split(" ")[0] }])
+              setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
+            })
+          prevPresencesRef.current = data
+          setPresences(data)
+        })
+        .catch(() => {})
+    }
+
+    fetchPresences()
+    const interval = setInterval(fetchPresences, 15000)
+    return () => clearInterval(interval)
+  }, [profile])
+
+  function signalPresence(inSession: boolean) {
+    fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inSession }),
+    }).catch(() => {})
+  }
+
   function handleStartLogging(session: Session) {
     const draft = loadDraft()
     const isLive =
@@ -279,6 +314,7 @@ export default function Page() {
       draft.completedSets.length > 0 &&
       Date.now() - new Date(draft.savedAt).getTime() < DRAFT_MAX_AGE_MS
 
+    signalPresence(true)
     if (isLive) {
       setDraftPrompt({ session: JSON.parse(JSON.stringify(session)), draft })
     } else {
@@ -327,6 +363,7 @@ export default function Page() {
 
   function handleConfirmSession(updatedSession: Session) {
     if (!profile) return
+    const prevBestE1RM = getBestE1RM(sessions.filter((s) => s.confirmed))
     const currentSessions = sessions
     const currentBlocks = blocks
 
@@ -369,9 +406,25 @@ export default function Page() {
     saveAll(final, finalBlocks)
     setLoggingSession(null)
     setActiveDraft(null)
+
+    signalPresence(false)
+
+    const newBestE1RM = getBestE1RM(final.filter((s) => s.confirmed))
+    const isNewPR = newBestE1RM !== null && (prevBestE1RM === null || newBestE1RM > prevBestE1RM)
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: isNewPR ? "pr_hit" : "session_logged",
+        payload: isNewPR
+          ? { weight: newBestE1RM }
+          : { sessionType: updatedSession.type },
+      }),
+    }).catch(() => {})
   }
 
   function handleCloseModal() {
+    signalPresence(false)
     setLoggingSession(null)
     setActiveDraft(null)
   }
@@ -524,6 +577,9 @@ export default function Page() {
           </p>
         </header>
 
+        {/* Friends presence */}
+        <FriendPresenceStrip presences={presences} currentUserEmail={profile.email} />
+
         {/* Progress Bar */}
         <ProgressBar current={latestE1RM} target={profile.target} />
 
@@ -671,6 +727,24 @@ export default function Page() {
               Start Block 1: Accumulation
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Friend online toasts */}
+      {toasts.length > 0 && (
+        <div className="fixed top-4 left-0 right-0 z-[60] flex flex-col items-center gap-2 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className="flex items-center gap-2 bg-white border border-[#e8e8e8] rounded-full px-4 py-2 shadow-md text-sm text-[#333333]"
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              {toast.name} started lifting
+            </div>
+          ))}
         </div>
       )}
     </>
