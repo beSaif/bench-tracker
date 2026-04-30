@@ -2,14 +2,14 @@
 
 import { useState } from "react"
 import { TrainingBlock, BlockPhase, Session } from "@/lib/types"
-import { PHASE_SESSION_TYPE, prescribeBlockSession, BLOCK_LENGTHS } from "@/lib/prescription"
+import { prescribeBlockSession, BLOCK_LENGTHS } from "@/lib/prescription"
 
 const PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
 const PHASE_SHORT: Record<BlockPhase, string> = {
-  accumulation: "Accum",
-  transmutation: "Trans",
-  realization: "Real",
+  accumulation: "Volume",
+  transmutation: "Intensity",
+  realization: "Peak",
   deload: "Deload",
 }
 
@@ -108,7 +108,6 @@ function StepDot({ step, isExpanded }: { step: Step; isExpanded: boolean }) {
   const dotBg = isExpanded ? color : isUpcoming ? "#dddddd" : color
   const dotOpacity = !isExpanded && isCompleted ? 0.6 : 1
   const textColor = isExpanded ? color : isUpcoming ? "#aaaaaa" : isCompleted ? "#999999" : color
-  const typeColor = isExpanded ? color : isUpcoming ? "#cccccc" : isCompleted ? "#bbbbbb" : color
 
   return (
     <>
@@ -125,12 +124,6 @@ function StepDot({ step, isExpanded }: { step: Step; isExpanded: boolean }) {
         }}
       >
         {isCompleted ? "✓ " : ""}{PHASE_SHORT[phase]}
-      </span>
-      <span
-        className="text-[9px] text-center leading-tight transition-colors"
-        style={{ color: typeColor }}
-      >
-        {PHASE_SESSION_TYPE[phase]}
       </span>
     </>
   )
