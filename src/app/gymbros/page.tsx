@@ -26,25 +26,38 @@ export default function GymBrosPage() {
   const [currentEmail, setCurrentEmail] = useState<string>("")
 
   useEffect(() => {
-    const fetchAll = () => {
+    const fetchPresence = () => {
+      Promise.all([
+        fetch("/api/presence").then((r) => r.json()),
+      ])
+        .then(([pres]: [UserPresence[]]) => {
+          setPresences(Array.isArray(pres) ? pres : [])
+        })
+        .catch(() => {})
+    }
+
+    const fetchActivity = () => {
       Promise.all([
         fetch("/api/users").then((r) => r.json()),
-        fetch("/api/presence").then((r) => r.json()),
         fetch("/api/activity").then((r) => r.json()),
       ])
-        .then(([users, pres, acts]: [UserProfile[], UserPresence[], ActivityEvent[]]) => {
+        .then(([users, acts]: [UserProfile[], ActivityEvent[]]) => {
           const sorted = [...users].sort((a, b) => a.name.localeCompare(b.name))
           setBros(sorted)
-          setPresences(Array.isArray(pres) ? pres : [])
           setActivity(Array.isArray(acts) ? acts : [])
         })
         .catch(() => {})
         .finally(() => setLoading(false))
     }
 
-    fetchAll()
-    const interval = setInterval(fetchAll, 30000)
-    return () => clearInterval(interval)
+    fetchPresence()
+    fetchActivity()
+    const presenceInterval = setInterval(fetchPresence, 15000)
+    const activityInterval = setInterval(fetchActivity, 30000)
+    return () => {
+      clearInterval(presenceInterval)
+      clearInterval(activityInterval)
+    }
   }, [])
 
   useEffect(() => {

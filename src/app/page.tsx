@@ -275,7 +275,7 @@ export default function Page() {
     }
 
     fetchPresences()
-    const interval = setInterval(fetchPresences, 30000)
+    const interval = setInterval(fetchPresences, 15000)
     return () => clearInterval(interval)
   }, [profile])
 
