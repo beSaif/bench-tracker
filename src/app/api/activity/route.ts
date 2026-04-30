@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         .then(({ sendPushToAll }) =>
           sendPushToAll(email, {
             title: `${name} hit a new PR!`,
-            body: `${event.payload.weight}kg — go react 🔥`,
+            body: `~${event.payload.weight}kg e1RM — go react 🔥`,
             tag: "pr",
             url: "/gymbros",
           })

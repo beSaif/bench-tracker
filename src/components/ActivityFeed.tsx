@@ -6,7 +6,7 @@ import { relativeTime } from "@/lib/time"
 
 function eventLabel(event: ActivityEvent): string {
   if (event.type === "pr_hit") {
-    return `${event.name} hit a new PR: ${event.payload.weight}kg`
+    return `${event.name} hit a new PR: ~${event.payload.weight}kg e1RM`
   }
   return `${event.name} logged a ${event.payload.sessionType ?? ""} session`.trim()
 }
