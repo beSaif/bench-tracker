@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
         title: "Friend request accepted",
         body: `${acceptorName} accepted your gymbro request`,
         tag: "friend-accepted",
+        url: "/gymbros",
       })
     ).catch(() => {})
 
