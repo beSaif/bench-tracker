@@ -330,7 +330,6 @@ export default function LogSessionModal({
   const [currentSetIndex, setCurrentSetIndex] = useState(
     initialDraft?.currentSetIndex ?? 0
   )
-  const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [exerciseOrder, setExerciseOrder] = useState<ExerciseGroup[]>(
     () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig)
   )
@@ -757,17 +756,8 @@ export default function LogSessionModal({
 
           {!allDone && carouselItems.length > 0 && (
             <div className="w-full space-y-4">
-              {/* Swipeable card */}
-              <div
-                onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-                onTouchEnd={(e) => {
-                  if (touchStartX === null) return
-                  const delta = e.changedTouches[0].clientX - touchStartX
-                  if (delta > 50) navigatePrev()
-                  else if (delta < -50) navigateNext()
-                  setTouchStartX(null)
-                }}
-              >
+              {/* Card */}
+              <div>
                 {/* Main lift set card (warmup or working) */}
                 {currentItem?.type === "main" && (() => {
                   const item = currentItem
