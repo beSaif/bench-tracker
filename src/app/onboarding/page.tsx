@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { MainLift, MAIN_LIFT_LABEL } from "@/lib/types"
 import { loadProfile, saveProfile } from "@/lib/storage"
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
 const LIFTS: MainLift[] = ["bench", "deadlift", "squat"]
 const PENDING_KEY = "lift-tracker-pending-onboarding"
+const TIMED_STEPS = new Set([2, 3, 5, 8])
 
 function roundTo2p5(kg: number): number {
   return Math.round(kg / 2.5) * 2.5
@@ -20,6 +21,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(0)
   const [checking, setChecking] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+
+  const [readUnlocked, setReadUnlocked] = useState(false)
 
   const [name, setName] = useState("")
   const [bw, setBw] = useState("")
@@ -45,7 +48,6 @@ export default function OnboardingPage() {
       }
     }
 
-    // Normal path: check if the user already has a profile
     loadProfile().then((p) => {
       if (p) {
         router.replace("/")
@@ -55,6 +57,11 @@ export default function OnboardingPage() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
+
+  useLayoutEffect(() => {
+    if (!TIMED_STEPS.has(step)) return
+    setReadUnlocked(false)
+  }, [step])
 
   async function autoFinish(d: { name: string; bw: string; lift: MainLift; anchor: string; target: string }) {
     setSubmitting(true)
@@ -74,7 +81,7 @@ export default function OnboardingPage() {
   }
 
   function next() {
-    setStep((s) => Math.min(9, s + 1) as Step)
+    setStep((s) => Math.min(8, s + 1) as Step)
   }
 
   function back() {
@@ -92,20 +99,19 @@ export default function OnboardingPage() {
       const v = parseFloat(bw)
       return Number.isFinite(v) && v > 0
     }
-    if (step === 2) return true
-    if (step === 3) return true
+    if (step === 2) return readUnlocked
+    if (step === 3) return readUnlocked
     if (step === 4) return lift !== null
-    if (step === 5) return true
-    if (step === 6) return true
-    if (step === 7) {
+    if (step === 5) return readUnlocked
+    if (step === 6) {
       const v = parseFloat(anchor)
       return Number.isFinite(v) && v > 0
     }
-    if (step === 8) {
+    if (step === 7) {
       const v = parseFloat(target)
       return Number.isFinite(v) && v > 0
     }
-    if (step === 9) return true
+    if (step === 8) return true
     return false
   })()
 
@@ -127,12 +133,11 @@ export default function OnboardingPage() {
     )
   }
 
-
   return (
     <main className="min-h-dvh flex flex-col bg-white">
       {/* Progress dots */}
       <div className="flex justify-center gap-1.5 pt-8 pb-12">
-        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <div
             key={i}
             className={`h-1 rounded-full transition-all ${
@@ -179,33 +184,44 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 2: hook */}
+          {/* Step 2: hook — label then hint word-by-word */}
           {step === 2 && (
             <Question
               label="most people track everything. most people quit."
               hint="this app does it differently. one lift. one goal. actually works."
+              highlight
+              onHighlightComplete={() => setReadUnlocked(true)}
             />
           )}
 
-          {/* Step 3: two parts */}
+          {/* Step 3: label then bullets one by one */}
           {step === 3 && (
-            <Question label="the program has two parts.">
-              <div className="space-y-5 mt-2">
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#7a1f2e] mt-1.5 shrink-0" />
-                  <div>
-                    <span className="text-sm font-semibold text-[#111111]">main lift</span>
-                    <span className="text-sm text-[#777777]"> — one exercise. tracked weekly. you always have a target.</span>
-                  </div>
+            <Question
+              label="the program has two parts."
+              highlight
+              onHighlightComplete={() => setReadUnlocked(true)}
+            >
+              {(bodyVisible, onBodyComplete) => (
+                <div className="space-y-5 mt-2">
+                  {([
+                    { dot: "#7a1f2e", name: "main lift", desc: " — one exercise. tracked weekly. you always have a target." },
+                    { dot: "#888888", name: "accessories", desc: " — everything else. chest, back, whatever. you pick these each session." },
+                  ] as const).map(({ dot, name: itemName, desc }, i, arr) => (
+                    <div
+                      key={itemName}
+                      style={{ transitionDelay: `${i * 450}ms` }}
+                      className={`flex items-start gap-3 transition-opacity duration-500 ${bodyVisible ? "opacity-100" : "opacity-0"}`}
+                      onTransitionEnd={i === arr.length - 1 ? (e) => { if (e.propertyName === "opacity") onBodyComplete?.() } : undefined}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: dot }} />
+                      <div>
+                        <span className="text-sm font-semibold text-[#111111]">{itemName}</span>
+                        <span className="text-sm text-[#777777]">{desc}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#888888] mt-1.5 shrink-0" />
-                  <div>
-                    <span className="text-sm font-semibold text-[#111111]">accessories</span>
-                    <span className="text-sm text-[#777777]"> — everything else. chest, back, whatever. you pick these each session.</span>
-                  </div>
-                </div>
-              </div>
+              )}
             </Question>
           )}
 
@@ -230,53 +246,21 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 5: 4-phase cycle */}
+          {/* Step 5: label then phases — labels first, then descriptions */}
           {step === 5 && (
-            <Question label="your main lift runs in 4-phase cycles.">
-              <div className="space-y-4 mt-2">
-                {([
-                  { color: "#2d6a2d", name: "volume", desc: "more reps, lighter. build the base. 4 sessions." },
-                  { color: "#5a2d8a", name: "intensity", desc: "fewer reps, heavier. 4 sessions." },
-                  { color: "#7a1f2e", name: "peak", desc: "near your max. 3 sessions." },
-                  { color: "#888888", name: "deload", desc: "back off. let it sink in. 1 session." },
-                ] as const).map(({ color, name: phaseName, desc }) => (
-                  <div key={phaseName} className="flex items-start gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: color }} />
-                    <div>
-                      <span className="text-sm font-semibold text-[#111111]">{phaseName}</span>
-                      <span className="text-sm text-[#777777]"> — {desc}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-6 text-sm text-[#777777]">then you reset and go again — heavier than before.</p>
+            <Question
+              label="your main lift runs in 4-phase cycles."
+              highlight
+              onHighlightComplete={() => setReadUnlocked(true)}
+            >
+              {(bodyVisible, onBodyComplete) => (
+                <PhasesReveal started={bodyVisible} onComplete={onBodyComplete} />
+              )}
             </Question>
           )}
 
-          {/* Step 6: anchor + e1RM */}
+          {/* Step 6: current 1RM */}
           {step === 6 && (
-            <Question label="two numbers you'll see everywhere.">
-              <div className="space-y-5 mt-2">
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#7a1f2e] mt-1.5 shrink-0" />
-                  <div>
-                    <span className="text-sm font-semibold text-[#111111]">anchor</span>
-                    <span className="text-sm text-[#777777]"> — your 1 rep max. every session is a % of this.</span>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#888888] mt-1.5 shrink-0" />
-                  <div>
-                    <span className="text-sm font-semibold text-[#111111]">e1RM</span>
-                    <span className="text-sm text-[#777777]"> — estimated max, recalculated from every set you log.</span>
-                  </div>
-                </div>
-              </div>
-            </Question>
-          )}
-
-          {/* Step 7: current 1RM */}
-          {step === 7 && (
             <Question
               label={`what's your current 1 rep max on ${lift ? MAIN_LIFT_LABEL[lift].toLowerCase() : "your lift"}?`}
               hint="your best single rep. be honest — every session is a percentage of this."
@@ -298,8 +282,8 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 8: target weight */}
-          {step === 8 && (
+          {/* Step 7: target weight */}
+          {step === 7 && (
             <Question
               label="what's your goal weight?"
               hint="the number on the bar you want to hit. doesn't have to be realistic right now."
@@ -338,38 +322,44 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 9: commitment gate */}
-          {step === 9 && (
+          {/* Step 8: commitment gate — label then hint, buttons appear after animation */}
+          {step === 8 && (
             <Question
               label="only do this if you're actually going to show up."
               hint="no judgment. but this only works if you use it."
+              highlight
+              onHighlightComplete={() => setReadUnlocked(true)}
             >
-              <button
-                onClick={handleGoogleSignIn}
-                className="w-full flex items-center justify-center gap-3 border border-[#e8e8e8] rounded-xl py-3.5 text-sm font-semibold text-[#111111] hover:bg-[#fafafa] active:bg-[#f5f5f5] transition-colors mt-4"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.583-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-                  <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.165 6.656 3.58 9 3.58z"/>
-                </svg>
-                sign in with google
-              </button>
-              <button
-                onClick={back}
-                className="w-full text-center text-sm text-[#aaaaaa] hover:text-[#777777] mt-4 py-2"
-              >
-                back
-              </button>
+              <div className={`transition-opacity duration-500 ${readUnlocked ? "opacity-100" : "opacity-0"}`}>
+                <button
+                  onClick={handleGoogleSignIn}
+                  disabled={!readUnlocked}
+                  className="w-full flex items-center justify-center gap-3 border border-[#e8e8e8] rounded-xl py-3.5 text-sm font-semibold text-[#111111] hover:bg-[#fafafa] active:bg-[#f5f5f5] transition-colors mt-4"
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.583-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                    <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+                    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.165 6.656 3.58 9 3.58z"/>
+                  </svg>
+                  sign in with google
+                </button>
+                <button
+                  onClick={back}
+                  disabled={!readUnlocked}
+                  className="w-full text-center text-sm text-[#aaaaaa] hover:text-[#777777] mt-4 py-2"
+                >
+                  back
+                </button>
+              </div>
             </Question>
           )}
 
         </div>
       </div>
 
-      {/* Footer — hidden on step 9 (Google button is in content area) */}
-      {step !== 9 && (
+      {/* Footer — hidden on step 8 */}
+      {step !== 8 && (
         <div className="px-6 pb-10 pt-6">
           <div className="max-w-[360px] mx-auto flex items-center gap-3">
             {step > 0 && (
@@ -394,22 +384,179 @@ export default function OnboardingPage() {
   )
 }
 
+const PHASES = [
+  { color: "#2d6a2d", name: "volume",    desc: "more reps, lighter. build the base. 4 sessions." },
+  { color: "#5a2d8a", name: "intensity", desc: "fewer reps, heavier. 4 sessions." },
+  { color: "#7a1f2e", name: "peak",      desc: "near your max. 3 sessions." },
+  { color: "#888888", name: "deload",    desc: "back off. let it sink in. 1 session." },
+] as const
+
+function PhasesReveal({ started, onComplete }: { started: boolean; onComplete?: () => void }) {
+  const [labelsVisible, setLabelsVisible] = useState(false)
+  const [descsVisible, setDescsVisible] = useState(false)
+
+  useEffect(() => {
+    if (!started) return
+    let r1: number, r2: number
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => setLabelsVisible(true))
+    })
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2) }
+  }, [started])
+
+  return (
+    <div className="mt-2">
+      <div className="space-y-4">
+        {PHASES.map(({ color, name, desc }, i) => (
+          <div key={name} className="flex items-start gap-3">
+            <div
+              style={{ transitionDelay: `${i * 500}ms`, backgroundColor: color }}
+              className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 transition-opacity duration-500 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+            />
+            <div>
+              <span
+                style={{ transitionDelay: `${i * 500}ms` }}
+                className={`text-sm font-semibold text-[#111111] transition-opacity duration-500 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                onTransitionEnd={i === PHASES.length - 1 ? (e) => {
+                  if (e.propertyName === "opacity") setDescsVisible(true)
+                } : undefined}
+              >
+                {name}
+              </span>
+              {descsVisible && (
+                <DescSpan delay={i * 150}>{" — "}{desc}</DescSpan>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p
+        style={{ transitionDelay: `${PHASES.length * 150}ms` }}
+        className={`mt-6 text-sm text-[#777777] transition-opacity duration-500 ${descsVisible ? "opacity-100" : "opacity-0"}`}
+        onTransitionEnd={(e) => { if (e.propertyName === "opacity") onComplete?.() }}
+      >
+        then you reset and go again — heavier than before.
+      </p>
+    </div>
+  )
+}
+
+function DescSpan({ children, delay }: { children: React.ReactNode; delay: number }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    let r1: number, r2: number
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => setVisible(true))
+    })
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2) }
+  }, [])
+  return (
+    <span
+      style={{ transitionDelay: `${delay}ms`, opacity: visible ? 1 : 0 }}
+      className="text-sm text-[#777777] transition-opacity duration-500"
+    >
+      {children}
+    </span>
+  )
+}
+
+// Words fade in with CSS stagger — no interval ticking, all words cascade continuously
+function RevealText({
+  text,
+  speed = 180,
+  started = true,
+  onComplete,
+}: {
+  text: string
+  speed?: number
+  started?: boolean
+  onComplete?: () => void
+}) {
+  const words = text.split(" ")
+  const [active, setActive] = useState(false)
+
+  useEffect(() => {
+    if (!started) {
+      setActive(false)
+      return
+    }
+    // Double RAF ensures opacity-0 is painted before the transition begins
+    let raf1: number, raf2: number
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setActive(true))
+    })
+    const totalMs = (words.length - 1) * speed + 600
+    const id = setTimeout(() => onComplete?.(), totalMs)
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      clearTimeout(id)
+    }
+  }, [text, started]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      {words.map((word, i) => (
+        <span
+          key={i}
+          style={{ transitionDelay: `${i * speed}ms` }}
+          className={`transition-opacity duration-500 ${active ? "opacity-100" : "opacity-0"}`}
+        >
+          {word}
+          {i < words.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </>
+  )
+}
+
 function Question({
   label,
   hint,
   children,
+  highlight,
+  onHighlightComplete,
 }: {
   label: string
   hint?: string
-  children?: React.ReactNode
+  children?: React.ReactNode | ((bodyVisible: boolean, onBodyComplete?: () => void) => React.ReactNode)
+  highlight?: boolean
+  onHighlightComplete?: () => void
 }) {
+  const [labelDone, setLabelDone] = useState(false)
+
+  const handleLabelComplete = () => {
+    setLabelDone(true)
+    // If no hint and no render-prop body, unlock immediately after label
+    if (!hint && typeof children !== "function") {
+      onHighlightComplete?.()
+    }
+  }
+
+  // Render-prop children receive (bodyVisible, onBodyComplete) so they can
+  // control when the gate fires after the last body item transitions in
+  const resolvedChildren =
+    typeof children === "function" ? children(labelDone, onHighlightComplete) : children
+
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-[#111111] tracking-tight mb-2 leading-snug">
-        {label}
+      <h2 className="text-2xl font-semibold tracking-tight mb-2 leading-snug">
+        {highlight ? (
+          <RevealText text={label} onComplete={handleLabelComplete} />
+        ) : (
+          <span className="text-[#111111]">{label}</span>
+        )}
       </h2>
-      {hint && <p className="text-sm text-[#777777] mb-8">{hint}</p>}
-      {children}
+      {hint && (
+        <p className="text-sm text-[#777777] mb-8">
+          {highlight ? (
+            <RevealText text={hint} started={labelDone} onComplete={onHighlightComplete} />
+          ) : (
+            hint
+          )}
+        </p>
+      )}
+      {resolvedChildren}
     </div>
   )
 }
