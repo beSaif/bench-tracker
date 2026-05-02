@@ -11,7 +11,7 @@ import {
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups } from "@/lib/exerciseConfig"
 import {
   DndContext,
   closestCenter,
@@ -334,6 +334,7 @@ export default function LogSessionModal({
     () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig)
   )
   const [showReorder, setShowReorder] = useState(false)
+  const [showMuscleGroupPicker, setShowMuscleGroupPicker] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -358,7 +359,9 @@ export default function LogSessionModal({
     })
   }, [sets, completedSets, extraState, coachNote, currentSetIndex])
 
-  const selectedGroups = session.selectedMuscleGroups ?? []
+  const [selectedGroups, setSelectedGroups] = useState<string[]>(
+    session.selectedMuscleGroups ?? []
+  )
 
   const carouselItems = buildCarouselItems(exerciseOrder, sets, extraState)
 
@@ -624,6 +627,33 @@ export default function LogSessionModal({
     setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
   }
 
+  function deleteSet(globalIndex: number, setId: string) {
+    if (sets.length <= 1) return
+    setSets((prev) => prev.filter((_, i) => i !== globalIndex))
+    setCompletedSets((prev) => { const n = new Set(prev); n.delete(setId); return n })
+  }
+
+  function addMuscleGroup(muscleId: string) {
+    setSelectedGroups((prev) => [...prev, muscleId])
+    setExtraState((prev) => {
+      const exercises: Record<string, EditableExtraSet[]> = {}
+      for (const name of getExercisesForMuscle(exerciseConfig, muscleId)) {
+        exercises[name] = [defaultExtraSet()]
+      }
+      return { ...prev, [muscleId]: exercises }
+    })
+    setShowMuscleGroupPicker(false)
+  }
+
+  function removeMuscleGroup(muscleId: string) {
+    setSelectedGroups((prev) => prev.filter((g) => g !== muscleId))
+    setExtraState((prev) => {
+      const next = { ...prev }
+      delete next[muscleId]
+      return next
+    })
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -665,6 +695,7 @@ export default function LogSessionModal({
       coachNote,
       sets: sets.map(({ _kgStr: _, _repsStr: __, _rpeStr: ___, ...rest }) => rest),
       extraWorkouts: extraWorkouts.length > 0 ? extraWorkouts : undefined,
+      selectedMuscleGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
     }
     clearDraft()
     onConfirm(finalSession)
@@ -684,6 +715,221 @@ export default function LogSessionModal({
         : `${item.set.id} · ${item.set.kg}kg × ${item.set.reps}`
     }
     return `${item.exercise} · Set ${item.setIndex + 1}`
+  }
+
+  // Edit mode — scrollable full-session list
+  if (mode === "edit") {
+    const availableGroups = sortedMuscleGroups(exerciseConfig).filter(
+      (g) => !selectedGroups.includes(g.id)
+    )
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+        <div className="mx-auto w-full max-w-[393px] flex flex-col flex-1 min-h-0 relative">
+
+          {/* Sticky header */}
+          <div className="px-4 pt-6 pb-4 shrink-0 border-b border-[#f0f0f0]">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[#111111]">
+                Edit Session {String(session.id).padStart(2, "0")}
+              </h2>
+              <button
+                onClick={onClose}
+                className="text-[#777777] hover:text-[#111111] text-xl leading-none px-1"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-4 py-5 space-y-7 pb-12">
+
+              {/* Main lift */}
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium mb-3">
+                  {mainLiftLabel}
+                </p>
+                <div className="space-y-2">
+                  {sets.map((set, idx) => (
+                    <div
+                      key={set.id}
+                      className="rounded-2xl border border-[#e8e8e8] p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-semibold text-[#333333]">
+                          {set.id}{set.isWarmup ? " · Warm-up" : ""}
+                        </span>
+                        <button
+                          onClick={() => deleteSet(idx, set.id)}
+                          disabled={sets.length <= 1}
+                          className="text-[11px] text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <DrumRollPicker
+                          values={KG_VALUES}
+                          selected={set.kg}
+                          onChange={(v) => { if (v !== null) updateSet(idx, "kg", String(v)) }}
+                          label="kg"
+                        />
+                        <DrumRollPicker
+                          values={REPS_VALUES}
+                          selected={set.reps}
+                          onChange={(v) => { if (v !== null) updateSet(idx, "reps", String(v)) }}
+                          label="reps"
+                        />
+                        {!set.isWarmup && (
+                          <DrumRollPicker
+                            values={RPE_VALUES}
+                            selected={set.rpe}
+                            onChange={(v) => updateSet(idx, "rpe", v === null ? "" : String(v))}
+                            label="rpe"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => addSetAfterCurrent(sets.length - 1)}
+                  className="mt-2 w-full py-2.5 rounded-xl border border-dashed border-[#e8e8e8] text-xs text-[#aaaaaa] hover:text-[#777777] hover:border-[#aaaaaa] transition-colors"
+                >
+                  + Add set
+                </button>
+              </div>
+
+              {/* Muscle group sections */}
+              {selectedGroups.map((muscleId) => (
+                <div key={muscleId}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium">
+                      {getMuscleLabel(exerciseConfig, muscleId)}
+                    </p>
+                    <button
+                      onClick={() => removeMuscleGroup(muscleId)}
+                      className="text-[10px] uppercase tracking-wide text-[#bbbbbb] hover:text-red-400 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    {Object.entries(extraState[muscleId] ?? {}).map(([exercise, exerciseSets]) => (
+                      <div key={exercise}>
+                        <p className="text-sm font-medium text-[#333333] mb-2">{exercise}</p>
+                        <div className="space-y-2">
+                          {exerciseSets.map((s, i) => (
+                            <div key={i} className="rounded-xl border border-[#e8e8e8] p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[11px] text-[#aaaaaa]">Set {i + 1}</span>
+                                <button
+                                  onClick={() => deleteExtraSet(muscleId, exercise, i)}
+                                  disabled={exerciseSets.length <= 1}
+                                  className="text-[11px] text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <DrumRollPicker
+                                  values={EXTRA_KG_VALUES}
+                                  selected={parseFloat(s.kgStr)}
+                                  onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "kg", String(v)) }}
+                                  label="kg"
+                                />
+                                <DrumRollPicker
+                                  values={EXTRA_REPS_VALUES}
+                                  selected={parseInt(s.repsStr, 10)}
+                                  onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "reps", String(v)) }}
+                                  label="reps"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => addExtraSetAfter(muscleId, exercise, exerciseSets.length - 1)}
+                          className="mt-1.5 w-full py-2 rounded-xl border border-dashed border-[#e8e8e8] text-xs text-[#aaaaaa] hover:text-[#777777] hover:border-[#aaaaaa] transition-colors"
+                        >
+                          + Add set
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* Add muscle group */}
+              {availableGroups.length > 0 && (
+                <button
+                  onClick={() => setShowMuscleGroupPicker(true)}
+                  className="w-full py-3 rounded-2xl border border-dashed border-[#e8e8e8] text-xs font-medium text-[#aaaaaa] hover:text-[#777777] hover:border-[#aaaaaa] transition-colors"
+                >
+                  + Add muscle group
+                </button>
+              )}
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
+                  Session Notes
+                </label>
+                <textarea
+                  value={coachNote}
+                  onChange={(e) => setCoachNote(e.target.value)}
+                  rows={3}
+                  placeholder="How did it feel?"
+                  className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
+                />
+              </div>
+
+              <button
+                onClick={handleConfirm}
+                className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+
+          {/* Muscle group picker bottom sheet */}
+          {showMuscleGroupPicker && (
+            <>
+              <div
+                className="absolute inset-0 bg-black/20 z-10"
+                onClick={() => setShowMuscleGroupPicker(false)}
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] z-20">
+                <div className="flex justify-center pt-3">
+                  <div className="w-9 h-1 bg-[#e0e0e0] rounded-full" />
+                </div>
+                <div className="pt-3 pb-3 px-4 border-b border-[#f0f0f0]">
+                  <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
+                    Add Muscle Group
+                  </p>
+                </div>
+                <div className="px-4 py-3 space-y-1">
+                  {availableGroups.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => addMuscleGroup(g.id)}
+                      className="w-full text-left px-3 py-3 rounded-xl hover:bg-[#f5f5f5] text-sm font-medium text-[#111111] transition-colors"
+                    >
+                      {g.name}
+                    </button>
+                  ))}
+                </div>
+                <div className="h-6" />
+              </div>
+            </>
+          )}
+
+        </div>
+      </div>
+    )
   }
 
   // Full-screen rest timer
@@ -722,7 +968,7 @@ export default function LogSessionModal({
         <div className="pt-6 pb-4 shrink-0">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-semibold text-[#111111]">
-              {mode === "edit" ? "Edit" : "Log"} Session {String(session.id).padStart(2, "0")}
+              Log Session {String(session.id).padStart(2, "0")}
             </h2>
             <button
               onClick={onClose}
@@ -798,21 +1044,21 @@ export default function LogSessionModal({
                             selected={item.set.kg}
                             onChange={(v) => { if (v !== null) updateSet(item.globalIndex, "kg", String(v)) }}
                             label="kg"
-                            disabled={isDone && mode !== "edit"}
+                            disabled={isDone}
                           />
                           <DrumRollPicker
                             values={REPS_VALUES}
                             selected={item.set.reps}
                             onChange={(v) => { if (v !== null) updateSet(item.globalIndex, "reps", String(v)) }}
                             label="reps"
-                            disabled={isDone && mode !== "edit"}
+                            disabled={isDone}
                           />
                           <DrumRollPicker
                             values={RPE_VALUES}
                             selected={item.set.rpe}
                             onChange={(v) => updateSet(item.globalIndex, "rpe", v === null ? "" : String(v))}
                             label="rpe"
-                            disabled={isDone && mode !== "edit"}
+                            disabled={isDone}
                           />
                         </div>
                       )}
@@ -882,14 +1128,14 @@ export default function LogSessionModal({
                           selected={parseFloat(currentExtraSet?.kgStr ?? "0")}
                           onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", String(v)) }}
                           label="kg"
-                          disabled={isDone && mode !== "edit"}
+                          disabled={isDone}
                         />
                         <DrumRollPicker
                           values={EXTRA_REPS_VALUES}
                           selected={parseInt(currentExtraSet?.repsStr ?? "10", 10)}
                           onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", String(v)) }}
                           label="reps"
-                          disabled={isDone && mode !== "edit"}
+                          disabled={isDone}
                         />
                       </div>
                       <button
@@ -945,15 +1191,13 @@ export default function LogSessionModal({
             </div>
           )}
 
-          {/* Notes + Confirm — after everything is done (log), or always (edit) */}
-          {(allDone || mode === "edit") && (
+          {/* Notes + Confirm — shown after all sets are done */}
+          {allDone && (
             <div className="w-full space-y-4">
-              {allDone && mode !== "edit" && (
-                <div className="text-center mb-2">
-                  <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
-                  <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
-                </div>
-              )}
+              <div className="text-center mb-2">
+                <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
+                <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-[#777777] mb-1.5 uppercase tracking-wide">
                   Session Notes
@@ -970,7 +1214,7 @@ export default function LogSessionModal({
                 onClick={handleConfirm}
                 className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
               >
-                {mode === "edit" ? "Save Changes" : "Confirm Session"}
+                Confirm Session
               </button>
             </div>
           )}
