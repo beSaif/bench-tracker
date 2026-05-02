@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useCallback } from "react"
 
 const ITEM_H = 44
 const VISIBLE = 5
@@ -38,8 +38,19 @@ export function DrumRollPicker({
 }: DrumRollPickerProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const spanRefs = useRef<(HTMLSpanElement | null)[]>([])
+  const dragRef = useRef<{ startY: number; startScrollTop: number } | null>(null)
 
   const fmt = format ?? ((v: number | null) => (v == null ? "—" : String(v)))
+
+  const snapAndCommit = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const idx = Math.round(el.scrollTop / ITEM_H)
+    const clamped = Math.max(0, Math.min(values.length - 1, idx))
+    el.scrollTop = clamped * ITEM_H
+    applyItemStyles(el, spanRefs.current)
+    onChange(values[clamped] ?? null)
+  }, [values, onChange])
 
   // Set initial scroll position and apply starting styles
   useEffect(() => {
@@ -50,7 +61,7 @@ export function DrumRollPicker({
     applyItemStyles(el, spanRefs.current)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live style updates via RAF during scroll
+  // Live style updates via RAF during drag-driven scroll
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -64,35 +75,7 @@ export function DrumRollPicker({
       el.removeEventListener("scroll", onScroll)
       cancelAnimationFrame(raf)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Commit selected value when scroll settles
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-
-    const commit = () => {
-      const idx = Math.round(el.scrollTop / ITEM_H)
-      const clamped = Math.max(0, Math.min(values.length - 1, idx))
-      onChange(values[clamped] ?? null)
-    }
-
-    if ("onscrollend" in window) {
-      el.addEventListener("scrollend", commit)
-      return () => el.removeEventListener("scrollend", commit)
-    }
-
-    let t: ReturnType<typeof setTimeout>
-    const debounced = () => {
-      clearTimeout(t)
-      t = setTimeout(commit, 150)
-    }
-    el.addEventListener("scroll", debounced)
-    return () => {
-      el.removeEventListener("scroll", debounced)
-      clearTimeout(t)
-    }
-  }, [values, onChange])
+  }, [])
 
   const FADE = "linear-gradient(to bottom, transparent 0%, black 40%, black 60%, transparent 100%)"
 
@@ -102,23 +85,46 @@ export function DrumRollPicker({
       style={{ opacity: disabled ? 0.4 : 1, pointerEvents: disabled ? "none" : "auto" }}
     >
       <span className="text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-2">{label}</span>
-      <div className="relative w-full" style={{ height: VISIBLE * ITEM_H }}>
+      <div
+        className="relative w-full"
+        style={{ height: VISIBLE * ITEM_H, touchAction: "none" }}
+        onPointerDown={(e) => {
+          const el = scrollRef.current
+          if (!el || disabled) return
+          dragRef.current = { startY: e.clientY, startScrollTop: el.scrollTop }
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          const el = scrollRef.current
+          if (!el || !dragRef.current) return
+          const dy = dragRef.current.startY - e.clientY
+          el.scrollTop = dragRef.current.startScrollTop + dy
+        }}
+        onPointerUp={() => {
+          if (!dragRef.current) return
+          dragRef.current = null
+          snapAndCommit()
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null
+        }}
+      >
         {/* Selection highlight — behind scroll content */}
         <div
           className="absolute inset-x-1 rounded-xl bg-[#f0f0f0]"
           style={{ top: PAD * ITEM_H, height: ITEM_H }}
         />
-        {/* Scroll list — mask fades edges, highlight visible through transparent item bg */}
+        {/* Scroll list — overflow:hidden so it is not a competing scroll container */}
         <div
           ref={scrollRef}
-          className="absolute inset-0 snap-y snap-mandatory overflow-y-scroll [&::-webkit-scrollbar]:hidden"
-          style={{ scrollbarWidth: "none", maskImage: FADE, WebkitMaskImage: FADE }}
+          className="absolute inset-0 overflow-hidden"
+          style={{ maskImage: FADE, WebkitMaskImage: FADE }}
         >
           <div style={{ height: PAD * ITEM_H }} aria-hidden="true" />
           {values.map((v, i) => (
             <div
               key={i}
-              className="snap-center flex items-center justify-center"
+              className="flex items-center justify-center"
               style={{ height: ITEM_H }}
             >
               <span
