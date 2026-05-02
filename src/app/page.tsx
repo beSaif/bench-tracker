@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -172,9 +172,9 @@ export default function Page() {
   const [anchorInput, setAnchorInput] = useState("")
   const [mounted, setMounted] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [presences, setPresences] = useState<UserPresence[]>([])
-  const [friendEmails, setFriendEmails] = useState<Set<string>>(new Set())
-  const friendEmailsRef = useRef<Set<string>>(new Set())
+  const [presences, setPresences] = useState<UserPresence[]>(() => loadPresencesLocal())
+  const [friendEmails, setFriendEmails] = useState<Set<string>>(() => new Set(loadFriendEmailsLocal()))
+  const friendEmailsRef = useRef<Set<string>>(new Set(loadFriendEmailsLocal()))
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
   const [showNotifBanner, setShowNotifBanner] = useState(false)
@@ -198,6 +198,19 @@ export default function Page() {
   useEffect(() => {
     let cancelled = false
 
+    // Fast path: render from localStorage immediately to avoid flicker on re-navigation
+    const cachedProfile = loadProfileLocal()
+    if (cachedProfile) {
+      const localSessions = loadSessionsLocal()
+      const localBlocks = loadBlocksLocal()
+      const localConfig = loadExerciseConfigLocal()
+      setProfile(cachedProfile)
+      if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
+      if (localBlocks.length > 0) setBlocks(localBlocks)
+      setExerciseConfig(localConfig)
+      setMounted(true)
+    }
+
     loadProfile().then((p) => {
       if (cancelled) return
       if (!p) {
@@ -207,15 +220,18 @@ export default function Page() {
       setProfile(p)
       installGuide.trigger()
 
-      // Sync load from localStorage immediately
-      const localSessions = loadSessionsLocal()
-      const localBlocks = loadBlocksLocal()
-      const localConfig = loadExerciseConfigLocal()
-
-      if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
-      if (localBlocks.length > 0) setBlocks(localBlocks)
-      setExerciseConfig(localConfig)
-      setMounted(true)
+      if (cachedProfile) {
+        // Already mounted from cache — just kick off the background KV sync
+      } else {
+        // First load (no cache): set state and mount now
+        const localSessions = loadSessionsLocal()
+        const localBlocks = loadBlocksLocal()
+        const localConfig = loadExerciseConfigLocal()
+        if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
+        if (localBlocks.length > 0) setBlocks(localBlocks)
+        setExerciseConfig(localConfig)
+        setMounted(true)
+      }
 
       // Async load from KV
       Promise.all([loadAll(), loadExerciseConfig()]).then(
@@ -296,6 +312,7 @@ export default function Page() {
           }
           presenceInitialisedRef.current = true
           prevPresencesRef.current = data
+          savePresencesLocal(data)
           setPresences(data)
         })
         .catch(() => {})
@@ -314,6 +331,7 @@ export default function Page() {
         if (!Array.isArray(data)) return
         const emails = new Set(data.map((f) => f.email.trim().toLowerCase()))
         friendEmailsRef.current = emails
+        saveFriendEmailsLocal([...emails])
         setFriendEmails(emails)
       })
       .catch(() => {})

@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, UserProfile } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, UserProfile, UserPresence } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -185,4 +185,34 @@ export function loadDraft(): SessionDraft | null {
 
 export function clearDraft(): void {
   localStorage.removeItem(DRAFT_KEY)
+}
+
+export function loadPresencesLocal(): UserPresence[] {
+  try {
+    const raw = localStorage.getItem(PRESENCES_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as UserPresence[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function savePresencesLocal(presences: UserPresence[]): void {
+  localStorage.setItem(PRESENCES_KEY, JSON.stringify(presences))
+}
+
+export function loadFriendEmailsLocal(): string[] {
+  try {
+    const raw = localStorage.getItem(FRIENDS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as string[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveFriendEmailsLocal(emails: string[]): void {
+  localStorage.setItem(FRIENDS_KEY, JSON.stringify(emails))
 }

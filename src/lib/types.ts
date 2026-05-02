@@ -65,6 +65,8 @@ export const DRAFT_KEY = "lift-tracker-draft"
 export const BLOCKS_KEY = "lift-tracker-blocks"
 export const EXERCISES_KEY = "lift-tracker-exercises"
 export const PROFILE_KEY = "lift-tracker-profile"
+export const PRESENCES_KEY = "lift-tracker-presences"
+export const FRIENDS_KEY = "lift-tracker-friends"
 
 export interface SessionDraft {
   sessionId: number
