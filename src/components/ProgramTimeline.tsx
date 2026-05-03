@@ -1,8 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { TrainingBlock, BlockPhase, Session } from "@/lib/types"
-import { prescribeBlockSession, BLOCK_LENGTHS } from "@/lib/prescription"
+import { TrainingBlock, BlockPhase } from "@/lib/types"
 
 const PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
@@ -11,13 +9,6 @@ const PHASE_SHORT: Record<BlockPhase, string> = {
   transmutation: "Intensity",
   realization: "Peak",
   deload: "Deload",
-}
-
-const PHASE_DESC: Record<BlockPhase, string> = {
-  accumulation: "building capacity — moderate weight, higher reps",
-  transmutation: "getting heavier — fewer reps, more intensity",
-  realization: "peak week — close to your max",
-  deload: "back off. let the body absorb the work",
 }
 
 const PHASE_COLOR: Record<BlockPhase, string> = {
@@ -37,12 +28,13 @@ interface Step {
 
 interface ProgramTimelineProps {
   blocks: TrainingBlock[]
-  sessions: Session[]
+  selectedBlockId?: number | null
+  onBlockSelect: (block: TrainingBlock | null) => void
+  selectedUpcomingPhase?: BlockPhase | null
+  onUpcomingPhaseSelect?: (phase: BlockPhase | null) => void
 }
 
-export default function ProgramTimeline({ blocks, sessions }: ProgramTimelineProps) {
-  const [expandedPhase, setExpandedPhase] = useState<BlockPhase | null>(null)
-
+export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect, selectedUpcomingPhase, onUpcomingPhaseSelect }: ProgramTimelineProps) {
   const sorted = [...blocks].sort((a, b) => a.id - b.id)
   const activeBlock = sorted.find((b) => b.status === "active")
   if (!activeBlock) return null
@@ -63,17 +55,23 @@ export default function ProgramTimeline({ blocks, sessions }: ProgramTimelinePro
 
   function handleStepClick(step: Step) {
     if (step.status === "active") {
-      setExpandedPhase(null)
+      onBlockSelect(null)
+      onUpcomingPhaseSelect?.(null)
       return
     }
-    setExpandedPhase(expandedPhase === step.phase ? null : step.phase)
+    if (step.status === "completed" && step.block) {
+      onUpcomingPhaseSelect?.(null)
+      onBlockSelect(step.block)
+      return
+    }
+    if (step.status === "upcoming") {
+      onBlockSelect(null)
+      onUpcomingPhaseSelect?.(step.phase === selectedUpcomingPhase ? null : step.phase)
+    }
   }
-
-  const expandedStep = steps.find((s) => s.phase === expandedPhase)
 
   return (
     <div className="mb-4">
-      {/* Timeline strip */}
       <div className="flex items-start justify-between px-1">
         {steps.map((step, i) => (
           <div key={step.phase} className="flex items-center">
@@ -82,7 +80,15 @@ export default function ProgramTimeline({ blocks, sessions }: ProgramTimelinePro
               className="flex flex-col items-center gap-0.5"
               style={{ minWidth: 52 }}
             >
-              <StepDot step={step} isExpanded={expandedPhase === step.phase} />
+              <StepDot
+                step={step}
+                isSelected={
+                  step.status === "upcoming"
+                    ? step.phase === selectedUpcomingPhase
+                    : step.block != null && step.block.id === selectedBlockId
+                }
+                isActiveBlock={step.status === "active"}
+              />
             </button>
             {i < steps.length - 1 && (
               <span className="text-[#cccccc] text-xs mx-1 mt-0.5 leading-none">›</span>
@@ -90,111 +96,49 @@ export default function ProgramTimeline({ blocks, sessions }: ProgramTimelinePro
           </div>
         ))}
       </div>
-
-      {/* Inline expansion */}
-      {expandedStep && (
-        <div className="mt-3 rounded-xl px-4 py-3 bg-[#f7f7f7]">
-          {expandedStep.status === "upcoming" ? (
-            <UpcomingPreview phase={expandedStep.phase} anchorWeight={activeBlock.anchorWeight} />
-          ) : (
-            <CompletedPreview block={expandedStep.block!} sessions={sessions} />
-          )}
-        </div>
-      )}
     </div>
   )
 }
 
-function StepDot({ step, isExpanded }: { step: Step; isExpanded: boolean }) {
+function StepDot({
+  step,
+  isSelected,
+  isActiveBlock,
+}: {
+  step: Step
+  isSelected: boolean
+  isActiveBlock: boolean
+}) {
   const { phase, status } = step
   const color = PHASE_COLOR[phase]
   const isUpcoming = status === "upcoming"
-  const isActive = status === "active"
   const isCompleted = status === "completed"
 
-  const dotBg = isExpanded ? color : isUpcoming ? "#dddddd" : color
-  const dotOpacity = !isExpanded && isCompleted ? 0.6 : 1
-  const textColor = isExpanded ? color : isUpcoming ? "#aaaaaa" : isCompleted ? "#999999" : color
+  const dotBg = isUpcoming && !isSelected ? "#dddddd" : color
+  const dotOpacity = isCompleted && !isSelected ? 0.55 : isUpcoming && !isSelected ? 0.4 : 1
+  const textColor = isUpcoming && !isSelected ? "#aaaaaa" : isCompleted ? (isSelected ? color : "#999999") : color
 
   return (
     <>
       <div
         className="w-2 h-2 rounded-full mb-0.5 transition-all"
-        style={{ backgroundColor: dotBg, opacity: dotOpacity }}
+        style={{
+          backgroundColor: dotBg,
+          opacity: dotOpacity,
+          boxShadow: isActiveBlock ? `0 0 0 2px ${color}40` : isSelected ? `0 0 0 2px ${color}80` : "none",
+        }}
       />
       <span
         className="text-[10px] text-center leading-tight transition-colors"
         style={{
           color: textColor,
-          fontWeight: isActive || isExpanded ? 700 : 500,
-          opacity: isCompleted && !isExpanded ? 0.75 : 1,
+          fontWeight: isActiveBlock || isSelected ? 700 : 500,
+          opacity: isCompleted && !isSelected ? 0.75 : 1,
         }}
       >
         {isCompleted ? "✓ " : ""}{PHASE_SHORT[phase]}
+        {isActiveBlock && <span className="block text-[8px] opacity-60">now</span>}
       </span>
     </>
-  )
-}
-
-function UpcomingPreview({ phase, anchorWeight }: { phase: BlockPhase; anchorWeight: number }) {
-  const color = PHASE_COLOR[phase]
-  const count = BLOCK_LENGTHS[phase]
-
-  return (
-    <div>
-      <p
-        className="text-[10px] font-semibold uppercase tracking-widest mb-1"
-        style={{ color }}
-      >
-        {PHASE_SHORT[phase]} · {anchorWeight}kg anchor
-      </p>
-      <p className="text-xs text-[#777777] mb-2.5">{PHASE_DESC[phase]}</p>
-      <div className="space-y-1.5">
-        {Array.from({ length: count }, (_, i) => {
-          const p = prescribeBlockSession(phase, i, anchorWeight)
-          return (
-            <div key={i} className="flex justify-between items-center">
-              <span className="text-xs text-[#888888]">Session {i + 1}</span>
-              <span className="text-xs font-semibold text-[#111111]">
-                {p.weight}kg × {p.reps} × {p.sets}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function CompletedPreview({ block, sessions }: { block: TrainingBlock; sessions: Session[] }) {
-  const color = PHASE_COLOR[block.phase]
-  const blockSessions = block.sessionIds
-    .map((id) => sessions.find((s) => s.id === id))
-    .filter((s): s is Session => s !== undefined)
-    .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
-
-  return (
-    <div>
-      <p
-        className="text-[10px] font-semibold uppercase tracking-widest mb-2.5"
-        style={{ color }}
-      >
-        {PHASE_SHORT[block.phase]} · {block.anchorWeight}kg anchor
-      </p>
-      <div className="space-y-1.5">
-        {blockSessions.map((session, i) => {
-          const workingSets = session.sets.filter((s) => !s.isWarmup)
-          const top = workingSets[0]
-          return (
-            <div key={session.id} className="flex justify-between items-center">
-              <span className="text-xs text-[#888888]">Session {i + 1}</span>
-              <span className="text-xs font-semibold text-[#111111]">
-                {top ? `${top.kg}kg × ${top.reps} × ${workingSets.length}` : "—"}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
   )
 }

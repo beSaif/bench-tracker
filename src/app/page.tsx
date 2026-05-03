@@ -11,6 +11,7 @@ import {
   migrateSessionTypes,
   BLOCK_LENGTHS,
   PHASE_LABEL,
+  PHASE_SESSION_TYPE,
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
@@ -79,16 +80,6 @@ function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
   return blocks.find((b) => b.status === "active")
 }
 
-const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
-
-function getCurrentCycleCompletedBlocks(blocks: TrainingBlock[]): TrainingBlock[] {
-  const active = getActiveBlock(blocks)
-  if (!active) return []
-  const sorted = [...blocks].sort((a, b) => a.id - b.id)
-  const activeIdx = sorted.findIndex((b) => b.id === active.id)
-  const phaseIdx = BLOCK_PHASE_ORDER.indexOf(active.phase)
-  return sorted.slice(activeIdx - phaseIdx, activeIdx)
-}
 
 function createUpcomingSession(
   sessions: Session[],
@@ -179,6 +170,8 @@ export default function Page() {
   const prevPresencesRef = useRef<UserPresence[]>([])
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const presenceInitialisedRef = useRef(false)
+  const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
+  const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -587,14 +580,13 @@ export default function Page() {
 
   const activeBlockSessions = confirmedSorted.filter((s) => activeBlockSessionIds.has(s.id))
 
-  const completedCycleBlocks = getCurrentCycleCompletedBlocks(blocks)
-  const completedCycleSessionIdSet = new Set(completedCycleBlocks.flatMap((b) => b.sessionIds))
-  const completedCycleGroups = completedCycleBlocks.map((block) => ({
-    block,
-    sessions: confirmedSorted
-      .filter((s) => block.sessionIds.includes(s.id))
-      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()),
-  }))
+  const viewingBlock = viewingBlockId != null
+    ? (blocks.find((b) => b.id === viewingBlockId) ?? activeBlock)
+    : activeBlock
+  const viewingBlockSessionIds = new Set(viewingBlock?.sessionIds ?? [])
+  const viewingBlockSessions = confirmedSorted
+    .filter((s) => viewingBlockSessionIds.has(s.id))
+    .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
 
   const blockIndexMap = new Map<number, number>()
   if (activeBlock) {
@@ -691,53 +683,147 @@ export default function Page() {
         />
 
         {/* Program timeline */}
-        {blocks.length > 0 && <ProgramTimeline blocks={blocks} sessions={confirmed} />}
+        {blocks.length > 0 && (
+          <ProgramTimeline
+            blocks={blocks}
+            selectedBlockId={viewingBlockId}
+            onBlockSelect={(b) => {
+              setViewingBlockId(b?.id ?? null)
+              setViewingUpcomingPhase(null)
+            }}
+            selectedUpcomingPhase={viewingUpcomingPhase}
+            onUpcomingPhaseSelect={(phase) => {
+              setViewingUpcomingPhase(phase)
+              setViewingBlockId(null)
+            }}
+          />
+        )}
 
-        {/* Active block + sessions */}
+        {/* Block view */}
         <div className="mb-4">
-          {activeBlock && (
+          {viewingBlock && !viewingUpcomingPhase && (
             <BlockHeader
-              block={activeBlock}
-              confirmedCount={activeBlockSessions.length}
-              onEditAnchor={handleEditAnchor}
+              block={viewingBlock}
+              confirmedCount={viewingBlock === activeBlock ? activeBlockSessions.length : viewingBlockSessions.length}
+              onEditAnchor={viewingBlock === activeBlock ? handleEditAnchor : undefined}
             />
           )}
-          {upcoming && (
-            <SessionCard
-              session={upcoming}
-              blockIndex={blockIndexMap.get(upcoming.id)}
-              onStartLogging={handleStartLogging}
-              onUpdateMuscleGroups={handleUpdateMuscleGroups}
-              exerciseConfig={exerciseConfig}
-            />
+
+          {/* Banner when browsing a past block */}
+          {viewingBlock !== activeBlock && !viewingUpcomingPhase && (
+            <button
+              onClick={() => setViewingBlockId(null)}
+              className="w-full text-left text-xs text-muted-light bg-[#f5f5f5] rounded-xl px-4 py-2.5 mb-2 flex items-center gap-2 active:opacity-70"
+            >
+              <span>←</span>
+              <span>back to current block</span>
+            </button>
           )}
-          {activeBlockSessions.map((s) => (
+
+          {/* Upcoming phase preview */}
+          {viewingUpcomingPhase && activeBlock && (() => {
+            const phaseColor: Record<BlockPhase, { bg: string; bar: string; label: string; meta: string }> = {
+              accumulation: { bg: "bg-[#f0f7f0]", bar: "bg-[#2d6a2d]", label: "text-[#2d6a2d]", meta: "text-[#4a8a4a]" },
+              transmutation: { bg: "bg-[#f5f0ff]", bar: "bg-[#5a2d8a]", label: "text-[#5a2d8a]", meta: "text-[#7a4daa]" },
+              realization: { bg: "bg-[#fff0f2]", bar: "bg-[#7a1f2e]", label: "text-[#7a1f2e]", meta: "text-[#9a3f4e]" },
+              deload: { bg: "bg-[#f5f5f5]", bar: "bg-[#888888]", label: "text-[#555555]", meta: "text-[#888888]" },
+            }
+            const style = phaseColor[viewingUpcomingPhase]
+            const total = BLOCK_LENGTHS[viewingUpcomingPhase]
+            return (
+              <>
+                <div className={`${style.bg} rounded-xl px-4 py-3 mb-2`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-4 rounded-full ${style.bar}`} />
+                      <span className={`text-sm font-semibold ${style.label}`}>
+                        {PHASE_SESSION_TYPE[viewingUpcomingPhase]}
+                      </span>
+                      <span className={`text-xs ${style.meta}`}>· projected</span>
+                    </div>
+                    <span className={`text-xs font-semibold ${style.label} opacity-60`}>{total} sessions</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-black/10" />
+                </div>
+                <button
+                  onClick={() => setViewingUpcomingPhase(null)}
+                  className="w-full text-left text-xs text-muted-light bg-[#f5f5f5] rounded-xl px-4 py-2.5 mb-2 flex items-center gap-2 active:opacity-70"
+                >
+                  <span>←</span>
+                  <span>back to current block</span>
+                </button>
+                {Array.from({ length: total }, (_, i) => {
+                  const p = prescribeBlockSession(viewingUpcomingPhase, i, activeBlock.anchorWeight)
+                  return (
+                    <div key={i} className="px-4 py-3 rounded-xl bg-[#f5f5f5] mb-2 flex justify-between items-center opacity-50">
+                      <span className="text-xs text-[#888888]">Session {i + 1}</span>
+                      <span className="text-xs font-semibold text-[#555555]">
+                        {p.weight}kg × {p.reps} × {p.sets}
+                      </span>
+                    </div>
+                  )
+                })}
+              </>
+            )
+          })()}
+
+          {/* Active block: upcoming + confirmed sessions + previews */}
+          {viewingBlock === activeBlock && !viewingUpcomingPhase && (
+            <>
+              {upcoming && (
+                <SessionCard
+                  session={upcoming}
+                  blockIndex={blockIndexMap.get(upcoming.id)}
+                  onStartLogging={handleStartLogging}
+                  onUpdateMuscleGroups={handleUpdateMuscleGroups}
+                  exerciseConfig={exerciseConfig}
+                />
+              )}
+              {activeBlockSessions.map((s) => (
+                <SessionCard
+                  key={s.id}
+                  session={s}
+                  blockIndex={blockIndexMap.get(s.id)}
+                  onEdit={handleEditSession}
+                  onUnlog={handleUnlogSession}
+                  exerciseConfig={exerciseConfig}
+                />
+              ))}
+              {/* Previews for sessions not yet generated */}
+              {activeBlock && (() => {
+                const shownSessions = activeBlockSessions.length + (upcoming ? 1 : 0)
+                const remaining = BLOCK_LENGTHS[activeBlock.phase] - shownSessions
+                if (remaining <= 0) return null
+                return Array.from({ length: remaining }, (_, i) => {
+                  const idx = shownSessions + i
+                  const p = prescribeBlockSession(activeBlock.phase, idx, activeBlock.anchorWeight)
+                  return (
+                    <div
+                      key={idx}
+                      className="px-4 py-3 rounded-xl bg-[#f5f5f5] mb-2 flex justify-between items-center opacity-40"
+                    >
+                      <span className="text-xs text-[#888888]">Session {idx + 1}</span>
+                      <span className="text-xs font-semibold text-muted">
+                        {p.weight}kg × {p.reps} × {p.sets}
+                      </span>
+                    </div>
+                  )
+                })
+              })()}
+            </>
+          )}
+
+          {/* Past block: only confirmed sessions */}
+          {viewingBlock !== activeBlock && !viewingUpcomingPhase && viewingBlockSessions.map((s) => (
             <SessionCard
               key={s.id}
               session={s}
-              blockIndex={blockIndexMap.get(s.id)}
               onEdit={handleEditSession}
               onUnlog={handleUnlogSession}
               exerciseConfig={exerciseConfig}
             />
           ))}
         </div>
-
-        {/* Completed blocks in the current cycle */}
-        {completedCycleGroups.map(({ block, sessions }) => (
-          <div key={block.id} className="mb-4">
-            <BlockHeader block={block} confirmedCount={sessions.length} />
-            {sessions.map((s) => (
-              <SessionCard
-                key={s.id}
-                session={s}
-                onEdit={handleEditSession}
-                onUnlog={handleUnlogSession}
-                exerciseConfig={exerciseConfig}
-              />
-            ))}
-          </div>
-        ))}
       </main>
 
       {/* Log Session Modal */}

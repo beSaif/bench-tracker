@@ -1,7 +1,7 @@
 "use client"
 
 import { TrainingBlock, BlockPhase } from "@/lib/types"
-import { BLOCK_LENGTHS, PHASE_LABEL } from "@/lib/prescription"
+import { BLOCK_LENGTHS, PHASE_SESSION_TYPE } from "@/lib/prescription"
 
 const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string; bg: string }> = {
   accumulation: {
@@ -46,7 +46,7 @@ export default function BlockHeader({ block, confirmedCount, onEditAnchor }: Blo
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-4 rounded-full ${style.bar}`} />
           <span className={`text-sm font-semibold ${style.label}`}>
-            {block.status === "completed" ? "✓ " : ""}{PHASE_LABEL[block.phase]}
+            {block.status === "completed" ? "✓ " : ""}{PHASE_SESSION_TYPE[block.phase]}
           </span>
           {block.status === "completed" ? (
             <span className={`text-xs ${style.meta}`}>· {block.anchorWeight}kg anchor</span>
