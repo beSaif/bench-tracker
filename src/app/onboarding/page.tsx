@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { MainLift, MAIN_LIFT_LABEL } from "@/lib/types"
+import { MainLift, MAIN_LIFT_LABEL, LiftMode, LiftConfig, LIFT_ORDER } from "@/lib/types"
 import { loadProfile, saveProfile } from "@/lib/storage"
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
@@ -11,6 +11,10 @@ type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 const LIFTS: MainLift[] = ["bench", "deadlift", "squat"]
 const PENDING_KEY = "lift-tracker-pending-onboarding"
 const TIMED_STEPS = new Set([2, 3, 5, 8])
+
+type PendingOnboarding =
+  | { name: string; bw: string; liftMode: "single"; lift: MainLift; anchor: string; target: string }
+  | { name: string; bw: string; liftMode: "multi"; liftConfigs: LiftConfig[] }
 
 function roundTo2p5(kg: number): number {
   return Math.round(kg / 2.5) * 2.5
@@ -26,9 +30,17 @@ export default function OnboardingPage() {
 
   const [name, setName] = useState("")
   const [bw, setBw] = useState("")
+  const [liftMode, setLiftMode] = useState<LiftMode | null>(null)
   const [lift, setLift] = useState<MainLift | null>(null)
   const [anchor, setAnchor] = useState("")
   const [target, setTarget] = useState("")
+  // Per-lift anchors/targets for multi mode
+  const [sqAnchor, setSqAnchor] = useState("")
+  const [benchAnchor, setBenchAnchor] = useState("")
+  const [dlAnchor, setDlAnchor] = useState("")
+  const [sqTarget, setSqTarget] = useState("")
+  const [benchTarget, setBenchTarget] = useState("")
+  const [dlTarget, setDlTarget] = useState("")
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -38,7 +50,7 @@ export default function OnboardingPage() {
       const raw = localStorage.getItem(PENDING_KEY)
       if (raw) {
         try {
-          const d = JSON.parse(raw) as { name: string; bw: string; lift: MainLift; anchor: string; target: string }
+          const d = JSON.parse(raw) as PendingOnboarding
           localStorage.removeItem(PENDING_KEY)
           autoFinish(d)
           return
@@ -63,17 +75,32 @@ export default function OnboardingPage() {
     setReadUnlocked(false)
   }, [step])
 
-  async function autoFinish(d: { name: string; bw: string; lift: MainLift; anchor: string; target: string }) {
+  async function autoFinish(d: PendingOnboarding) {
     setSubmitting(true)
-    const result = await saveProfile({
-      name: d.name.trim(),
-      bw: parseFloat(d.bw),
-      mainLift: d.lift,
-      anchor: parseFloat(d.anchor),
-      target: parseFloat(d.target),
-    })
+    let saved: Awaited<ReturnType<typeof saveProfile>>
+    if (d.liftMode === "multi") {
+      const benchCfg = d.liftConfigs.find((c) => c.lift === "bench") ?? d.liftConfigs[0]
+      saved = await saveProfile({
+        name: d.name.trim(),
+        bw: parseFloat(d.bw),
+        mainLift: "bench",
+        anchor: benchCfg.anchor,
+        target: benchCfg.target,
+        liftMode: "multi",
+        liftConfigs: d.liftConfigs,
+      })
+    } else {
+      saved = await saveProfile({
+        name: d.name.trim(),
+        bw: parseFloat(d.bw),
+        mainLift: d.lift,
+        anchor: parseFloat(d.anchor),
+        target: parseFloat(d.target),
+        liftMode: "single",
+      })
+    }
     setSubmitting(false)
-    if (result) {
+    if (saved) {
       router.replace("/")
     } else {
       setChecking(false)
@@ -89,8 +116,34 @@ export default function OnboardingPage() {
   }
 
   async function handleGoogleSignIn() {
-    localStorage.setItem(PENDING_KEY, JSON.stringify({ name, bw, lift, anchor, target }))
+    let pending: PendingOnboarding
+    if (liftMode === "multi") {
+      pending = {
+        name,
+        bw,
+        liftMode: "multi",
+        liftConfigs: buildMultiLiftConfigs(),
+      }
+    } else {
+      pending = {
+        name,
+        bw,
+        liftMode: "single",
+        lift: lift!,
+        anchor,
+        target,
+      }
+    }
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
     await signIn("google", { callbackUrl: "/onboarding?auth=1" })
+  }
+
+  function buildMultiLiftConfigs(): LiftConfig[] {
+    return [
+      { lift: "squat", anchor: parseFloat(sqAnchor), target: parseFloat(sqTarget) },
+      { lift: "bench", anchor: parseFloat(benchAnchor), target: parseFloat(benchTarget) },
+      { lift: "deadlift", anchor: parseFloat(dlAnchor), target: parseFloat(dlTarget) },
+    ]
   }
 
   const canAdvance = (() => {
@@ -101,13 +154,23 @@ export default function OnboardingPage() {
     }
     if (step === 2) return readUnlocked
     if (step === 3) return readUnlocked
-    if (step === 4) return lift !== null
+    if (step === 4) return liftMode !== null
     if (step === 5) return readUnlocked
     if (step === 6) {
+      if (liftMode === "multi") {
+        return (
+          isPositive(sqAnchor) && isPositive(benchAnchor) && isPositive(dlAnchor)
+        )
+      }
       const v = parseFloat(anchor)
       return Number.isFinite(v) && v > 0
     }
     if (step === 7) {
+      if (liftMode === "multi") {
+        return (
+          isPositive(sqTarget) && isPositive(benchTarget) && isPositive(dlTarget)
+        )
+      }
       const v = parseFloat(target)
       return Number.isFinite(v) && v > 0
     }
@@ -184,17 +247,17 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 2: hook — label then hint word-by-word */}
+          {/* Step 2: hook */}
           {step === 2 && (
             <Question
               label="most people track everything. most people quit."
-              hint="this app does it differently. one lift. one goal. actually works."
+              hint="this app does it differently. one program. one goal. actually works."
               highlight
               onHighlightComplete={() => setReadUnlocked(true)}
             />
           )}
 
-          {/* Step 3: label then bullets one by one */}
+          {/* Step 3: program structure */}
           {step === 3 && (
             <Question
               label="the program has two parts."
@@ -225,28 +288,40 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 4: lift selection */}
+          {/* Step 4: mode + lift selection */}
           {step === 4 && (
-            <Question label="what lift are you training?" hint="pick the one you're building your program around.">
+            <Question label="how do you want to train?" hint="you can always change this later.">
               <div className="space-y-2">
                 {LIFTS.map((l) => (
                   <button
                     key={l}
-                    onClick={() => setLift(l)}
+                    onClick={() => { setLift(l); setLiftMode("single") }}
                     className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-colors ${
-                      lift === l
+                      liftMode === "single" && lift === l
                         ? "border-[#7a1f2e] bg-[#fdf5f6] text-[#7a1f2e]"
                         : "border-[#e8e8e8] text-[#111111] hover:border-[#cccccc]"
                     }`}
                   >
                     <span className="text-base font-semibold">{MAIN_LIFT_LABEL[l]}</span>
+                    <span className="text-xs text-[#999999] ml-2">single lift focus</span>
                   </button>
                 ))}
+                <button
+                  onClick={() => { setLiftMode("multi"); setLift(null) }}
+                  className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-colors ${
+                    liftMode === "multi"
+                      ? "border-[#7a1f2e] bg-[#fdf5f6] text-[#7a1f2e]"
+                      : "border-[#e8e8e8] text-[#111111] hover:border-[#cccccc]"
+                  }`}
+                >
+                  <span className="text-base font-semibold">All Three Lifts</span>
+                  <span className="block text-xs text-[#999999] mt-0.5">squat → bench → deadlift, rotating each session</span>
+                </button>
               </div>
             </Question>
           )}
 
-          {/* Step 5: label then phases — labels first, then descriptions */}
+          {/* Step 5: training phases */}
           {step === 5 && (
             <Question
               label="your main lift runs in 4-phase cycles."
@@ -260,7 +335,41 @@ export default function OnboardingPage() {
           )}
 
           {/* Step 6: current 1RM */}
-          {step === 6 && (
+          {step === 6 && liftMode === "multi" && (
+            <Question
+              label="what are your current 1 rep maxes?"
+              hint="be honest — every session is a percentage of these."
+            >
+              <div className="space-y-5">
+                {(["squat", "bench", "deadlift"] as MainLift[]).map((l) => {
+                  const val = l === "squat" ? sqAnchor : l === "bench" ? benchAnchor : dlAnchor
+                  const setter = l === "squat" ? setSqAnchor : l === "bench" ? setBenchAnchor : setDlAnchor
+                  return (
+                    <div key={l}>
+                      <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1.5">
+                        {MAIN_LIFT_LABEL[l]}
+                      </label>
+                      <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
+                        <input
+                          autoFocus={l === "squat"}
+                          type="number"
+                          inputMode="decimal"
+                          step="2.5"
+                          value={val}
+                          onChange={(e) => setter(e.target.value)}
+                          placeholder="100"
+                          className="flex-1 text-2xl font-semibold text-[#111111] outline-none bg-transparent"
+                        />
+                        <span className="text-base text-[#aaaaaa]">kg</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </Question>
+          )}
+
+          {step === 6 && liftMode !== "multi" && (
             <Question
               label={`what's your current 1 rep max on ${lift ? MAIN_LIFT_LABEL[lift].toLowerCase() : "your lift"}?`}
               hint="your best single rep. be honest — every session is a percentage of this."
@@ -282,8 +391,70 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 7: target weight */}
-          {step === 7 && (
+          {/* Step 7: goal weight */}
+          {step === 7 && liftMode === "multi" && (
+            <Question
+              label="what are your goal weights?"
+              hint="the numbers on the bar you want to hit."
+            >
+              <div className="space-y-5">
+                {(["squat", "bench", "deadlift"] as MainLift[]).map((l) => {
+                  const anchorForLift = parseFloat(
+                    l === "squat" ? sqAnchor : l === "bench" ? benchAnchor : dlAnchor
+                  )
+                  const val = l === "squat" ? sqTarget : l === "bench" ? benchTarget : dlTarget
+                  const setter = l === "squat" ? setSqTarget : l === "bench" ? setBenchTarget : setDlTarget
+                  const suggestions =
+                    Number.isFinite(anchorForLift) && anchorForLift > 0
+                      ? [
+                          { kg: roundTo2p5(anchorForLift * 1.1), label: "+10%" },
+                          { kg: roundTo2p5(anchorForLift * 1.2), label: "+20%" },
+                          { kg: roundTo2p5(anchorForLift * 1.3), label: "+30%" },
+                        ]
+                      : []
+                  return (
+                    <div key={l}>
+                      <label className="block text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1.5">
+                        {MAIN_LIFT_LABEL[l]}
+                      </label>
+                      {suggestions.length > 0 && (
+                        <div className="flex gap-2 mb-2">
+                          {suggestions.map(({ kg, label }) => (
+                            <button
+                              key={kg}
+                              onClick={() => setter(String(kg))}
+                              className={`flex-1 flex flex-col items-center py-2 rounded-xl border-2 transition-colors text-xs ${
+                                val === String(kg)
+                                  ? "border-[#7a1f2e] bg-[#fdf5f6] text-[#7a1f2e]"
+                                  : "border-[#e8e8e8] text-[#111111] hover:border-[#cccccc]"
+                              }`}
+                            >
+                              <span className="font-semibold">{kg}kg</span>
+                              <span className="text-[#aaaaaa] mt-0.5">{label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="2.5"
+                          value={val}
+                          onChange={(e) => setter(e.target.value)}
+                          placeholder="140"
+                          className="flex-1 text-2xl font-semibold text-[#111111] outline-none bg-transparent"
+                        />
+                        <span className="text-base text-[#aaaaaa]">kg</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </Question>
+          )}
+
+          {step === 7 && liftMode !== "multi" && (
             <Question
               label="what's your goal weight?"
               hint="the number on the bar you want to hit. doesn't have to be realistic right now."
@@ -322,7 +493,7 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 8: commitment gate — label then hint, buttons appear after animation */}
+          {/* Step 8: commitment gate */}
           {step === 8 && (
             <Question
               label="only do this if you're actually going to show up."
@@ -382,6 +553,11 @@ export default function OnboardingPage() {
       )}
     </main>
   )
+}
+
+function isPositive(val: string): boolean {
+  const v = parseFloat(val)
+  return Number.isFinite(v) && v > 0
 }
 
 const PHASES = [
@@ -460,7 +636,6 @@ function DescSpan({ children, delay }: { children: React.ReactNode; delay: numbe
   )
 }
 
-// Words fade in with CSS stagger — no interval ticking, all words cascade continuously
 function RevealText({
   text,
   speed = 180,
@@ -480,7 +655,6 @@ function RevealText({
       setActive(false)
       return
     }
-    // Double RAF ensures opacity-0 is painted before the transition begins
     let raf1: number, raf2: number
     raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => setActive(true))
@@ -527,14 +701,11 @@ function Question({
 
   const handleLabelComplete = () => {
     setLabelDone(true)
-    // If no hint and no render-prop body, unlock immediately after label
     if (!hint && typeof children !== "function") {
       onHighlightComplete?.()
     }
   }
 
-  // Render-prop children receive (bodyVisible, onBodyComplete) so they can
-  // control when the gate fires after the last body item transitions in
   const resolvedChildren =
     typeof children === "function" ? children(labelDone, onHighlightComplete) : children
 

@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, BlockPhase, SessionType } from "./types"
+import { Session, TrainingBlock, BlockPhase, SessionType, MainLift, LiftMode, LiftConfig, LIFT_ORDER } from "./types"
 import { roundToPlate } from "./e1rm"
 
 interface Prescription {
@@ -152,6 +152,86 @@ export function deriveInitialAnchor(confirmedSessions: Session[]): number {
 
   // Fallback: last confirmed session
   return getWorkingSets(sorted[sorted.length - 1])[0]?.kg ?? 60
+}
+
+/** Total sessions required to complete a block phase, accounting for lift count in multi mode. */
+export function effectiveBlockLength(phase: BlockPhase, liftMode: LiftMode): number {
+  return BLOCK_LENGTHS[phase] * (liftMode === "multi" ? 3 : 1)
+}
+
+/** In multi mode: resolve which lift and what prescription applies for a given session index. */
+export function resolveMultiLiftSession(
+  sessionIndexInBlock: number,
+  block: TrainingBlock,
+  liftConfigs: LiftConfig[]
+): { lift: MainLift; prescription: ReturnType<typeof prescribeBlockSession> } {
+  const prescriptionStep = Math.floor(sessionIndexInBlock / 3)
+  const lift = LIFT_ORDER[sessionIndexInBlock % 3]
+  const cfg = liftConfigs.find((c) => c.lift === lift) ?? liftConfigs[0]
+  const anchor = block.liftAnchors?.[lift] ?? cfg.anchor
+  return { lift, prescription: prescribeBlockSession(block.phase, prescriptionStep, anchor) }
+}
+
+/** After a multi-lift realization block, derive the next anchor for each lift independently. */
+export function deriveNextMultiLiftAnchors(
+  completedBlock: TrainingBlock,
+  sessions: Session[],
+  currentConfigs: LiftConfig[]
+): LiftConfig[] {
+  const blockSessions = sessions.filter(
+    (s) => s.confirmed && completedBlock.sessionIds.includes(s.id)
+  )
+  return currentConfigs.map((cfg) => {
+    const liftPeaks = blockSessions.filter(
+      (s) => s.type === "Peak" && s.mainLift === cfg.lift
+    )
+    const lastPeak = liftPeaks[liftPeaks.length - 1]
+    if (!lastPeak) return cfg
+
+    const working = lastPeak.sets.filter((s) => !s.isWarmup)
+    const lastPeakWeight = working[0]?.kg ?? cfg.anchor
+    const lastPeakRPE = working[working.length - 1]?.rpe ?? null
+    const newAnchor = lastPeakRPE !== null && lastPeakRPE <= 7.5
+      ? lastPeakWeight + 2.5
+      : lastPeakWeight
+
+    return { ...cfg, anchor: newAnchor }
+  })
+}
+
+/** Factory for the next multi-lift block after a completed one. */
+export function createNextMultiLiftBlock(
+  completedBlock: TrainingBlock,
+  sessions: Session[],
+  currentConfigs: LiftConfig[],
+  newId: number
+): { block: TrainingBlock; updatedConfigs: LiftConfig[] } {
+  const phase = nextBlockPhase(completedBlock.phase)
+  const updatedConfigs =
+    completedBlock.phase === "realization"
+      ? deriveNextMultiLiftAnchors(completedBlock, sessions, currentConfigs)
+      : currentConfigs
+
+  const liftAnchors: Partial<Record<MainLift, number>> = {}
+  for (const cfg of updatedConfigs) {
+    liftAnchors[cfg.lift] = cfg.anchor
+  }
+
+  const benchConfig = updatedConfigs.find((c) => c.lift === "bench") ?? updatedConfigs[0]
+
+  return {
+    block: {
+      id: newId,
+      phase,
+      status: "active",
+      sessionIds: [],
+      anchorWeight: benchConfig.anchor,
+      liftAnchors,
+      startDate: null,
+      endDate: null,
+    },
+    updatedConfigs,
+  }
 }
 
 /**

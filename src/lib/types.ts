@@ -18,6 +18,7 @@ export interface Session {
   sets: MainLiftSet[]
   confirmed: boolean
   coachNote: string
+  mainLift?: MainLift
   selectedMuscleGroups?: MuscleGroup[]
   extraWorkouts?: ExtraWorkout[]
   blockId?: number
@@ -34,6 +35,7 @@ export interface TrainingBlock {
   anchorWeight: number
   startDate: string | null
   endDate: string | null
+  liftAnchors?: Partial<Record<MainLift, number>>
 }
 
 export type MainLift = "bench" | "deadlift" | "squat"
@@ -50,6 +52,16 @@ export const MAIN_LIFT_SHORT: Record<MainLift, string> = {
   squat: "Squat",
 }
 
+export type LiftMode = "single" | "multi"
+
+export const LIFT_ORDER: MainLift[] = ["squat", "bench", "deadlift"]
+
+export interface LiftConfig {
+  lift: MainLift
+  anchor: number
+  target: number
+}
+
 export interface UserProfile {
   email: string
   name: string
@@ -57,6 +69,9 @@ export interface UserProfile {
   mainLift: MainLift
   anchor: number
   target: number
+  liftMode?: LiftMode
+  liftConfigs?: LiftConfig[]
+  migrationPromptSeen?: boolean
   createdAt: string
 }
 

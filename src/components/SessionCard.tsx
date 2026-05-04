@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, MuscleGroup } from "@/lib/types"
+import { Session, MuscleGroup, MAIN_LIFT_SHORT } from "@/lib/types"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 
 interface SessionCardProps {
@@ -85,9 +85,16 @@ export default function SessionCard({
     <div className="px-4 pt-4 pb-4">
       {/* Header row */}
       <div className="flex items-center justify-between mb-1">
-        <span className={`text-sm font-semibold ${headerColor}`}>
-          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`text-sm font-semibold ${headerColor}`}>
+            Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
+          </span>
+          {session.mainLift && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#7a1f2e] border border-[#e0c8cb] rounded-full px-1.5 py-0.5 shrink-0">
+              {MAIN_LIFT_SHORT[session.mainLift]}
+            </span>
+          )}
+        </div>
         {isUpcoming ? (
           <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e] text-white rounded-full px-2 py-0.5">
             Up next

@@ -3,16 +3,20 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, saveProfile } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
   createNextBlock,
+  createNextMultiLiftBlock,
   migrateSessionTypes,
   BLOCK_LENGTHS,
   PHASE_LABEL,
   PHASE_SESSION_TYPE,
+  effectiveBlockLength,
+  resolveMultiLiftSession,
 } from "@/lib/prescription"
+import MigrationPromptModal from "@/components/MigrationPromptModal"
 import { generateWarmups } from "@/lib/warmup"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, buildMuscleRotation } from "@/lib/exerciseConfig"
@@ -88,13 +92,21 @@ function createUpcomingSession(
   profile: UserProfile
 ): Session {
   const activeBlock = getActiveBlock(blocks)
+  const isMulti = profile.liftMode === "multi" && (profile.liftConfigs?.length ?? 0) > 0
 
   let prescription: ReturnType<typeof prescribeBlockSession>
   let blockId: number | undefined
+  let sessionLift = profile.mainLift
 
   if (activeBlock) {
     const sessionIndexInBlock = activeBlock.sessionIds.length
-    prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
+    if (isMulti) {
+      const resolved = resolveMultiLiftSession(sessionIndexInBlock, activeBlock, profile.liftConfigs!)
+      prescription = resolved.prescription
+      sessionLift = resolved.lift
+    } else {
+      prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
+    }
     blockId = activeBlock.id
   } else {
     prescription = prescribeBlockSession("accumulation", 0, profile.anchor)
@@ -114,7 +126,11 @@ function createUpcomingSession(
 
   const sessionIndex = activeBlock ? activeBlock.sessionIds.length : 0
   const phase = activeBlock?.phase ?? "accumulation"
-  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
+  const phaseLength = isMulti
+    ? effectiveBlockLength(phase, "multi")
+    : BLOCK_LENGTHS[phase]
+  const liftSuffix = isMulti ? ` · ${MAIN_LIFT_LABEL[sessionLift]}` : ""
+  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${phaseLength}${liftSuffix}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
   const muscleRotation = buildMuscleRotation(config)
 
@@ -125,6 +141,7 @@ function createUpcomingSession(
     bw: null,
     confirmed: false,
     coachNote,
+    mainLift: sessionLift,
     sets: [...warmups, ...workingSets],
     selectedMuscleGroups: suggestNextMuscles(sessions, muscleRotation),
     blockId,
@@ -172,6 +189,7 @@ export default function Page() {
   const presenceInitialisedRef = useRef(false)
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
+  const [showMigrationPrompt, setShowMigrationPrompt] = useState(false)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -211,6 +229,9 @@ export default function Page() {
         return
       }
       setProfile(p)
+      if (p.liftMode === undefined && !p.migrationPromptSeen) {
+        setShowMigrationPrompt(true)
+      }
       installGuide.trigger()
 
       if (cachedProfile) {
@@ -442,9 +463,9 @@ export default function Page() {
 
   function handleConfirmSession(updatedSession: Session) {
     if (!profile) return
-    const prevBestE1RM = getBestE1RM(sessions.filter((s) => s.confirmed))
     const currentSessions = sessions
     const currentBlocks = blocks
+    const isMulti = profile.liftMode === "multi" && (profile.liftConfigs?.length ?? 0) > 0
 
     const updatedSessions = currentSessions.map((s) =>
       s.id === updatedSession.id ? { ...updatedSession, blockId: updatedSession.blockId } : s
@@ -453,10 +474,12 @@ export default function Page() {
 
     const activeBlock = getActiveBlock(currentBlocks)
     let finalBlocks = currentBlocks
+    let finalProfile = profile
 
     if (activeBlock) {
       const updatedBlockSessionIds = [...activeBlock.sessionIds, updatedSession.id]
-      const isBlockComplete = updatedBlockSessionIds.length >= BLOCK_LENGTHS[activeBlock.phase]
+      const totalRequired = effectiveBlockLength(activeBlock.phase, isMulti ? "multi" : "single")
+      const isBlockComplete = updatedBlockSessionIds.length >= totalRequired
 
       if (isBlockComplete) {
         const completedBlock: TrainingBlock = {
@@ -466,10 +489,34 @@ export default function Page() {
           endDate: updatedSession.date ?? null,
         }
         const maxBlockId = Math.max(...currentBlocks.map((b) => b.id))
-        const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
-        finalBlocks = currentBlocks
-          .map((b) => (b.id === activeBlock.id ? completedBlock : b))
-          .concat(newBlock)
+
+        if (isMulti && profile.liftConfigs) {
+          const { block: newBlock, updatedConfigs } = createNextMultiLiftBlock(
+            completedBlock,
+            confirmedSessions,
+            profile.liftConfigs,
+            maxBlockId + 1
+          )
+          finalBlocks = currentBlocks
+            .map((b) => (b.id === activeBlock.id ? completedBlock : b))
+            .concat(newBlock)
+          if (updatedConfigs !== profile.liftConfigs) {
+            const benchCfg = updatedConfigs.find((c) => c.lift === "bench") ?? updatedConfigs[0]
+            finalProfile = {
+              ...profile,
+              liftConfigs: updatedConfigs,
+              anchor: benchCfg.anchor,
+              target: benchCfg.target,
+            }
+            setProfile(finalProfile)
+            saveProfile(finalProfile).catch(() => {})
+          }
+        } else {
+          const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
+          finalBlocks = currentBlocks
+            .map((b) => (b.id === activeBlock.id ? completedBlock : b))
+            .concat(newBlock)
+        }
       } else {
         finalBlocks = currentBlocks.map((b) =>
           b.id === activeBlock.id ? { ...b, sessionIds: updatedBlockSessionIds } : b
@@ -477,7 +524,7 @@ export default function Page() {
       }
     }
 
-    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig, profile)
+    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig, finalProfile)
     const final = sortSessions([...confirmedSessions, newUpcoming])
 
     setSessions(final)
@@ -487,7 +534,6 @@ export default function Page() {
     setActiveDraft(null)
 
     signalPresence(false)
-
   }
 
   function handleCloseModal() {
@@ -519,6 +565,44 @@ export default function Page() {
       saveAll(updated, blocks)
       return updated
     })
+  }
+
+  function handleMigrationDone(updatedProfile: UserProfile) {
+    setShowMigrationPrompt(false)
+    setProfile(updatedProfile)
+
+    if (updatedProfile.liftMode === "multi" && updatedProfile.liftConfigs) {
+      // Rebuild upcoming session under multi-lift mode; discard any incomplete active block
+      const confirmedSessions = sessions.filter((s) => s.confirmed)
+      const activeBlock = getActiveBlock(blocks)
+
+      const bench = updatedProfile.liftConfigs.find((c) => c.lift === "bench") ?? updatedProfile.liftConfigs[0]
+      const liftAnchors: TrainingBlock["liftAnchors"] = {}
+      for (const cfg of updatedProfile.liftConfigs) liftAnchors[cfg.lift] = cfg.anchor
+
+      const maxBlockId = blocks.length > 0 ? Math.max(...blocks.map((b) => b.id)) : 0
+      const freshBlock: TrainingBlock = {
+        id: maxBlockId + 1,
+        phase: "accumulation",
+        status: "active",
+        sessionIds: [],
+        anchorWeight: bench.anchor,
+        liftAnchors,
+        startDate: null,
+        endDate: null,
+      }
+
+      const completedBlocks = activeBlock
+        ? blocks.map((b) => b.id === activeBlock.id ? { ...b, status: "completed" as const } : b)
+        : blocks
+      const newBlocks = [...completedBlocks, freshBlock]
+
+      const upcoming = createUpcomingSession(confirmedSessions, newBlocks, exerciseConfig, updatedProfile)
+      const final = sortSessions([...confirmedSessions, upcoming])
+      setSessions(final)
+      setBlocks(newBlocks)
+      saveAll(final, newBlocks)
+    }
   }
 
   function handleUnlogSession(session: Session) {
@@ -603,7 +687,9 @@ export default function Page() {
   const bestWeight = getBestWeight(sessions)
   const latestBW = getLatestBW(sessions)
 
-  const liftLabel = MAIN_LIFT_LABEL[profile.mainLift]
+  const sessionLift = upcoming?.mainLift ?? profile.mainLift
+  const liftLabel = MAIN_LIFT_LABEL[sessionLift]
+  const isMultiMode = profile.liftMode === "multi" && (profile.liftConfigs?.length ?? 0) > 0
   const firstName = profile.name.split(" ")[0]
 
   return (
@@ -612,6 +698,10 @@ export default function Page() {
 
       {installGuide.show && (
         <InstallGuideModal onDismiss={installGuide.dismiss} />
+      )}
+
+      {showMigrationPrompt && profile && (
+        <MigrationPromptModal profile={profile} onDone={handleMigrationDone} />
       )}
 
       <main className="mx-auto w-full max-w-[393px] px-4 py-6">
@@ -741,7 +831,7 @@ export default function Page() {
                       </span>
                       <span className={`text-xs ${style.meta}`}>· projected</span>
                     </div>
-                    <span className={`text-xs font-semibold ${style.label} opacity-60`}>{total} sessions</span>
+                    <span className={`text-xs font-semibold ${style.label} opacity-60`}>{isMultiMode ? total * 3 : total} sessions</span>
                   </div>
                   <div className="h-1 rounded-full bg-black/10" />
                 </div>
@@ -752,13 +842,29 @@ export default function Page() {
                   <span>←</span>
                   <span>back to current block</span>
                 </button>
-                {Array.from({ length: total }, (_, i) => {
-                  const p = prescribeBlockSession(viewingUpcomingPhase, i, activeBlock.anchorWeight)
+                {Array.from({ length: isMultiMode ? total * 3 : total }, (_, i) => {
+                  let previewWeight: number, previewReps: number, previewSets: number
+                  let previewLift = ""
+                  if (isMultiMode && profile.liftConfigs) {
+                    const fakeBlock = { ...activeBlock, phase: viewingUpcomingPhase, sessionIds: [] }
+                    const resolved = resolveMultiLiftSession(i, fakeBlock, profile.liftConfigs)
+                    previewWeight = resolved.prescription.weight
+                    previewReps = resolved.prescription.reps
+                    previewSets = resolved.prescription.sets
+                    previewLift = MAIN_LIFT_LABEL[resolved.lift]
+                  } else {
+                    const p = prescribeBlockSession(viewingUpcomingPhase, i, activeBlock.anchorWeight)
+                    previewWeight = p.weight
+                    previewReps = p.reps
+                    previewSets = p.sets
+                  }
                   return (
                     <div key={i} className="px-4 py-3 rounded-xl bg-[#f5f5f5] mb-2 flex justify-between items-center opacity-50">
-                      <span className="text-xs text-[#888888]">Session {i + 1}</span>
+                      <span className="text-xs text-[#888888]">
+                        Session {i + 1}{previewLift ? ` · ${previewLift}` : ""}
+                      </span>
                       <span className="text-xs font-semibold text-[#555555]">
-                        {p.weight}kg × {p.reps} × {p.sets}
+                        {previewWeight}kg × {previewReps} × {previewSets}
                       </span>
                     </div>
                   )
@@ -792,19 +898,35 @@ export default function Page() {
               {/* Previews for sessions not yet generated */}
               {activeBlock && (() => {
                 const shownSessions = activeBlockSessions.length + (upcoming ? 1 : 0)
-                const remaining = BLOCK_LENGTHS[activeBlock.phase] - shownSessions
+                const totalInBlock = effectiveBlockLength(activeBlock.phase, isMultiMode ? "multi" : "single")
+                const remaining = totalInBlock - shownSessions
                 if (remaining <= 0) return null
                 return Array.from({ length: remaining }, (_, i) => {
                   const idx = shownSessions + i
-                  const p = prescribeBlockSession(activeBlock.phase, idx, activeBlock.anchorWeight)
+                  let previewWeight: number, previewReps: number, previewSets: number
+                  let previewLift = ""
+                  if (isMultiMode && profile.liftConfigs) {
+                    const resolved = resolveMultiLiftSession(idx, activeBlock, profile.liftConfigs)
+                    previewWeight = resolved.prescription.weight
+                    previewReps = resolved.prescription.reps
+                    previewSets = resolved.prescription.sets
+                    previewLift = MAIN_LIFT_LABEL[resolved.lift]
+                  } else {
+                    const p = prescribeBlockSession(activeBlock.phase, idx, activeBlock.anchorWeight)
+                    previewWeight = p.weight
+                    previewReps = p.reps
+                    previewSets = p.sets
+                  }
                   return (
                     <div
                       key={idx}
                       className="px-4 py-3 rounded-xl bg-[#f5f5f5] mb-2 flex justify-between items-center opacity-40"
                     >
-                      <span className="text-xs text-[#888888]">Session {idx + 1}</span>
+                      <span className="text-xs text-[#888888]">
+                        Session {idx + 1}{previewLift ? ` · ${previewLift}` : ""}
+                      </span>
                       <span className="text-xs font-semibold text-muted">
-                        {p.weight}kg × {p.reps} × {p.sets}
+                        {previewWeight}kg × {previewReps} × {previewSets}
                       </span>
                     </div>
                   )
@@ -848,7 +970,7 @@ export default function Page() {
           onClose={() => setEditingSession(null)}
           previousSessions={confirmedSorted}
           exerciseConfig={exerciseConfig}
-          mainLiftLabel={liftLabel}
+          mainLiftLabel={MAIN_LIFT_LABEL[editingSession.mainLift ?? profile.mainLift]}
         />
       )}
 

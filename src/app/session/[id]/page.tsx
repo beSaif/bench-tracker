@@ -135,7 +135,7 @@ export default function SessionDetailPage() {
       {/* Main lift section */}
       <section className="mb-6">
         <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
-          {profile ? MAIN_LIFT_LABEL[profile.mainLift] : "Main Lift"}
+          {MAIN_LIFT_LABEL[session.mainLift ?? profile?.mainLift ?? "bench"]}
         </p>
 
         {/* Quick stats */}
