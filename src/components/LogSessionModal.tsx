@@ -118,6 +118,7 @@ function SortableGroupRow({
   completedSets,
   exerciseConfig,
   mainLiftLabel,
+  onDelete,
 }: {
   id: string
   group: ExerciseGroup
@@ -126,6 +127,7 @@ function SortableGroupRow({
   completedSets: Set<string>
   exerciseConfig: MuscleGroupConfig[]
   mainLiftLabel: string
+  onDelete?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
@@ -208,6 +210,19 @@ function SortableGroupRow({
           </p>
         )}
       </div>
+      {group.kind === "extra" && onDelete && (
+        <button
+          onClick={onDelete}
+          className="text-[#cccccc] hover:text-red-400 transition-colors p-1 shrink-0"
+          aria-label="Delete exercise"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
@@ -335,6 +350,10 @@ export default function LogSessionModal({
   )
   const [showReorder, setShowReorder] = useState(false)
   const [showMuscleGroupPicker, setShowMuscleGroupPicker] = useState(false)
+  const [pendingDeleteExercise, setPendingDeleteExercise] = useState<{
+    muscle: string
+    exercise: string
+  } | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -652,6 +671,42 @@ export default function LogSessionModal({
       delete next[muscleId]
       return next
     })
+  }
+
+  function deleteExercise(muscle: string, exercise: string) {
+    const willBeEmpty = Object.keys(extraState[muscle] ?? {}).filter(e => e !== exercise).length === 0
+
+    setExtraState((prev) => {
+      const next = { ...prev }
+      if (willBeEmpty) {
+        delete next[muscle]
+      } else {
+        const muscleExercises = { ...next[muscle] }
+        delete muscleExercises[exercise]
+        next[muscle] = muscleExercises
+      }
+      return next
+    })
+
+    if (willBeEmpty) {
+      setSelectedGroups((prev) => prev.filter(g => g !== muscle))
+    }
+
+    setExerciseOrder((prev) =>
+      prev.filter(g => !(g.kind === "extra" && g.muscle === muscle && g.exercise === exercise))
+    )
+
+    setCompletedSets((prev) => {
+      const prefix = `extra-${muscle}-${exercise}-`
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (!key.startsWith(prefix)) next.add(key)
+      }
+      return next
+    })
+
+    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+    setPendingDeleteExercise(null)
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -1149,13 +1204,21 @@ export default function LogSessionModal({
                         {isDone ? "✓ Done" : "Done"}
                       </button>
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
-                        <button
-                          onClick={() => deleteExtraSet(item.muscle, item.exercise, item.setIndex)}
-                          disabled={(extraState[item.muscle]?.[item.exercise]?.length ?? 0) <= 1}
-                          className="text-xs text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors px-1"
-                        >
-                          Delete set
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => deleteExtraSet(item.muscle, item.exercise, item.setIndex)}
+                            disabled={(extraState[item.muscle]?.[item.exercise]?.length ?? 0) <= 1}
+                            className="text-xs text-[#bbbbbb] disabled:opacity-30 hover:text-red-400 transition-colors px-1"
+                          >
+                            Delete set
+                          </button>
+                          <button
+                            onClick={() => setPendingDeleteExercise({ muscle: item.muscle, exercise: item.exercise })}
+                            className="text-xs text-[#bbbbbb] hover:text-red-400 transition-colors px-1"
+                          >
+                            Delete exercise
+                          </button>
+                        </div>
                         <button
                           onClick={() => addExtraSetAfter(item.muscle, item.exercise, item.setIndex)}
                           className="text-xs text-[#bbbbbb] hover:text-[#111111] transition-colors px-1"
@@ -1279,10 +1342,48 @@ export default function LogSessionModal({
                         completedSets={completedSets}
                         exerciseConfig={exerciseConfig}
                         mainLiftLabel={mainLiftLabel}
+                        onDelete={group.kind === "extra"
+                          ? () => setPendingDeleteExercise({ muscle: group.muscle, exercise: group.exercise })
+                          : undefined}
                       />
                     ))}
                   </SortableContext>
                 </DndContext>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Delete exercise confirmation */}
+        {pendingDeleteExercise && (
+          <>
+            <div className="absolute inset-0 bg-black/30 z-30" onClick={() => setPendingDeleteExercise(null)} />
+            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.15)] z-40 p-5">
+              <p className="text-sm font-semibold text-[#111111] mb-1">Remove exercise?</p>
+              <p className="text-base font-bold text-[#111111]">{pendingDeleteExercise.exercise}</p>
+              {(() => {
+                const willBeEmpty = Object.keys(extraState[pendingDeleteExercise.muscle] ?? {}).filter(e => e !== pendingDeleteExercise.exercise).length === 0
+                return willBeEmpty ? (
+                  <p className="text-xs text-[#aaaaaa] mt-1 mb-4">
+                    This will also remove the {getMuscleLabel(exerciseConfig, pendingDeleteExercise.muscle)} group.
+                  </p>
+                ) : (
+                  <div className="mb-4" />
+                )
+              })()}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingDeleteExercise(null)}
+                  className="flex-1 rounded-xl py-3 text-sm font-semibold bg-[#f5f5f5] text-[#333333] hover:bg-[#ebebeb] active:bg-[#e0e0e0] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteExercise(pendingDeleteExercise.muscle, pendingDeleteExercise.exercise)}
+                  className="flex-1 rounded-xl py-3 text-sm font-semibold bg-red-500 text-white hover:bg-red-600 active:bg-red-700 transition-colors"
+                >
+                  Remove
+                </button>
               </div>
             </div>
           </>
