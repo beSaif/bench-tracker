@@ -403,6 +403,7 @@ export default function LogSessionModal({
   carouselLengthRef.current = carouselItems.length
 
   const notifIdRef = useRef<string | null>(null)
+  const hasAdvancedForRestRef = useRef(false)
 
   function handleMinimize() {
     saveMiniPlayer({
@@ -497,6 +498,7 @@ export default function LogSessionModal({
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
+        hasAdvancedForRestRef.current = false
         setRestEndTime(Date.now() + REST_DURATION * 1000)
         setRestSeconds(REST_DURATION)
         const body = nextItem ? getNextPreview(nextItem) : "Last set — great work"
@@ -514,10 +516,9 @@ export default function LogSessionModal({
     }
   }
 
-  function dismissRest() {
-    cancelNotification()
-    setRestEndTime(null)
-    setRestSeconds(0)
+  function advanceToNextSet() {
+    if (hasAdvancedForRestRef.current) return
+    hasAdvancedForRestRef.current = true
     setCurrentSetIndex((prev) => {
       for (let i = prev + 1; i < carouselItems.length; i++) {
         if (!completedSets.has(getItemKey(carouselItems[i]))) return i
@@ -526,14 +527,16 @@ export default function LogSessionModal({
     })
   }
 
+  function dismissRest() {
+    cancelNotification()
+    setRestEndTime(null)
+    setRestSeconds(0)
+    advanceToNextSet()
+  }
+
   function hideTimer() {
     setTimerMinimized(true)
-    setCurrentSetIndex((prev) => {
-      for (let i = prev + 1; i < carouselItems.length; i++) {
-        if (!completedSets.has(getItemKey(carouselItems[i]))) return i
-      }
-      return Math.min(prev + 1, carouselItems.length - 1)
-    })
+    advanceToNextSet()
   }
 
   function navigatePrev() {
