@@ -41,9 +41,13 @@ export default function MiniPlayerBar() {
   if (!miniState) return null
 
   function handleTap() {
-    sessionStorage.setItem("lift-tracker-resume", String(miniState!.sessionId))
+    const sessionId = String(miniState!.sessionId)
     clearMiniPlayer()
     setMiniState(null)
+    // Fire event first so home page can handle it if already mounted
+    window.dispatchEvent(new CustomEvent("mini-player-resume", { detail: { sessionId } }))
+    // Also set sessionStorage as fallback for cross-page navigation
+    sessionStorage.setItem("lift-tracker-resume", sessionId)
     router.push("/")
   }
 

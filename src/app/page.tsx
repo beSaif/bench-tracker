@@ -174,7 +174,7 @@ export default function Page() {
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const resumeCheckedRef = useRef(false)
+  const sessionsRef = useRef<Session[]>([])
 
   function handleTitlePointerDown() {
     longPressTimer.current = setTimeout(() => {
@@ -280,10 +280,29 @@ export default function Page() {
     return () => { cancelled = true }
   }, [router])
 
-  // Resume a minimized session when navigating back to home
+  // Keep ref in sync so event listener always sees fresh sessions
+  useEffect(() => { sessionsRef.current = sessions }, [sessions])
+
+  // Listen for mini-player resume event (same-page case)
   useEffect(() => {
-    if (resumeCheckedRef.current || sessions.length === 0) return
-    resumeCheckedRef.current = true
+    function handleResumeEvent(e: Event) {
+      const sessionId = (e as CustomEvent<{ sessionId: string }>).detail?.sessionId
+      if (!sessionId) return
+      sessionStorage.removeItem('lift-tracker-resume')
+      const target = sessionsRef.current.find(s => s.id.toString() === sessionId)
+      const draft = loadDraft()
+      if (target && draft && draft.sessionId.toString() === sessionId) {
+        setLoggingSession(JSON.parse(JSON.stringify(target)))
+        setActiveDraft(draft)
+      }
+    }
+    window.addEventListener('mini-player-resume', handleResumeEvent)
+    return () => window.removeEventListener('mini-player-resume', handleResumeEvent)
+  }, [])
+
+  // Resume from sessionStorage once sessions are loaded (cross-page navigation case)
+  useEffect(() => {
+    if (sessions.length === 0) return
     const resumeId = sessionStorage.getItem('lift-tracker-resume')
     if (!resumeId) return
     sessionStorage.removeItem('lift-tracker-resume')
