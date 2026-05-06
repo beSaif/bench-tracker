@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import "@fontsource-variable/inter"
 import "./globals.css"
 import SwRegistrar from "@/components/SwRegistrar"
+import MiniPlayerBar from "@/components/MiniPlayerBar"
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="min-h-dvh antialiased">
         <SwRegistrar />
         {children}
+        <MiniPlayerBar />
       </body>
     </html>
   )

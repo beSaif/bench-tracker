@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, clearMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -174,6 +174,7 @@ export default function Page() {
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sessionsRef = useRef<Session[]>([])
 
   function handleTitlePointerDown() {
     longPressTimer.current = setTimeout(() => {
@@ -278,6 +279,40 @@ export default function Page() {
 
     return () => { cancelled = true }
   }, [router])
+
+  // Keep ref in sync so event listener always sees fresh sessions
+  useEffect(() => { sessionsRef.current = sessions }, [sessions])
+
+  // Listen for mini-player resume event (same-page case)
+  useEffect(() => {
+    function handleResumeEvent(e: Event) {
+      const sessionId = (e as CustomEvent<{ sessionId: string }>).detail?.sessionId
+      if (!sessionId) return
+      sessionStorage.removeItem('lift-tracker-resume')
+      const target = sessionsRef.current.find(s => s.id.toString() === sessionId)
+      const draft = loadDraft()
+      if (target && draft && draft.sessionId.toString() === sessionId) {
+        setLoggingSession(JSON.parse(JSON.stringify(target)))
+        setActiveDraft(draft)
+      }
+    }
+    window.addEventListener('mini-player-resume', handleResumeEvent)
+    return () => window.removeEventListener('mini-player-resume', handleResumeEvent)
+  }, [])
+
+  // Resume from sessionStorage once sessions are loaded (cross-page navigation case)
+  useEffect(() => {
+    if (sessions.length === 0) return
+    const resumeId = sessionStorage.getItem('lift-tracker-resume')
+    if (!resumeId) return
+    sessionStorage.removeItem('lift-tracker-resume')
+    const target = sessions.find(s => s.id.toString() === resumeId)
+    const draft = loadDraft()
+    if (target && draft && draft.sessionId.toString() === resumeId) {
+      setLoggingSession(JSON.parse(JSON.stringify(target)))
+      setActiveDraft(draft)
+    }
+  }, [sessions])
 
   useEffect(() => {
     if (!profile) return
@@ -393,6 +428,7 @@ export default function Page() {
       draft.completedSets.length > 0 &&
       Date.now() - new Date(draft.savedAt).getTime() < DRAFT_MAX_AGE_MS
 
+    clearMiniPlayer()
     signalPresence(true)
     if (isLive) {
       setDraftPrompt({ session: JSON.parse(JSON.stringify(session)), draft })
@@ -483,6 +519,7 @@ export default function Page() {
     setSessions(final)
     setBlocks(finalBlocks)
     saveAll(final, finalBlocks)
+    clearMiniPlayer()
     setLoggingSession(null)
     setActiveDraft(null)
 
@@ -492,8 +529,15 @@ export default function Page() {
 
   function handleCloseModal() {
     signalPresence(false)
+    clearMiniPlayer()
     setLoggingSession(null)
     setActiveDraft(null)
+  }
+
+  function handleMinimizeModal() {
+    setLoggingSession(null)
+    setActiveDraft(null)
+    // mini-player state already saved by LogSessionModal before this is called
   }
 
   function handleEditSession(session: Session) {
@@ -832,6 +876,7 @@ export default function Page() {
           session={loggingSession}
           onConfirm={handleConfirmSession}
           onClose={handleCloseModal}
+          onMinimize={handleMinimizeModal}
           previousSessions={confirmedSorted}
           initialDraft={activeDraft ?? undefined}
           exerciseConfig={exerciseConfig}

@@ -216,3 +216,31 @@ export function loadFriendEmailsLocal(): string[] {
 export function saveFriendEmailsLocal(emails: string[]): void {
   localStorage.setItem(FRIENDS_KEY, JSON.stringify(emails))
 }
+
+const MINI_PLAYER_KEY = 'lift-tracker-mini-player'
+
+export interface MiniPlayerState {
+  sessionId: string | number
+  label: string
+  setsCompleted: number
+  totalSets: number
+  restEndTime: number | null
+}
+
+export function saveMiniPlayer(state: MiniPlayerState): void {
+  localStorage.setItem(MINI_PLAYER_KEY, JSON.stringify(state))
+}
+
+export function loadMiniPlayer(): MiniPlayerState | null {
+  try {
+    const raw = localStorage.getItem(MINI_PLAYER_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as MiniPlayerState
+  } catch {
+    return null
+  }
+}
+
+export function clearMiniPlayer(): void {
+  localStorage.removeItem(MINI_PLAYER_KEY)
+}

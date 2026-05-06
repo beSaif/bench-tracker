@@ -9,7 +9,7 @@ import {
   ExtraSet,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
-import { saveDraft, clearDraft } from "@/lib/storage"
+import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups } from "@/lib/exerciseConfig"
 import {
@@ -50,6 +50,7 @@ interface LogSessionModalProps {
   session: Session
   onConfirm: (session: Session) => void
   onClose: () => void
+  onMinimize?: () => void
   mode?: "log" | "edit"
   previousSessions?: Session[]
   initialDraft?: SessionDraft
@@ -321,6 +322,7 @@ export default function LogSessionModal({
   session,
   onConfirm,
   onClose,
+  onMinimize,
   mode = "log",
   previousSessions = [],
   initialDraft,
@@ -401,6 +403,18 @@ export default function LogSessionModal({
   carouselLengthRef.current = carouselItems.length
 
   const notifIdRef = useRef<string | null>(null)
+
+  function handleMinimize() {
+    saveMiniPlayer({
+      sessionId: session.id,
+      label: mainLiftLabel,
+      setsCompleted: completedCount,
+      totalSets: carouselItems.length,
+      restEndTime: restEndTime,
+    })
+    window.dispatchEvent(new CustomEvent('mini-player-update'))
+    onMinimize?.()
+  }
 
   function playBeep() {
     try {
@@ -1065,8 +1079,19 @@ export default function LogSessionModal({
 
         {/* Header + Progress — pinned at top */}
         <div className="pt-6 pb-4 shrink-0">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-base font-semibold text-[#111111]">
+          <div className="flex items-center mb-5">
+            {mode === "log" && onMinimize && (
+              <button
+                onClick={handleMinimize}
+                className="text-[#777777] hover:text-[#111111] mr-2 p-1 -ml-1"
+                aria-label="Minimize"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="5 8 10 13 15 8" />
+                </svg>
+              </button>
+            )}
+            <h2 className="flex-1 text-base font-semibold text-[#111111]">
               Log Session {String(session.id).padStart(2, "0")}
             </h2>
             <button
