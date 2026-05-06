@@ -339,6 +339,7 @@ export default function LogSessionModal({
   const [restEndTime, setRestEndTime] = useState<number | null>(null)
   const [restSeconds, setRestSeconds] = useState(0)
   const restActive = restEndTime !== null
+  const [timerMinimized, setTimerMinimized] = useState(false)
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
     () => initialDraft?.extraState ?? initExtraWorkoutState(session, exerciseConfig, previousSessions)
   )
@@ -1001,7 +1002,7 @@ export default function LogSessionModal({
   }
 
   // Full-screen rest timer
-  if (restActive) {
+  if (restActive && !timerMinimized) {
     return (
       <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
@@ -1017,19 +1018,41 @@ export default function LogSessionModal({
         ) : (
           <p className="mt-6 text-sm text-white/50">Last set — great work</p>
         )}
-        <button
-          onClick={dismissRest}
-          className="mt-10 px-8 py-3 rounded-full border border-white/25 text-white/75
-                     text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
-        >
-          Skip
-        </button>
+        <div className="mt-10 flex gap-3">
+          <button
+            onClick={() => setTimerMinimized(true)}
+            className="px-8 py-3 rounded-full border border-white/25 text-white/75
+                       text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
+          >
+            Hide
+          </button>
+          <button
+            onClick={dismissRest}
+            className="px-8 py-3 rounded-full border border-white/25 text-white/75
+                       text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
+          >
+            Skip
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 ${restActive && timerMinimized ? "bg-[#fdf5f6]" : "bg-white"}`}>
+      {restActive && timerMinimized && (
+        <button
+          onClick={() => setTimerMinimized(false)}
+          className="fixed top-4 right-4 z-[60] flex items-center gap-1.5
+                     bg-[#7a1f2e] text-white text-sm font-bold tabular-nums
+                     px-3 py-1.5 rounded-full shadow-lg
+                     active:opacity-80 transition-opacity"
+          aria-label="Restore timer"
+        >
+          <span className="text-white/60 text-xs font-normal">Rest</span>
+          {timerDisplay}
+        </button>
+      )}
       <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0 relative">
 
         {/* Header + Progress — pinned at top */}
