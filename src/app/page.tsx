@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, clearMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -174,6 +174,7 @@ export default function Page() {
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const resumeCheckedRef = useRef(false)
 
   function handleTitlePointerDown() {
     longPressTimer.current = setTimeout(() => {
@@ -278,6 +279,21 @@ export default function Page() {
 
     return () => { cancelled = true }
   }, [router])
+
+  // Resume a minimized session when navigating back to home
+  useEffect(() => {
+    if (resumeCheckedRef.current || sessions.length === 0) return
+    resumeCheckedRef.current = true
+    const resumeId = sessionStorage.getItem('lift-tracker-resume')
+    if (!resumeId) return
+    sessionStorage.removeItem('lift-tracker-resume')
+    const target = sessions.find(s => s.id.toString() === resumeId)
+    const draft = loadDraft()
+    if (target && draft && draft.sessionId.toString() === resumeId) {
+      setLoggingSession(JSON.parse(JSON.stringify(target)))
+      setActiveDraft(draft)
+    }
+  }, [sessions])
 
   useEffect(() => {
     if (!profile) return
@@ -393,6 +409,7 @@ export default function Page() {
       draft.completedSets.length > 0 &&
       Date.now() - new Date(draft.savedAt).getTime() < DRAFT_MAX_AGE_MS
 
+    clearMiniPlayer()
     signalPresence(true)
     if (isLive) {
       setDraftPrompt({ session: JSON.parse(JSON.stringify(session)), draft })
@@ -483,6 +500,7 @@ export default function Page() {
     setSessions(final)
     setBlocks(finalBlocks)
     saveAll(final, finalBlocks)
+    clearMiniPlayer()
     setLoggingSession(null)
     setActiveDraft(null)
 
@@ -492,8 +510,15 @@ export default function Page() {
 
   function handleCloseModal() {
     signalPresence(false)
+    clearMiniPlayer()
     setLoggingSession(null)
     setActiveDraft(null)
+  }
+
+  function handleMinimizeModal() {
+    setLoggingSession(null)
+    setActiveDraft(null)
+    // mini-player state already saved by LogSessionModal before this is called
   }
 
   function handleEditSession(session: Session) {
@@ -832,6 +857,7 @@ export default function Page() {
           session={loggingSession}
           onConfirm={handleConfirmSession}
           onClose={handleCloseModal}
+          onMinimize={handleMinimizeModal}
           previousSessions={confirmedSorted}
           initialDraft={activeDraft ?? undefined}
           exerciseConfig={exerciseConfig}
