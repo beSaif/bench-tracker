@@ -514,12 +514,6 @@ export default function LogSessionModal({
 
   function hideTimer() {
     setTimerMinimized(true)
-    setCurrentSetIndex((prev) => {
-      for (let i = prev + 1; i < carouselItems.length; i++) {
-        if (!completedSets.has(getItemKey(carouselItems[i]))) return i
-      }
-      return Math.min(prev + 1, carouselItems.length - 1)
-    })
   }
 
   function navigatePrev() {
