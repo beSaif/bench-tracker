@@ -512,6 +512,16 @@ export default function LogSessionModal({
     })
   }
 
+  function hideTimer() {
+    setTimerMinimized(true)
+    setCurrentSetIndex((prev) => {
+      for (let i = prev + 1; i < carouselItems.length; i++) {
+        if (!completedSets.has(getItemKey(carouselItems[i]))) return i
+      }
+      return Math.min(prev + 1, carouselItems.length - 1)
+    })
+  }
+
   function navigatePrev() {
     setCurrentSetIndex((p) => Math.max(p - 1, 0))
   }
@@ -1018,20 +1028,19 @@ export default function LogSessionModal({
         ) : (
           <p className="mt-6 text-sm text-white/50">Last set — great work</p>
         )}
-        <div className="mt-10 flex gap-3">
-          <button
-            onClick={() => setTimerMinimized(true)}
-            className="px-8 py-3 rounded-full border border-white/25 text-white/75
-                       text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
-          >
-            Hide
-          </button>
+        <div className="mt-10 flex flex-col items-center gap-3">
           <button
             onClick={dismissRest}
             className="px-8 py-3 rounded-full border border-white/25 text-white/75
                        text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
           >
-            Skip
+            Skip rest
+          </button>
+          <button
+            onClick={hideTimer}
+            className="text-white/40 text-xs font-medium hover:text-white/60 active:text-white/80 transition-colors"
+          >
+            Hide timer
           </button>
         </div>
       </div>
@@ -1043,14 +1052,13 @@ export default function LogSessionModal({
       {restActive && timerMinimized && (
         <button
           onClick={() => setTimerMinimized(false)}
-          className="fixed top-4 right-4 z-[60] flex items-center gap-1.5
-                     bg-[#7a1f2e] text-white text-sm font-bold tabular-nums
-                     px-3 py-1.5 rounded-full shadow-lg
-                     active:opacity-80 transition-opacity"
+          className="w-full bg-[#7a1f2e] flex items-center justify-between px-5 py-3
+                     shrink-0 active:opacity-80 transition-opacity"
           aria-label="Restore timer"
         >
-          <span className="text-white/60 text-xs font-normal">Rest</span>
-          {timerDisplay}
+          <span className="text-white/50 text-xs uppercase tracking-widest">Resting</span>
+          <span className="text-white font-bold tabular-nums text-lg">{timerDisplay}</span>
+          <span className="text-white/40 text-xs">tap to expand</span>
         </button>
       )}
       <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0 relative">
