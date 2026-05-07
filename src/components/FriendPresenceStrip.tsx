@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { UserPresence } from "@/lib/types"
 
 function initials(name: string): string {
@@ -27,9 +28,13 @@ export default function FriendPresenceStrip({ presences, currentUserEmail }: Pro
     <div className="mb-5">
       <div className="flex items-center gap-3">
         {others.map((p) => (
-          <div key={p.email} className="flex flex-col items-center gap-1">
+          <Link
+            key={p.email}
+            href={`/friends/${encodeURIComponent(p.email)}`}
+            className="flex flex-col items-center gap-1"
+          >
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-[#f0f0f0] flex items-center justify-center text-xs font-bold text-[#555555] select-none">
+              <div className="w-10 h-10 rounded-full bg-[#f0f0f0] flex items-center justify-center text-xs font-bold text-[#555555] select-none cursor-pointer active:opacity-70 transition-opacity">
                 {initials(p.name)}
               </div>
               {p.inSession && (
@@ -41,7 +46,7 @@ export default function FriendPresenceStrip({ presences, currentUserEmail }: Pro
             <span className="text-[10px] text-[#aaaaaa] font-medium leading-none">
               {p.name.split(" ")[0]}
             </span>
-          </div>
+          </Link>
         ))}
 
         <div className="ml-auto">
