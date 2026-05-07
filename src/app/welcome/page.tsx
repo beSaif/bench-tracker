@@ -1,5 +1,8 @@
 import Link from "next/link"
 import { signIn } from "@/auth"
+import PreviewLoginForm from "./PreviewLoginForm"
+
+const isPreview = process.env.VERCEL_ENV !== "production"
 
 export default function WelcomePage() {
   return (
@@ -33,6 +36,8 @@ export default function WelcomePage() {
             i've done this before
           </button>
         </form>
+
+        {isPreview && <PreviewLoginForm />}
       </div>
     </main>
   )
