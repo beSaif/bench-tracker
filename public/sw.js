@@ -11,7 +11,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   const data = event.data ?? {}
-  const { type, id, delay, title, body, icon } = data
+  const { type, id, delay, title, body, icon, url } = data
 
   if (type === 'SCHEDULE') {
     // Cancel any existing timer for this id
@@ -34,6 +34,7 @@ self.addEventListener('message', (event) => {
         badge: icon,
         vibrate: [300, 100, 300],
         tag: id,
+        data: { url: url ?? '/' },
       })
       resolve()
       pending.delete(id)
