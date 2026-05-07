@@ -1079,7 +1079,7 @@ export default function LogSessionModal({
   }
 
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 ${restActive && timerMinimized ? "bg-[#fdf5f6]" : "bg-white"}`}>
+    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 pt-[env(safe-area-inset-top)] ${restActive && timerMinimized ? "bg-[#fdf5f6]" : "bg-white"}`}>
       {restActive && timerMinimized && (
         <button
           onClick={() => setTimerMinimized(false)}
