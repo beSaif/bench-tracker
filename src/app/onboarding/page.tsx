@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
 import { MainLift, MAIN_LIFT_LABEL } from "@/lib/types"
 import { loadProfile, saveProfile } from "@/lib/storage"
 
@@ -18,6 +18,7 @@ function roundTo2p5(kg: number): number {
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [step, setStep] = useState<Step>(0)
   const [checking, setChecking] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -91,6 +92,10 @@ export default function OnboardingPage() {
   async function handleGoogleSignIn() {
     localStorage.setItem(PENDING_KEY, JSON.stringify({ name, bw, lift, anchor, target }))
     await signIn("google", { callbackUrl: "/onboarding?auth=1" })
+  }
+
+  async function handleDirectFinish() {
+    await autoFinish({ name, bw, lift: lift!, anchor, target })
   }
 
   const canAdvance = (() => {
@@ -331,6 +336,15 @@ export default function OnboardingPage() {
               onHighlightComplete={() => setReadUnlocked(true)}
             >
               <div className={`transition-opacity duration-500 ${readUnlocked ? "opacity-100" : "opacity-0"}`}>
+                {session?.user ? (
+                  <button
+                    onClick={handleDirectFinish}
+                    disabled={!readUnlocked}
+                    className="w-full flex items-center justify-center gap-3 border border-[#e8e8e8] rounded-xl py-3.5 text-sm font-semibold text-[#111111] hover:bg-[#fafafa] active:bg-[#f5f5f5] transition-colors mt-4"
+                  >
+                    finish setup
+                  </button>
+                ) : (
                 <button
                   onClick={handleGoogleSignIn}
                   disabled={!readUnlocked}
@@ -344,6 +358,7 @@ export default function OnboardingPage() {
                   </svg>
                   sign in with google
                 </button>
+                )}
                 <button
                   onClick={back}
                   disabled={!readUnlocked}
