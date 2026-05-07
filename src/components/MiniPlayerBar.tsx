@@ -54,7 +54,7 @@ export default function MiniPlayerBar() {
   const { label, setsCompleted, totalSets } = miniState
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white flex justify-center pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white flex justify-center pb-[calc(env(safe-area-inset-bottom)+8px)]">
       <button
         onClick={handleTap}
         className="w-full max-w-[393px] mx-0 bg-white border-t border-[#e8e8e8] shadow-[0_-2px_12px_rgba(0,0,0,0.08)] flex items-center px-4 py-4 gap-3 active:bg-[#f5f5f5] transition-colors"
