@@ -4,6 +4,14 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest } from "@/lib/types"
 
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("")
+}
+
 function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
   const colours: Record<UserProfile["mainLift"], string> = {
     bench: "bg-[#fdf5f6] text-[#7a1f2e]",
@@ -267,7 +275,18 @@ export default function GymBrosPage() {
                 } ${isRemoving ? "opacity-50" : ""}`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <Link
+                    href={`/friends/${encodeURIComponent(bro.email)}`}
+                    className="flex items-center gap-2.5 min-w-0 active:opacity-70 transition-opacity"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-[#f0f0f0] flex items-center justify-center text-xs font-bold text-[#555555] select-none">
+                        {initials(bro.name)}
+                      </div>
+                      {isLive && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" />
+                      )}
+                    </div>
                     <span className="text-sm font-semibold text-[#111111] truncate">{bro.name}</span>
                     {isLive && (
                       <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-green-600 bg-green-100 px-2 py-0.5 rounded-full shrink-0">
@@ -278,7 +297,7 @@ export default function GymBrosPage() {
                         In session
                       </span>
                     )}
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-2 shrink-0">
                     <LiftBadge lift={bro.mainLift} />
                     <button
