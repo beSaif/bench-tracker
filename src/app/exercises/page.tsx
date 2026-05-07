@@ -88,7 +88,7 @@ export default function ExercisesPage() {
   const sorted = [...config].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-4 py-6 pb-16">
+    <main className="mx-auto w-full max-w-[393px] px-4 py-6 pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <Link
         href="/"
         className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6 hover:underline"
