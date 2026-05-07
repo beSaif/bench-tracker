@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { UserProfile, UserPresence, Session, MAIN_LIFT_LABEL } from "@/lib/types"
+import E1RMChart from "@/components/E1RMChart"
 
 function initials(name: string): string {
   return name
@@ -25,6 +26,7 @@ function topSet(sets: Session["sets"]): Session["sets"][0] | null {
 interface ProfileData {
   profile: UserProfile
   lastSession: Session | null
+  recentSessions?: Session[]
 }
 
 export default function FriendProfilePage() {
@@ -36,6 +38,7 @@ export default function FriendProfilePage() {
   const [presence, setPresence] = useState<UserPresence | null>(null)
   const [error, setError] = useState<"forbidden" | "notfound" | null>(null)
   const [loading, setLoading] = useState(true)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -87,7 +90,7 @@ export default function FriendProfilePage() {
     )
   }
 
-  const { profile, lastSession } = data
+  const { profile, lastSession, recentSessions = [] } = data
   const isLive = presence?.inSession ?? false
 
   const liftColours: Record<UserProfile["mainLift"], string> = {
@@ -177,32 +180,84 @@ export default function FriendProfilePage() {
         )}
       </div>
 
+      {/* e1RM progress chart */}
+      {recentSessions.length >= 2 && (
+        <div className="mb-8">
+          <E1RMChart sessions={recentSessions} />
+        </div>
+      )}
+
       {/* Last session */}
       {lastSession && (
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-3">Last session</p>
-          <div className="bg-white border border-[#eeeeee] rounded-xl px-4 py-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-[#111111]">{lastSession.type}</span>
-              {lastSession.date && (
-                <span className="text-[11px] text-[#aaaaaa]">{formatDate(lastSession.date)}</span>
-              )}
-            </div>
-            {best ? (
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-base font-semibold text-[#111111]">{best.kg} kg</span>
-                <span className="text-sm text-[#aaaaaa]">× {best.reps}</span>
-                {best.e1rm && (
-                  <>
-                    <span className="text-[#dddddd] mx-0.5">·</span>
-                    <span className="text-[11px] text-[#aaaaaa]">e1RM {best.e1rm} kg</span>
-                  </>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-[#aaaaaa]">No sets logged</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Last session</p>
+            {recentSessions.length > 1 && (
+              <button
+                onClick={() => setHistoryOpen((o) => !o)}
+                className="text-[10px] text-[#7a1f2e] font-semibold uppercase tracking-widest"
+              >
+                {historyOpen ? "Hide" : `All ${recentSessions.length}`}
+              </button>
             )}
           </div>
+
+          {!historyOpen && (
+            <div className="bg-white border border-[#eeeeee] rounded-xl px-4 py-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-[#111111]">{lastSession.type}</span>
+                {lastSession.date && (
+                  <span className="text-[11px] text-[#aaaaaa]">{formatDate(lastSession.date)}</span>
+                )}
+              </div>
+              {best ? (
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-base font-semibold text-[#111111]">{best.kg} kg</span>
+                  <span className="text-sm text-[#aaaaaa]">× {best.reps}</span>
+                  {best.e1rm && (
+                    <>
+                      <span className="text-[#dddddd] mx-0.5">·</span>
+                      <span className="text-[11px] text-[#aaaaaa]">e1RM {best.e1rm} kg</span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-[#aaaaaa]">No sets logged</p>
+              )}
+            </div>
+          )}
+
+          {historyOpen && (
+            <div className="space-y-2">
+              {recentSessions.map((s) => {
+                const sTop = topSet(s.sets)
+                return (
+                  <div key={s.id} className="bg-white border border-[#eeeeee] rounded-xl px-4 py-3 shadow-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-[#111111]">{s.type}</span>
+                      {s.date && (
+                        <span className="text-[11px] text-[#aaaaaa]">{formatDate(s.date)}</span>
+                      )}
+                    </div>
+                    {sTop ? (
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-sm font-medium text-[#333333]">{sTop.kg} kg</span>
+                        <span className="text-xs text-[#aaaaaa]">× {sTop.reps}</span>
+                        {sTop.e1rm && (
+                          <>
+                            <span className="text-[#dddddd] mx-0.5">·</span>
+                            <span className="text-[11px] text-[#aaaaaa]">e1RM {sTop.e1rm} kg</span>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#aaaaaa]">No sets logged</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
     </main>

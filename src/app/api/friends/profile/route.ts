@@ -29,6 +29,7 @@ export async function GET(request: Request) {
   if (!profile) return NextResponse.json({ error: "not found" }, { status: 404 })
 
   let lastSession: Session | null = null
+  let recentSessions: Session[] = []
   if (sessionsRaw) {
     const sessions: Session[] = Array.isArray(sessionsRaw)
       ? sessionsRaw
@@ -37,7 +38,8 @@ export async function GET(request: Request) {
       .filter((s) => s.confirmed && s.date)
       .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
     lastSession = confirmed[0] ?? null
+    recentSessions = confirmed.slice(0, 5)
   }
 
-  return NextResponse.json({ profile, lastSession })
+  return NextResponse.json({ profile, lastSession, recentSessions })
 }

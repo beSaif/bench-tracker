@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest } from "@/lib/types"
+import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest, Session } from "@/lib/types"
 
 function initials(name: string): string {
   return name
@@ -27,6 +27,18 @@ function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
 
 type AddState = "idle" | "sending" | "sent" | "not_found" | "already_friends" | "already_pending" | "self" | "error"
 
+interface FriendActivity {
+  lastSession: Session | null
+}
+
+function relativeDay(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  if (days === 0) return "today"
+  if (days === 1) return "yesterday"
+  return `${days}d ago`
+}
+
 export default function GymBrosPage() {
   const [friends, setFriends] = useState<UserProfile[]>([])
   const [presences, setPresences] = useState<UserPresence[]>([])
@@ -38,6 +50,7 @@ export default function GymBrosPage() {
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState<string>("")
   const [removingEmail, setRemovingEmail] = useState<string | null>(null)
+  const [friendActivity, setFriendActivity] = useState<Map<string, FriendActivity>>(new Map())
   const addInputRef = useRef<HTMLInputElement>(null)
 
   function fetchAll() {
@@ -46,9 +59,28 @@ export default function GymBrosPage() {
       fetch("/api/friends/requests").then((r) => r.json()),
     ])
       .then(([f, req]: [UserProfile[], { requests: FriendRequest[]; count: number }]) => {
-        setFriends(Array.isArray(f) ? f : [])
+        const friendList: UserProfile[] = Array.isArray(f) ? f : []
+        setFriends(friendList)
         setRequests(req?.requests ?? [])
         setPendingCount(req?.count ?? 0)
+        // Fetch last session for each friend in parallel (best-effort)
+        if (friendList.length > 0) {
+          Promise.allSettled(
+            friendList.map((bro) =>
+              fetch(`/api/friends/profile?email=${encodeURIComponent(bro.email)}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((data) => ({ email: bro.email, lastSession: data?.lastSession ?? null }))
+            )
+          ).then((results) => {
+            const map = new Map<string, FriendActivity>()
+            results.forEach((r) => {
+              if (r.status === "fulfilled" && r.value) {
+                map.set(r.value.email, { lastSession: r.value.lastSession })
+              }
+            })
+            setFriendActivity(map)
+          })
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -327,6 +359,21 @@ export default function GymBrosPage() {
                     <p className="text-sm font-medium text-[#333333]">{bro.target} kg</p>
                   </div>
                 </div>
+                {(() => {
+                  const activity = friendActivity.get(bro.email)
+                  if (!activity?.lastSession) return null
+                  const s = activity.lastSession
+                  const topSet = s.sets.filter((set) => !set.isWarmup && set.kg > 0).reduce<typeof s.sets[0] | null>(
+                    (best, set) => (!best || set.kg > best.kg ? set : best), null
+                  )
+                  return (
+                    <p className="text-[11px] text-[#aaaaaa] mt-1.5">
+                      Last: <span className="text-[#777777] font-medium">{s.type}</span>
+                      {topSet && <> · {topSet.kg}kg × {topSet.reps}</>}
+                      {s.date && <> · {relativeDay(s.date)}</>}
+                    </p>
+                  )
+                })()}
               </li>
             )
           })}

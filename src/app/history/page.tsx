@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, TrainingBlock, BlockPhase } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, SessionType } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig } from "@/lib/storage"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
+
+type SessionFilter = "All" | SessionType
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
@@ -22,11 +24,14 @@ function getCurrentCycleCompletedBlockIds(blocks: TrainingBlock[]): Set<number> 
   return new Set(sorted.slice(activeIdx - phaseIdx, activeIdx).map((b) => b.id))
 }
 
+const SESSION_FILTERS: SessionFilter[] = ["All", "Volume", "Intensity", "Peak", "Deload"]
+
 export default function HistoryPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
   const [mounted, setMounted] = useState(false)
+  const [filter, setFilter] = useState<SessionFilter>("All")
 
   useEffect(() => {
     setSessions(loadSessionsLocal())
@@ -61,9 +66,13 @@ export default function HistoryPage() {
     .filter((s) => s.confirmed && !activeBlockIds.has(s.id) && !cycleSessionIds.has(s.id))
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
 
+  const filteredSessions = filter === "All"
+    ? archiveSessions
+    : archiveSessions.filter((s) => s.type === filter)
+
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 py-6">
-      <header className="mb-6">
+      <header className="mb-5">
         <div className="flex items-center gap-3 mb-1">
           <Link
             href="/"
@@ -76,13 +85,32 @@ export default function HistoryPage() {
           </Link>
           <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">History</h1>
         </div>
-        <p className="text-sm text-[#777777] ml-8">{archiveSessions.length} session{archiveSessions.length !== 1 ? "s" : ""}</p>
+        <p className="text-sm text-[#777777] ml-8">{filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}</p>
       </header>
 
-      {archiveSessions.length === 0 ? (
-        <p className="text-sm text-[#aaaaaa] text-center mt-16">No archived sessions yet</p>
+      {/* Filter chips */}
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-4 px-4">
+        {SESSION_FILTERS.map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+              filter === f
+                ? "bg-[#7a1f2e] border-[#7a1f2e] text-white"
+                : "bg-white border-[#e8e8e8] text-[#555555] hover:border-[#aaaaaa]"
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {filteredSessions.length === 0 ? (
+        <p className="text-sm text-[#aaaaaa] text-center mt-16">
+          {archiveSessions.length === 0 ? "No archived sessions yet" : `No ${filter} sessions in history`}
+        </p>
       ) : (
-        archiveSessions.map((s) => (
+        filteredSessions.map((s) => (
           <SessionCard
             key={s.id}
             session={s}

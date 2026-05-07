@@ -12,6 +12,7 @@ import {
   BLOCK_LENGTHS,
   PHASE_LABEL,
   PHASE_SESSION_TYPE,
+  nextBlockPhase,
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
@@ -22,6 +23,7 @@ import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
+import E1RMChart from "@/components/E1RMChart"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
@@ -173,6 +175,7 @@ export default function Page() {
   const presenceInitialisedRef = useRef(false)
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
+  const [blockSummary, setBlockSummary] = useState<{ block: TrainingBlock; blockSessions: Session[] } | null>(null)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sessionsRef = useRef<Session[]>([])
@@ -510,6 +513,10 @@ export default function Page() {
         finalBlocks = currentBlocks
           .map((b) => (b.id === activeBlock.id ? completedBlock : b))
           .concat(newBlock)
+        const blockSessionsList = confirmedSessions.filter((s) =>
+          updatedBlockSessionIds.includes(s.id)
+        )
+        setBlockSummary({ block: completedBlock, blockSessions: blockSessionsList })
       } else {
         finalBlocks = currentBlocks.map((b) =>
           b.id === activeBlock.id ? { ...b, sessionIds: updatedBlockSessionIds } : b
@@ -722,7 +729,11 @@ export default function Page() {
         )}
 
         {/* Progress Bar */}
-        <ProgressBar current={bestWeight} target={profile.target} />
+        <ProgressBar
+          current={bestWeight}
+          target={profile.target}
+          start={blocks.length > 0 ? [...blocks].sort((a, b) => a.id - b.id)[0].anchorWeight : undefined}
+        />
 
         {/* Stats Grid */}
         <StatsGrid
@@ -732,6 +743,9 @@ export default function Page() {
           bw={latestBW}
           target={profile.target}
         />
+
+        {/* e1RM Progress Chart */}
+        <E1RMChart sessions={activeBlockSessions} />
 
         {/* Program timeline */}
         {blocks.length > 0 && (
@@ -967,6 +981,66 @@ export default function Page() {
           </div>
         </div>
       )}
+
+      {/* Block complete summary */}
+      {blockSummary && (() => {
+        const { block, blockSessions } = blockSummary
+        const chronoSessions = [...blockSessions].sort(
+          (a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()
+        )
+        const allE1RMs = blockSessions
+          .filter((s) => s.type !== "Deload")
+          .flatMap((s) => s.sets.filter((set) => !set.isWarmup && set.e1rm != null).map((set) => set.e1rm!))
+        const bestE1RM = allE1RMs.length > 0 ? Math.max(...allE1RMs) : null
+        const firstSessionE1RMs = (chronoSessions[0]?.sets ?? [])
+          .filter((set) => !set.isWarmup && set.e1rm != null).map((set) => set.e1rm!)
+        const lastSessionE1RMs = (chronoSessions[chronoSessions.length - 1]?.sets ?? [])
+          .filter((set) => !set.isWarmup && set.e1rm != null).map((set) => set.e1rm!)
+        const firstE1RM = firstSessionE1RMs.length > 0 ? Math.max(...firstSessionE1RMs) : null
+        const lastE1RM = lastSessionE1RMs.length > 0 ? Math.max(...lastSessionE1RMs) : null
+        const delta = firstE1RM != null && lastE1RM != null ? parseFloat((lastE1RM - firstE1RM).toFixed(1)) : null
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+            <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10">
+              <p className="text-[10px] uppercase tracking-widest text-[#7a1f2e] font-semibold mb-1">
+                Block Complete
+              </p>
+              <p className="text-xl font-bold text-[#111111] mb-5">
+                {PHASE_LABEL[block.phase]} ✓
+              </p>
+              <div className="flex gap-6 mb-6">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">Sessions</p>
+                  <p className="text-lg font-semibold text-[#111111]">{blockSessions.length} <span className="text-sm text-[#aaaaaa] font-normal">/ {BLOCK_LENGTHS[block.phase]}</span></p>
+                </div>
+                {bestE1RM != null && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">Best e1RM</p>
+                    <p className="text-lg font-semibold text-[#7a1f2e]">{bestE1RM}kg</p>
+                  </div>
+                )}
+                {delta != null && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">e1RM Gain</p>
+                    <p className={`text-lg font-semibold ${delta >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      {delta >= 0 ? "+" : ""}{delta}kg
+                    </p>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-[#777777] mb-6">
+                Next up: <span className="font-semibold text-[#111111]">{PHASE_LABEL[nextBlockPhase(block.phase)]}</span>
+              </p>
+              <button
+                onClick={() => setBlockSummary(null)}
+                className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Friend online toasts */}
       {toasts.length > 0 && (

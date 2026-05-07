@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import {
   Session,
   MainLiftSet,
@@ -29,7 +29,12 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { DrumRollPicker } from "@/components/DrumRollPicker"
 
-const REST_DURATION = 180 // seconds
+function getRestDuration(sessionType: string): number {
+  if (sessionType === "Peak") return 300    // 5 min for heavy singles
+  if (sessionType === "Intensity") return 240 // 4 min for heavy sets
+  if (sessionType === "Deload") return 120  // 2 min for light work
+  return 180                                // 3 min for volume work
+}
 
 const KG_VALUES = Array.from(
   { length: Math.floor((300 - 20) / 2.5) + 1 },
@@ -359,6 +364,17 @@ export default function LogSessionModal({
   const [pendingDeleteExercise, setPendingDeleteExercise] = useState<
     { kind: "main" } | { kind: "extra"; muscle: string; exercise: string } | null
   >(null)
+  const [prFlash, setPRFlash] = useState(false)
+  const [showRPEWarning, setShowRPEWarning] = useState(false)
+  const prShownRef = useRef(false)
+  const restDuration = getRestDuration(session.type)
+
+  const allTimeBestE1RM = useMemo(() => {
+    const e1rms = previousSessions
+      .filter((s) => s.confirmed && s.type !== "Deload")
+      .flatMap((s) => s.sets.filter((set) => !set.isWarmup && set.e1rm != null).map((set) => set.e1rm!))
+    return e1rms.length > 0 ? Math.max(...e1rms) : null
+  }, [previousSessions])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -512,11 +528,24 @@ export default function LogSessionModal({
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
+        // PR detection: check if this working main set beats all-time best e1RM
+        const mainSet = sets.find((s) => s.id === key && !s.isWarmup)
+        if (mainSet && mainSet.e1rm != null && !prShownRef.current) {
+          if (allTimeBestE1RM == null || mainSet.e1rm > allTimeBestE1RM) {
+            prShownRef.current = true
+            setPRFlash(true)
+            setTimeout(() => setPRFlash(false), 3000)
+          }
+        }
+        // RPE warning for heavy working sets
+        if (mainSet && mainSet.rpe != null && mainSet.rpe >= 9) {
+          setShowRPEWarning(true)
+        }
         hasAdvancedForRestRef.current = false
-        setRestEndTime(Date.now() + REST_DURATION * 1000)
-        setRestSeconds(REST_DURATION)
+        setRestEndTime(Date.now() + restDuration * 1000)
+        setRestSeconds(restDuration)
         const body = nextItem ? getNextPreview(nextItem) : "Last set — great work"
-        const doSchedule = () => scheduleNotification(REST_DURATION * 1000, body)
+        const doSchedule = () => scheduleNotification(restDuration * 1000, body)
         if (typeof Notification !== "undefined") {
           if (Notification.permission === "granted") {
             doSchedule()
@@ -1136,6 +1165,13 @@ export default function LogSessionModal({
               </div>
             </div>
           )}
+          {/* PR flash toast */}
+          {prFlash && (
+            <div className="mt-3 px-4 py-2.5 bg-[#111111] rounded-xl flex items-center gap-2 animate-pulse">
+              <span className="text-base">🏆</span>
+              <span className="text-sm font-semibold text-white">New PR! e1RM personal best</span>
+            </div>
+          )}
         </div>
 
         {/* Centered content area */}
@@ -1214,6 +1250,18 @@ export default function LogSessionModal({
                       >
                         {isDone ? "✓ Done" : "Done"}
                       </button>
+                      {isDone && showRPEWarning && !item.set.isWarmup && item.set.rpe != null && item.set.rpe >= 9 && (
+                        <div className="mt-2 flex items-start gap-1.5">
+                          <span className="text-[11px] text-amber-600 font-medium">RPE {item.set.rpe} — consider dropping 2.5kg for remaining sets</span>
+                          <button
+                            onClick={() => setShowRPEWarning(false)}
+                            className="text-amber-400 text-xs leading-none shrink-0 mt-0.5"
+                            aria-label="Dismiss"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
                         <div className="flex items-center gap-3">
                           <button
