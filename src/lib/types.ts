@@ -91,6 +91,7 @@ export interface SessionDraft {
     | { kind: "main" }
     | { kind: "extra"; muscle: MuscleGroup; exercise: string }
   >
+  restEndTime?: number | null
 }
 
 export interface PresenceRecord {

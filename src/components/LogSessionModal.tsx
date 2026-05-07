@@ -338,7 +338,10 @@ export default function LogSessionModal({
   const [completedSets, setCompletedSets] = useState<Set<string>>(
     () => new Set(initialDraft?.completedSets ?? [])
   )
-  const [restEndTime, setRestEndTime] = useState<number | null>(null)
+  const [restEndTime, setRestEndTime] = useState<number | null>(() => {
+    const t = initialDraft?.restEndTime ?? null
+    return t && t > Date.now() ? t : null
+  })
   const [restSeconds, setRestSeconds] = useState(0)
   const restActive = restEndTime !== null
   const [timerMinimized, setTimerMinimized] = useState(false)
@@ -406,6 +409,17 @@ export default function LogSessionModal({
   const hasAdvancedForRestRef = useRef(false)
 
   function handleMinimize() {
+    saveDraft({
+      sessionId: session.id,
+      savedAt: new Date().toISOString(),
+      sets,
+      completedSets: Array.from(completedSets),
+      extraState,
+      coachNote,
+      currentSetIndex,
+      exerciseOrder,
+      restEndTime,
+    })
     saveMiniPlayer({
       sessionId: session.id,
       label: mainLiftLabel,
