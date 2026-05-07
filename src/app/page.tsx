@@ -14,6 +14,7 @@ import {
   PHASE_SESSION_TYPE,
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
+import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, buildMuscleRotation } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
@@ -294,6 +295,7 @@ export default function Page() {
       if (target && draft && draft.sessionId.toString() === sessionId) {
         setLoggingSession(JSON.parse(JSON.stringify(target)))
         setActiveDraft(draft)
+        scheduleIncompleteSessionReminder()
       }
     }
     window.addEventListener('mini-player-resume', handleResumeEvent)
@@ -311,6 +313,7 @@ export default function Page() {
     if (target && draft && draft.sessionId.toString() === resumeId) {
       setLoggingSession(JSON.parse(JSON.stringify(target)))
       setActiveDraft(draft)
+      scheduleIncompleteSessionReminder()
     }
   }, [sessions])
 
@@ -434,6 +437,7 @@ export default function Page() {
       setDraftPrompt({ session: JSON.parse(JSON.stringify(session)), draft })
     } else {
       setLoggingSession(JSON.parse(JSON.stringify(session)))
+      scheduleIncompleteSessionReminder()
     }
   }
 
@@ -523,11 +527,14 @@ export default function Page() {
     setLoggingSession(null)
     setActiveDraft(null)
 
+    cancelIncompleteSessionReminder()
+    scheduleInactivityReminder()
     signalPresence(false)
 
   }
 
   function handleCloseModal() {
+    cancelIncompleteSessionReminder()
     signalPresence(false)
     clearMiniPlayer()
     setLoggingSession(null)
@@ -910,6 +917,7 @@ export default function Page() {
                 setActiveDraft(draftPrompt.draft)
                 setLoggingSession(draftPrompt.session)
                 setDraftPrompt(null)
+                scheduleIncompleteSessionReminder()
               }}
               className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 mb-3 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors"
             >
@@ -920,6 +928,7 @@ export default function Page() {
                 clearDraft()
                 setLoggingSession(draftPrompt.session)
                 setDraftPrompt(null)
+                scheduleIncompleteSessionReminder()
               }}
               className="w-full border border-[#e8e8e8] text-[#555555] text-sm font-semibold rounded-xl py-3.5 hover:bg-[#f5f5f5] active:bg-[#eeeeee] transition-colors"
             >
