@@ -105,7 +105,7 @@ export default function DevPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+    <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
       <header className="mb-6 flex items-center gap-4">
         <Link href="/" className="text-sm text-[#777777]">← Back</Link>
         <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">Dev Tools</h1>

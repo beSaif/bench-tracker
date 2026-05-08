@@ -151,7 +151,7 @@ export default function GymBrosPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+    <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
       <header className="mb-6">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
