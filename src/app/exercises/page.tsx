@@ -75,7 +75,7 @@ export default function ExercisesPage() {
 
   if (!mounted) {
     return (
-      <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+      <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
         <div className="h-4 w-16 bg-[#e8e8e8] rounded animate-pulse mb-8" />
         <div className="h-6 w-48 bg-[#e8e8e8] rounded animate-pulse mb-6" />
         {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -88,7 +88,7 @@ export default function ExercisesPage() {
   const sorted = [...config].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-4 py-6 pb-[calc(4rem+env(safe-area-inset-bottom))]">
+    <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <Link
         href="/"
         className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6 hover:underline"

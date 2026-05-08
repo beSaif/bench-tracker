@@ -70,7 +70,7 @@ export default function SessionDetailPage() {
 
   if (!mounted) {
     return (
-      <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+      <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
         <div className="h-4 w-16 bg-[#e8e8e8] rounded animate-pulse mb-8" />
         <div className="h-6 w-48 bg-[#e8e8e8] rounded animate-pulse mb-2" />
         <div className="h-4 w-32 bg-[#e8e8e8] rounded animate-pulse" />
@@ -80,7 +80,7 @@ export default function SessionDetailPage() {
 
   if (!session) {
     return (
-      <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+      <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
         <Link
           href="/"
           className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6"
@@ -99,7 +99,7 @@ export default function SessionDetailPage() {
   const workingWeight = working[0]?.kg ?? null
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-4 py-6">
+    <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
       {/* Back */}
       <Link
         href="/"
