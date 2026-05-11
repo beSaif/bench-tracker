@@ -11,12 +11,21 @@ function initials(name: string): string {
     .join("")
 }
 
+function relativeDate(dateStr: string): string {
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
+  if (days === 0) return "today"
+  if (days === 1) return "1d ago"
+  if (days < 7) return `${days}d ago`
+  return `${Math.floor(days / 7)}w ago`
+}
+
 interface Props {
   presences: UserPresence[]
   currentUserEmail: string
+  lastActiveDates?: Record<string, string>
 }
 
-export default function FriendPresenceStrip({ presences, currentUserEmail }: Props) {
+export default function FriendPresenceStrip({ presences, currentUserEmail, lastActiveDates }: Props) {
   if (presences.length === 0) return null
 
   const others = presences.filter((p) => p.email !== currentUserEmail)
@@ -46,6 +55,11 @@ export default function FriendPresenceStrip({ presences, currentUserEmail }: Pro
             <span className="text-[10px] text-[#aaaaaa] font-medium leading-none">
               {p.name.split(" ")[0]}
             </span>
+            {lastActiveDates?.[p.email.trim().toLowerCase()] && (
+              <span className="text-[9px] text-[#cccccc] leading-none">
+                {relativeDate(lastActiveDates[p.email.trim().toLowerCase()]!)}
+              </span>
+            )}
           </Link>
         ))}
 

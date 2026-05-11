@@ -1,8 +1,13 @@
 import { kv } from "@vercel/kv"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
-import { UserProfile } from "@/lib/types"
-import { friendsKey, profileKey } from "@/lib/userKeys"
+import { UserProfile, Session, TrainingBlock } from "@/lib/types"
+import { friendsKey, profileKey, sessionsKey } from "@/lib/userKeys"
+
+interface SessionsData {
+  sessions: Session[]
+  blocks: TrainingBlock[]
+}
 
 export async function GET() {
   const session = await auth()
@@ -15,10 +20,26 @@ export async function GET() {
     const friendEmails = (await kv.smembers(friendsKey(me))) as string[]
     if (friendEmails.length === 0) return NextResponse.json([])
 
-    const profiles = await kv.mget<UserProfile[]>(...friendEmails.map(profileKey))
+    const [profiles, sessionDatas] = await Promise.all([
+      kv.mget<UserProfile[]>(...friendEmails.map(profileKey)),
+      kv.mget<(SessionsData | Session[])[]>(...friendEmails.map(sessionsKey)),
+    ])
+
+    const lastActiveDates: Record<string, string> = {}
+    friendEmails.forEach((email, i) => {
+      const raw = sessionDatas[i]
+      if (!raw) return
+      const sessions: Session[] = Array.isArray(raw) ? raw : (raw as SessionsData).sessions ?? []
+      const confirmed = sessions
+        .filter((s) => s.confirmed && s.date)
+        .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
+      if (confirmed[0]) lastActiveDates[email] = confirmed[0].date!
+    })
+
     const valid = profiles
       .filter((p): p is UserProfile => p !== null && typeof p === "object")
       .sort((a, b) => a.name.localeCompare(b.name))
+      .map((p) => ({ ...p, lastSessionDate: lastActiveDates[p.email] ?? null }))
 
     return NextResponse.json(valid)
   } catch {
