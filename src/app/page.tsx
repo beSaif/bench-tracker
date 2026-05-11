@@ -166,6 +166,7 @@ export default function Page() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [presences, setPresences] = useState<UserPresence[]>(() => loadPresencesLocal())
   const [friendEmails, setFriendEmails] = useState<Set<string>>(() => new Set(loadFriendEmailsLocal()))
+  const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>({})
   const friendEmailsRef = useRef<Set<string>>(new Set(loadFriendEmailsLocal()))
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
@@ -358,12 +359,17 @@ export default function Page() {
     if (!profile) return
     fetch("/api/friends")
       .then((r) => r.ok ? r.json() : [])
-      .then((data: { email: string }[]) => {
+      .then((data: { email: string; lastSessionDate?: string | null }[]) => {
         if (!Array.isArray(data)) return
         const emails = new Set(data.map((f) => f.email.trim().toLowerCase()))
         friendEmailsRef.current = emails
         saveFriendEmailsLocal([...emails])
         setFriendEmails(emails)
+        const dates: Record<string, string> = {}
+        data.forEach((f) => {
+          if (f.lastSessionDate) dates[f.email.trim().toLowerCase()] = f.lastSessionDate
+        })
+        setFriendLastActive(dates)
       })
       .catch(() => {})
   }, [profile])
@@ -695,7 +701,7 @@ export default function Page() {
         </header>
 
         {/* Friends presence */}
-        <FriendPresenceStrip presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))} currentUserEmail={profile.email} />
+        <FriendPresenceStrip presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))} currentUserEmail={profile.email} lastActiveDates={friendLastActive} />
 
         {/* Notification opt-in banner (needed on iOS PWA where auto-subscribe is blocked) */}
         {showNotifBanner && (
