@@ -7,6 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Block periodization for your one main lift.',
     start_url: '/',
     display: 'standalone',
+    orientation: 'portrait',
     background_color: '#111827',
     theme_color: '#f59e0b',
     icons: [

@@ -936,7 +936,7 @@ export default function Page() {
                 setDraftPrompt(null)
                 scheduleIncompleteSessionReminder()
               }}
-              className="w-full border border-[#e8e8e8] text-[#555555] text-sm font-semibold rounded-xl py-3.5 hover:bg-[#f5f5f5] active:bg-[#eeeeee] transition-colors"
+              className="w-full text-xs text-[#aaaaaa] hover:text-[#555555] active:text-[#333333] transition-colors pt-1"
             >
               Start fresh
             </button>
