@@ -407,6 +407,7 @@ export default function LogSessionModal({
 
   const notifIdRef = useRef<string | null>(null)
   const hasAdvancedForRestRef = useRef(false)
+  const timerTriggerIndexRef = useRef<number>(0)
 
   function handleMinimize() {
     saveDraft({
@@ -481,7 +482,7 @@ export default function LogSessionModal({
         playBeep()
         navigator.vibrate?.([300, 100, 300])
         setRestEndTime(null)
-        setCurrentSetIndex((prev) => Math.min(prev + 1, carouselLengthRef.current - 1))
+        setCurrentSetIndex(Math.min(timerTriggerIndexRef.current + 1, carouselLengthRef.current - 1))
       }
     }
 
@@ -513,6 +514,7 @@ export default function LogSessionModal({
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
         hasAdvancedForRestRef.current = false
+        timerTriggerIndexRef.current = currentSetIndex
         setRestEndTime(Date.now() + REST_DURATION * 1000)
         setRestSeconds(REST_DURATION)
         const body = nextItem ? getNextPreview(nextItem) : "Last set — great work"
