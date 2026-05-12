@@ -31,6 +31,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="color-scheme" content="light" />
+        <script dangerouslySetInnerHTML={{ __html: `try{screen.orientation.lock('portrait')}catch(_){}` }} />
       </head>
       <body className="min-h-dvh antialiased">
         <SwRegistrar />
