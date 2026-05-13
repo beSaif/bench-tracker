@@ -5,6 +5,7 @@ import { useRef, useEffect, useCallback } from "react"
 const ITEM_H = 44
 const VISIBLE = 5
 const PAD = Math.floor(VISIBLE / 2) // 2
+const DRAG_THRESHOLD = 8
 
 // Applied per-item during scroll — no React re-renders needed
 function applyItemStyles(el: HTMLDivElement, spans: (HTMLSpanElement | null)[]) {
@@ -38,7 +39,7 @@ export function DrumRollPicker({
 }: DrumRollPickerProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const spanRefs = useRef<(HTMLSpanElement | null)[]>([])
-  const dragRef = useRef<{ startY: number; startScrollTop: number } | null>(null)
+  const dragRef = useRef<{ startY: number; startScrollTop: number; activated: boolean } | null>(null)
 
   const fmt = format ?? ((v: number | null) => (v == null ? "—" : String(v)))
 
@@ -91,19 +92,32 @@ export function DrumRollPicker({
         onPointerDown={(e) => {
           const el = scrollRef.current
           if (!el || disabled) return
-          dragRef.current = { startY: e.clientY, startScrollTop: el.scrollTop }
+          dragRef.current = { startY: e.clientY, startScrollTop: el.scrollTop, activated: false }
           e.currentTarget.setPointerCapture(e.pointerId)
         }}
         onPointerMove={(e) => {
           const el = scrollRef.current
           if (!el || !dragRef.current) return
           const dy = dragRef.current.startY - e.clientY
+          if (!dragRef.current.activated) {
+            if (Math.abs(dy) < DRAG_THRESHOLD) return
+            dragRef.current.activated = true
+          }
           el.scrollTop = dragRef.current.startScrollTop + dy
         }}
         onPointerUp={() => {
           if (!dragRef.current) return
+          const { activated, startScrollTop } = dragRef.current
           dragRef.current = null
-          snapAndCommit()
+          if (activated) {
+            snapAndCommit()
+          } else {
+            const el = scrollRef.current
+            if (el) {
+              el.scrollTop = startScrollTop
+              applyItemStyles(el, spanRefs.current)
+            }
+          }
         }}
         onPointerCancel={() => {
           dragRef.current = null
