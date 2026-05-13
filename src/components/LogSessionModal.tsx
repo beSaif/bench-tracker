@@ -974,7 +974,15 @@ export default function LogSessionModal({
                   <div className="space-y-4">
                     {Object.entries(extraState[muscleId] ?? {}).map(([exercise, exerciseSets]) => (
                       <div key={exercise}>
-                        <p className="text-sm font-medium text-[#333333] mb-2">{exercise}</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-[#333333]">{exercise}</p>
+                          <button
+                            onClick={() => setPendingDeleteExercise({ kind: "extra", muscle: muscleId, exercise })}
+                            className="text-[10px] uppercase tracking-wide text-[#bbbbbb] hover:text-red-400 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
                         <div className="space-y-2">
                           {exerciseSets.map((s, i) => (
                             <div key={i} className="rounded-xl border border-[#e8e8e8] p-3">
@@ -1078,6 +1086,41 @@ export default function LogSessionModal({
                   ))}
                 </div>
                 <div className="h-6" />
+              </div>
+            </>
+          )}
+
+          {/* Delete exercise confirmation */}
+          {pendingDeleteExercise && (
+            <>
+              <div className="absolute inset-0 bg-black/30 z-30" onClick={() => setPendingDeleteExercise(null)} />
+              <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.15)] z-40 p-5">
+                <p className="text-sm font-semibold text-[#111111] mb-1">Remove exercise?</p>
+                <p className="text-base font-bold text-[#111111]">{pendingDeleteExercise.exercise}</p>
+                {(() => {
+                  const willBeEmpty = Object.keys(extraState[pendingDeleteExercise.muscle] ?? {}).filter(e => e !== pendingDeleteExercise.exercise).length === 0
+                  return willBeEmpty ? (
+                    <p className="text-xs text-[#aaaaaa] mt-1 mb-4">
+                      This will also remove the {getMuscleLabel(exerciseConfig, pendingDeleteExercise.muscle)} group.
+                    </p>
+                  ) : (
+                    <div className="mb-4" />
+                  )
+                })()}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setPendingDeleteExercise(null)}
+                    className="flex-1 rounded-xl py-3 text-sm font-semibold bg-[#f5f5f5] text-[#333333] hover:bg-[#ebebeb] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => deleteExercise(pendingDeleteExercise.muscle, pendingDeleteExercise.exercise)}
+                    className="flex-1 rounded-xl py-3 text-sm font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             </>
           )}
