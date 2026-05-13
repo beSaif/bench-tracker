@@ -1091,17 +1091,18 @@ export default function LogSessionModal({
           )}
 
           {/* Delete exercise confirmation */}
-          {pendingDeleteExercise && (
+          {pendingDeleteExercise && pendingDeleteExercise.kind === "extra" && (
             <>
               <div className="absolute inset-0 bg-black/30 z-30" onClick={() => setPendingDeleteExercise(null)} />
               <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.15)] z-40 p-5">
                 <p className="text-sm font-semibold text-[#111111] mb-1">Remove exercise?</p>
                 <p className="text-base font-bold text-[#111111]">{pendingDeleteExercise.exercise}</p>
                 {(() => {
-                  const willBeEmpty = Object.keys(extraState[pendingDeleteExercise.muscle] ?? {}).filter(e => e !== pendingDeleteExercise.exercise).length === 0
+                  const p = pendingDeleteExercise
+                  const willBeEmpty = Object.keys(extraState[p.muscle] ?? {}).filter(e => e !== p.exercise).length === 0
                   return willBeEmpty ? (
                     <p className="text-xs text-[#aaaaaa] mt-1 mb-4">
-                      This will also remove the {getMuscleLabel(exerciseConfig, pendingDeleteExercise.muscle)} group.
+                      This will also remove the {getMuscleLabel(exerciseConfig, p.muscle)} group.
                     </p>
                   ) : (
                     <div className="mb-4" />
