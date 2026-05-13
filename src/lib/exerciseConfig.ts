@@ -2,6 +2,7 @@ export interface ExerciseConfig {
   id: string
   name: string
   order: number
+  defaultSets?: number
 }
 
 export interface MuscleGroupConfig {
@@ -72,6 +73,10 @@ export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
     ],
   },
 ]
+
+export function getDefaultSets(ex: ExerciseConfig): number {
+  return ex.defaultSets ?? (ex.order === 0 ? 3 : 2)
+}
 
 export function sortedMuscleGroups(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
   return [...config].sort((a, b) => a.order - b.order)

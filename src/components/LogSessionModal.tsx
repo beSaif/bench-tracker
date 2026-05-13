@@ -11,7 +11,7 @@ import {
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups, getDefaultSets } from "@/lib/exerciseConfig"
 import {
   DndContext,
   closestCenter,
@@ -266,16 +266,19 @@ function initExtraWorkoutState(
   const state: ExtraWorkoutState = {}
   for (const muscle of groups) {
     state[muscle] = {}
+    const muscleGroup = exerciseConfig.find((g) => g.id === muscle)
     for (const exerciseName of getExercisesForMuscle(exerciseConfig, muscle)) {
+      const exConfig = muscleGroup?.exercises.find((e) => e.name === exerciseName)
+      const numSets = exConfig ? getDefaultSets(exConfig) : 3
       const lastSets = getLastSetsForExercise(exerciseName, previousSessions)
       if (lastSets && lastSets.length > 0) {
-        state[muscle][exerciseName] = Array.from({ length: 3 }, (_, i) =>
+        state[muscle][exerciseName] = Array.from({ length: numSets }, (_, i) =>
           i < lastSets.length
             ? { kgStr: String(lastSets[i].kg), repsStr: String(lastSets[i].reps) }
             : defaultExtraSet()
         )
       } else {
-        state[muscle][exerciseName] = [defaultExtraSet(), defaultExtraSet(), defaultExtraSet()]
+        state[muscle][exerciseName] = Array.from({ length: numSets }, () => defaultExtraSet())
       }
     }
   }
@@ -698,9 +701,12 @@ export default function LogSessionModal({
   function addMuscleGroup(muscleId: string) {
     setSelectedGroups((prev) => [...prev, muscleId])
     setExtraState((prev) => {
+      const muscleGroup = exerciseConfig.find((g) => g.id === muscleId)
       const exercises: Record<string, EditableExtraSet[]> = {}
       for (const name of getExercisesForMuscle(exerciseConfig, muscleId)) {
-        exercises[name] = [defaultExtraSet()]
+        const exConfig = muscleGroup?.exercises.find((e) => e.name === name)
+        const count = exConfig ? getDefaultSets(exConfig) : 3
+        exercises[name] = Array.from({ length: count }, () => defaultExtraSet())
       }
       return { ...prev, [muscleId]: exercises }
     })

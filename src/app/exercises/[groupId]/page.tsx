@@ -9,6 +9,7 @@ import {
   DEFAULT_MUSCLE_GROUPS,
   findSimilarExercises,
   generateId,
+  getDefaultSets,
 } from "@/lib/exerciseConfig"
 import { loadExerciseConfigLocal, loadExerciseConfig, saveExerciseConfig } from "@/lib/storage"
 
@@ -49,9 +50,7 @@ export default function GroupPage() {
   }
 
   const group = config.find((g) => g.id === groupId)
-  const sortedExercises = [...(group?.exercises ?? [])].sort((a, b) =>
-    a.name.localeCompare(b.name)
-  )
+  const sortedExercises = [...(group?.exercises ?? [])].sort((a, b) => a.order - b.order)
 
   function startRename(ex: ExerciseConfig) {
     setEditingExId(ex.id)
@@ -77,6 +76,37 @@ export default function GroupPage() {
       config.map((g) => {
         if (g.id !== groupId) return g
         return { ...g, exercises: g.exercises.filter((e) => e.id !== exId) }
+      })
+    )
+  }
+
+  function moveExercise(exId: string, direction: "up" | "down") {
+    const sorted = [...(group?.exercises ?? [])].sort((a, b) => a.order - b.order)
+    const idx = sorted.findIndex((e) => e.id === exId)
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+    const newOrder = sorted[swapIdx].order
+    const swapOrder = sorted[idx].order
+    persist(
+      config.map((g) => {
+        if (g.id !== groupId) return g
+        return {
+          ...g,
+          exercises: g.exercises.map((e) => {
+            if (e.id === sorted[idx].id) return { ...e, order: newOrder }
+            if (e.id === sorted[swapIdx].id) return { ...e, order: swapOrder }
+            return e
+          }),
+        }
+      })
+    )
+  }
+
+  function updateDefaultSets(exId: string, count: number) {
+    persist(
+      config.map((g) => {
+        if (g.id !== groupId) return g
+        return { ...g, exercises: g.exercises.map((e) => e.id === exId ? { ...e, defaultSets: count } : e) }
       })
     )
   }
@@ -145,7 +175,7 @@ export default function GroupPage() {
       <p className="text-sm text-[#777777] mb-6">
         {sortedExercises.length === 0
           ? "No exercises yet — add one below"
-          : `${sortedExercises.length} exercise${sortedExercises.length !== 1 ? "s" : ""}, sorted A–Z`}
+          : `${sortedExercises.length} exercise${sortedExercises.length !== 1 ? "s" : ""}`}
       </p>
 
       {/* Exercise list */}
@@ -163,6 +193,31 @@ export default function GroupPage() {
                 idx < sortedExercises.length - 1 ? "border-b border-[#f5f5f5]" : ""
               }`}
             >
+              {!isEditing && (
+                <div className="flex flex-col shrink-0">
+                  <button
+                    onClick={() => moveExercise(ex.id, "up")}
+                    disabled={idx === 0}
+                    className="p-0.5 text-[#cccccc] disabled:opacity-30 hover:text-[#555555] transition-colors"
+                    aria-label="Move up"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1,7 5.5,2.5 10,7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => moveExercise(ex.id, "down")}
+                    disabled={idx === sortedExercises.length - 1}
+                    className="p-0.5 text-[#cccccc] disabled:opacity-30 hover:text-[#555555] transition-colors"
+                    aria-label="Move down"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1,4 5.5,8.5 10,4" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
               {isEditing ? (
                 <input
                   ref={renameInputRef}
@@ -177,6 +232,26 @@ export default function GroupPage() {
                 />
               ) : (
                 <span className="flex-1 text-sm text-[#333333]">{ex.name}</span>
+              )}
+
+              {!isEditing && (
+                <div className="flex items-center gap-1.5 shrink-0 mr-2">
+                  <button
+                    onClick={() => updateDefaultSets(ex.id, Math.max(1, getDefaultSets(ex) - 1))}
+                    className="w-6 h-6 rounded-full bg-[#f0f0f0] flex items-center justify-center text-[#555555] text-xs font-bold leading-none"
+                  >
+                    −
+                  </button>
+                  <span className="text-xs font-medium text-[#555555] w-5 text-center tabular-nums">
+                    {getDefaultSets(ex)}
+                  </span>
+                  <button
+                    onClick={() => updateDefaultSets(ex.id, Math.min(8, getDefaultSets(ex) + 1))}
+                    className="w-6 h-6 rounded-full bg-[#f0f0f0] flex items-center justify-center text-[#555555] text-xs font-bold leading-none"
+                  >
+                    +
+                  </button>
+                </div>
               )}
 
               <div className="flex items-center gap-0.5 shrink-0">
