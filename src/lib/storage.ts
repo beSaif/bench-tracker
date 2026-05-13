@@ -217,6 +217,23 @@ export function saveFriendEmailsLocal(emails: string[]): void {
   localStorage.setItem(FRIENDS_KEY, JSON.stringify(emails))
 }
 
+const FRIEND_LAST_ACTIVE_KEY = "bench_friend_last_active"
+
+export function loadFriendLastActiveLocal(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(FRIEND_LAST_ACTIVE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveFriendLastActiveLocal(dates: Record<string, string>): void {
+  localStorage.setItem(FRIEND_LAST_ACTIVE_KEY, JSON.stringify(dates))
+}
+
 const MINI_PLAYER_KEY = 'lift-tracker-mini-player'
 
 export interface MiniPlayerState {

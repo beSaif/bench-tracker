@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, clearMiniPlayer } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -166,7 +166,7 @@ export default function Page() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [presences, setPresences] = useState<UserPresence[]>(() => loadPresencesLocal())
   const [friendEmails, setFriendEmails] = useState<Set<string>>(() => new Set(loadFriendEmailsLocal()))
-  const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>({})
+  const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>(() => loadFriendLastActiveLocal())
   const friendEmailsRef = useRef<Set<string>>(new Set(loadFriendEmailsLocal()))
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
@@ -370,6 +370,7 @@ export default function Page() {
           if (f.lastSessionDate) dates[f.email.trim().toLowerCase()] = f.lastSessionDate
         })
         setFriendLastActive(dates)
+        saveFriendLastActiveLocal(dates)
       })
       .catch(() => {})
   }, [profile])

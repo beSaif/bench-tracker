@@ -39,6 +39,7 @@ export default function FriendPresenceStrip({ presences, currentUserEmail, lastA
 
   return (
     <div className="mb-5">
+      <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa] mb-2">gymbros</p>
       <div className="flex items-center gap-3">
         {others.map((p) => (
           <Link
