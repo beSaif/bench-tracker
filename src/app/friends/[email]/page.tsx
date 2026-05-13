@@ -57,7 +57,7 @@ export default function FriendProfilePage() {
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-[393px] px-6 py-8">
+      <main className="mx-auto w-full max-w-[393px] px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         <button onClick={() => router.back()} className="mb-10 p-1 -ml-1 text-[#aaaaaa]">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="11,4 6,9 11,14" />
@@ -74,7 +74,7 @@ export default function FriendProfilePage() {
 
   if (error || !data) {
     return (
-      <main className="mx-auto w-full max-w-[393px] px-6 py-8">
+      <main className="mx-auto w-full max-w-[393px] px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         <button onClick={() => router.back()} className="mb-10 p-1 -ml-1 text-[#aaaaaa]">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="11,4 6,9 11,14" />
@@ -99,7 +99,7 @@ export default function FriendProfilePage() {
   const best = lastSession ? topSet(lastSession.sets) : null
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-6 py-8">
+    <main className="mx-auto w-full max-w-[393px] px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
       {/* Back */}
       <button
         onClick={() => router.back()}
