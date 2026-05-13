@@ -40,6 +40,10 @@ export function friendRequestsOutKey(email: string): string {
   return `user:${normalize(email)}:friend-requests-out`
 }
 
+export function messageInboxKey(email: string): string {
+  return `user:${normalize(email)}:messages`
+}
+
 export const LEGACY_SESSIONS_KEY = "bench-tracker-sessions"
 export const LEGACY_EXERCISES_KEY = "bench-tracker-exercises"
 

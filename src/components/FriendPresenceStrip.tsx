@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { UserPresence } from "@/lib/types"
+import { GymbroMessage, UserPresence } from "@/lib/types"
 
 function initials(name: string): string {
   return name
@@ -27,9 +27,17 @@ interface Props {
   presences: UserPresence[]
   currentUserEmail: string
   lastActiveDates?: Record<string, string>
+  messagesByFriend?: Record<string, GymbroMessage[]>
+  onAvatarClick?: (presence: UserPresence) => void
 }
 
-export default function FriendPresenceStrip({ presences, currentUserEmail, lastActiveDates }: Props) {
+export default function FriendPresenceStrip({
+  presences,
+  currentUserEmail,
+  lastActiveDates,
+  messagesByFriend,
+  onAvatarClick,
+}: Props) {
   if (presences.length === 0) return null
 
   const others = presences.filter((p) => p.email !== currentUserEmail)
@@ -41,14 +49,14 @@ export default function FriendPresenceStrip({ presences, currentUserEmail, lastA
     <div className="mb-5">
       <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa] mb-2">gymbros</p>
       <div className="flex items-center gap-3">
-        {others.map((p) => (
-          <Link
-            key={p.email}
-            href={`/friends/${encodeURIComponent(p.email)}`}
-            className="flex flex-col items-center gap-1"
-          >
+        {others.map((p) => {
+          const key = p.email.trim().toLowerCase()
+          const msgCount = messagesByFriend?.[key]?.length ?? 0
+          const hasMessages = msgCount > 0
+
+          const avatar = (
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-[#f0f0f0] flex items-center justify-center text-xs font-bold text-[#555555] select-none cursor-pointer active:opacity-70 transition-opacity">
+              <div className="w-10 h-10 rounded-full bg-[#f0f0f0] flex items-center justify-center text-xs font-bold text-[#555555] select-none active:opacity-70 transition-opacity">
                 {initials(p.name)}
               </div>
               {p.inSession && (
@@ -56,17 +64,51 @@ export default function FriendPresenceStrip({ presences, currentUserEmail, lastA
                   <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75" />
                 </span>
               )}
+              {hasMessages && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-0.5 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center border-2 border-white leading-none">
+                  {msgCount > 9 ? "9+" : msgCount}
+                </span>
+              )}
             </div>
-            <span className="text-[10px] text-[#aaaaaa] font-medium leading-none">
-              {p.name.split(" ")[0]}
-            </span>
-            {lastActiveDates?.[p.email.trim().toLowerCase()] && (
-              <span className="text-[9px] text-[#cccccc] leading-none">
-                {relativeDate(lastActiveDates[p.email.trim().toLowerCase()]!)}
+          )
+
+          const label = (
+            <>
+              <span className="text-[10px] text-[#aaaaaa] font-medium leading-none">
+                {p.name.split(" ")[0]}
               </span>
-            )}
-          </Link>
-        ))}
+              {lastActiveDates?.[key] && (
+                <span className="text-[9px] text-[#cccccc] leading-none">
+                  {relativeDate(lastActiveDates[key]!)}
+                </span>
+              )}
+            </>
+          )
+
+          if (hasMessages) {
+            return (
+              <button
+                key={p.email}
+                onClick={() => onAvatarClick?.(p)}
+                className="flex flex-col items-center gap-1"
+              >
+                {avatar}
+                {label}
+              </button>
+            )
+          }
+
+          return (
+            <Link
+              key={p.email}
+              href={`/friends/${encodeURIComponent(p.email)}`}
+              className="flex flex-col items-center gap-1"
+            >
+              {avatar}
+              {label}
+            </Link>
+          )
+        })}
 
         <div className="ml-auto">
           {anyOnline ? (

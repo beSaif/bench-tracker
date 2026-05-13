@@ -127,3 +127,11 @@ export interface ExtraWorkout {
   muscle: MuscleGroup
   exercises: ExtraExercise[]
 }
+
+export interface GymbroMessage {
+  id: string
+  fromEmail: string
+  fromName: string
+  text: string
+  sentAt: string
+}

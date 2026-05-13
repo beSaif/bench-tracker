@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { UserProfile, UserPresence, Session, MAIN_LIFT_LABEL } from "@/lib/types"
+import MessageComposer from "@/components/MessageComposer"
 
 function initials(name: string): string {
   return name
@@ -36,6 +37,7 @@ export default function FriendProfilePage() {
   const [presence, setPresence] = useState<UserPresence | null>(null)
   const [error, setError] = useState<"forbidden" | "notfound" | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showComposer, setShowComposer] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -202,6 +204,30 @@ export default function FriendProfilePage() {
             ) : (
               <p className="text-sm text-[#aaaaaa]">No sets logged</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Send message */}
+      <button
+        onClick={() => setShowComposer(true)}
+        className="mt-8 w-full py-3 rounded-xl border border-[#e8e8e8] text-sm font-medium text-[#555555] hover:bg-[#f8f8f8] active:bg-[#f0f0f0] transition-colors"
+      >
+        💬 send a message
+      </button>
+
+      {showComposer && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowComposer(false)}>
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-zinc-900 px-5 pt-5 pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageComposer
+              recipientLabel={profile.name.split(" ")[0]}
+              toEmail={profile.email}
+              onSent={() => setShowComposer(false)}
+              onClose={() => setShowComposer(false)}
+            />
           </div>
         </div>
       )}

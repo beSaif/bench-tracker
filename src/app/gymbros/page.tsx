@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest } from "@/lib/types"
+import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest, GymbroMessage } from "@/lib/types"
 
 function initials(name: string): string {
   return name
@@ -38,20 +38,28 @@ export default function GymBrosPage() {
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState<string>("")
   const [removingEmail, setRemovingEmail] = useState<string | null>(null)
+  const [messages, setMessages] = useState<GymbroMessage[]>([])
   const addInputRef = useRef<HTMLInputElement>(null)
 
   function fetchAll() {
     Promise.all([
       fetch("/api/friends").then((r) => r.json()),
       fetch("/api/friends/requests").then((r) => r.json()),
+      fetch("/api/messages").then((r) => r.json()),
     ])
-      .then(([f, req]: [UserProfile[], { requests: FriendRequest[]; count: number }]) => {
+      .then(([f, req, msgs]: [UserProfile[], { requests: FriendRequest[]; count: number }, GymbroMessage[]]) => {
         setFriends(Array.isArray(f) ? f : [])
         setRequests(req?.requests ?? [])
         setPendingCount(req?.count ?? 0)
+        setMessages(Array.isArray(msgs) ? msgs : [])
       })
       .catch(() => {})
       .finally(() => setLoading(false))
+  }
+
+  async function dismissMessages() {
+    setMessages([])
+    await fetch("/api/messages", { method: "DELETE" }).catch(() => {})
   }
 
   function fetchPresence() {
@@ -188,6 +196,38 @@ export default function GymBrosPage() {
           </p>
         )}
       </header>
+
+      {/* Incoming messages */}
+      {messages.length > 0 && (
+        <div className="mb-5 bg-zinc-900 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+              🔥 {messages.length} message{messages.length !== 1 ? "s" : ""}
+            </p>
+            <button
+              onClick={dismissMessages}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none"
+              aria-label="Dismiss messages"
+            >
+              ✕
+            </button>
+          </div>
+          <ul className="divide-y divide-zinc-800">
+            {messages.map((msg) => (
+              <li key={msg.id} className="px-4 py-3">
+                <p className="text-xs text-zinc-400 mb-0.5 font-medium">{msg.fromName}</p>
+                <p className="text-sm text-white">{msg.text}</p>
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={dismissMessages}
+            className="w-full py-2.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            got it 👍
+          </button>
+        </div>
+      )}
 
       {/* Requests panel */}
       {requestsOpen && (

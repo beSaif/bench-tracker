@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence, GymbroMessage } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -26,6 +26,8 @@ import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
 import FriendPresenceStrip from "@/components/FriendPresenceStrip"
+import FriendMessagePopup from "@/components/FriendMessagePopup"
+import HypePanelModal from "@/components/HypePanelModal"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -167,6 +169,11 @@ export default function Page() {
   const [presences, setPresences] = useState<UserPresence[]>(() => loadPresencesLocal())
   const [friendEmails, setFriendEmails] = useState<Set<string>>(() => new Set(loadFriendEmailsLocal()))
   const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>(() => loadFriendLastActiveLocal())
+  const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([])
+  const [showHypePanel, setShowHypePanel] = useState(false)
+  const [messagesByFriend, setMessagesByFriend] = useState<Record<string, GymbroMessage[]>>({})
+  const [msgPopupFriend, setMsgPopupFriend] = useState<UserPresence | null>(null)
+  const [msgPopupMessages, setMsgPopupMessages] = useState<GymbroMessage[]>([])
   const friendEmailsRef = useRef<Set<string>>(new Set(loadFriendEmailsLocal()))
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
@@ -359,12 +366,13 @@ export default function Page() {
     if (!profile) return
     fetch("/api/friends")
       .then((r) => r.ok ? r.json() : [])
-      .then((data: { email: string; lastSessionDate?: string | null }[]) => {
+      .then((data: (UserProfile & { lastSessionDate?: string | null })[]) => {
         if (!Array.isArray(data)) return
         const emails = new Set(data.map((f) => f.email.trim().toLowerCase()))
         friendEmailsRef.current = emails
         saveFriendEmailsLocal([...emails])
         setFriendEmails(emails)
+        setFriendProfiles(data)
         const dates: Record<string, string> = {}
         data.forEach((f) => {
           if (f.lastSessionDate) dates[f.email.trim().toLowerCase()] = f.lastSessionDate
@@ -373,6 +381,27 @@ export default function Page() {
         saveFriendLastActiveLocal(dates)
       })
       .catch(() => {})
+  }, [profile])
+
+  useEffect(() => {
+    if (!profile) return
+    function fetchMessages() {
+      fetch("/api/messages")
+        .then((r) => r.ok ? r.json() : [])
+        .then((msgs: GymbroMessage[]) => {
+          if (!Array.isArray(msgs)) return
+          const grouped = msgs.reduce<Record<string, GymbroMessage[]>>((acc, m) => {
+            const key = m.fromEmail.trim().toLowerCase()
+            acc[key] = acc[key] ? [...acc[key], m] : [m]
+            return acc
+          }, {})
+          setMessagesByFriend(grouped)
+        })
+        .catch(() => {})
+    }
+    fetchMessages()
+    const interval = setInterval(fetchMessages, 30000)
+    return () => clearInterval(interval)
   }, [profile])
 
   function subscribeAndStore(vapidKey: string) {
@@ -537,7 +566,24 @@ export default function Page() {
     cancelIncompleteSessionReminder()
     scheduleInactivityReminder()
     signalPresence(false)
+    setShowHypePanel(true)
+  }
 
+  function handleAvatarClick(p: UserPresence) {
+    const key = p.email.trim().toLowerCase()
+    const msgs = messagesByFriend[key] ?? []
+    setMsgPopupFriend(p)
+    setMsgPopupMessages(msgs)
+    setMessagesByFriend((prev) => {
+      const updated = { ...prev }
+      delete updated[key]
+      return updated
+    })
+    fetch("/api/messages", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fromEmail: p.email }),
+    }).catch(() => {})
   }
 
   function handleCloseModal() {
@@ -702,7 +748,13 @@ export default function Page() {
         </header>
 
         {/* Friends presence */}
-        <FriendPresenceStrip presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))} currentUserEmail={profile.email} lastActiveDates={friendLastActive} />
+        <FriendPresenceStrip
+          presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))}
+          currentUserEmail={profile.email}
+          lastActiveDates={friendLastActive}
+          messagesByFriend={messagesByFriend}
+          onAvatarClick={handleAvatarClick}
+        />
 
         {/* Notification opt-in banner (needed on iOS PWA where auto-subscribe is blocked) */}
         {showNotifBanner && (
@@ -973,6 +1025,23 @@ export default function Page() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Hype panel after session confirm */}
+      {showHypePanel && (
+        <HypePanelModal
+          friends={friendProfiles}
+          onClose={() => setShowHypePanel(false)}
+        />
+      )}
+
+      {/* Friend message popup */}
+      {msgPopupFriend && (
+        <FriendMessagePopup
+          friend={msgPopupFriend}
+          messages={msgPopupMessages}
+          onClose={() => setMsgPopupFriend(null)}
+        />
       )}
 
       {/* Friend online toasts */}
