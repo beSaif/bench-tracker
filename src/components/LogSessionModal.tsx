@@ -878,7 +878,7 @@ export default function LogSessionModal({
       (g) => !selectedGroups.includes(g.id)
     )
     return (
-      <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden">
+      <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
         <div className="mx-auto w-full max-w-[393px] flex flex-col flex-1 min-h-0 relative">
 
           {/* Sticky header */}
@@ -903,9 +903,17 @@ export default function LogSessionModal({
 
               {/* Main lift */}
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium mb-3">
-                  {mainLiftLabel}
-                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium">
+                    {mainLiftLabel}
+                  </p>
+                  <button
+                    onClick={() => setPendingDeleteExercise({ kind: "main" })}
+                    className="text-xs text-[#bbbbbb] hover:text-red-400 transition-colors px-1"
+                  >
+                    Remove
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {sets.map((set, idx) => (
                     <div
