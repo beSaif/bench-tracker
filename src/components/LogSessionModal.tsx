@@ -1147,11 +1147,12 @@ export default function LogSessionModal({
         </div>
 
         {/* Centered content area */}
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-8">
+        <div className="flex-1 flex flex-col min-h-0 pb-8">
 
           {!allDone && carouselItems.length > 0 && (
-            <div className="w-full space-y-4">
-              {/* Card */}
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Card — flex-1 so it absorbs remaining space and centers the card */}
+              <div className="flex-1 flex flex-col justify-center min-h-0 overflow-hidden">
               <div>
                 {/* Main lift set card (warmup or working) */}
                 {currentItem?.type === "main" && (() => {
@@ -1332,6 +1333,7 @@ export default function LogSessionModal({
                   )
                 })()}
               </div>
+              </div>
 
               {/* Prev / Next */}
               <div className="flex items-center justify-between px-1">
@@ -1358,6 +1360,7 @@ export default function LogSessionModal({
 
           {/* Notes + Confirm — shown after all sets are done */}
           {allDone && (
+            <div className="flex-1 flex flex-col justify-center">
             <div className="w-full space-y-4">
               <div className="text-center mb-2">
                 <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
@@ -1381,6 +1384,7 @@ export default function LogSessionModal({
               >
                 Confirm Session
               </button>
+            </div>
             </div>
           )}
 
