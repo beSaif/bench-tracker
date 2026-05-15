@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
+import MessageComposer from "@/components/MessageComposer"
 import { GymbroMessage, UserPresence } from "@/lib/types"
 
 function initials(name: string): string {
@@ -18,6 +20,8 @@ interface Props {
 }
 
 export default function FriendMessagePopup({ friend, messages, onClose }: Props) {
+  const [composing, setComposing] = useState(false)
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end bg-black/50 animate-fade-in"
@@ -68,19 +72,36 @@ export default function FriendMessagePopup({ friend, messages, onClose }: Props)
 
         {/* Footer */}
         <div className="px-5 flex flex-col gap-2 border-t border-zinc-800 pt-4">
-          <Link
-            href={`/friends/${encodeURIComponent(friend.email)}`}
-            onClick={onClose}
-            className="w-full py-3 bg-white text-zinc-900 text-sm font-semibold rounded-xl text-center hover:bg-zinc-100 active:scale-95 transition-all"
-          >
-            View Profile →
-          </Link>
-          <button
-            onClick={onClose}
-            className="w-full py-2 text-zinc-500 text-sm hover:text-zinc-300 transition-colors"
-          >
-            close
-          </button>
+          {composing ? (
+            <MessageComposer
+              recipientLabel={friend.name.split(" ")[0]}
+              toEmail={friend.email}
+              onSent={onClose}
+              onClose={() => setComposing(false)}
+            />
+          ) : (
+            <>
+              <Link
+                href={`/friends/${encodeURIComponent(friend.email)}`}
+                onClick={onClose}
+                className="w-full py-3 bg-white text-zinc-900 text-sm font-semibold rounded-xl text-center hover:bg-zinc-100 active:scale-95 transition-all"
+              >
+                View Profile →
+              </Link>
+              <button
+                onClick={() => setComposing(true)}
+                className="w-full py-3 bg-zinc-800 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 active:scale-95 transition-all"
+              >
+                Reply 💬
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-zinc-500 text-sm hover:text-zinc-300 transition-colors"
+              >
+                close
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
