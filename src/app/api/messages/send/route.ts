@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         title: `🔥 ${fromName}`,
         body: text.trim(),
         tag: "gymbro-message",
-        url: "/gymbros",
+        url: "/",
       })
     })
   )
