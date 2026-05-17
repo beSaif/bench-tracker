@@ -27,7 +27,7 @@ import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
 import FriendPresenceStrip from "@/components/FriendPresenceStrip"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
-import HypePanelModal from "@/components/HypePanelModal"
+import FriendLiftTimeline from "@/components/FriendLiftTimeline"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -169,7 +169,7 @@ export default function Page() {
   const [presences, setPresences] = useState<UserPresence[]>(() => loadPresencesLocal())
   const [friendEmails, setFriendEmails] = useState<Set<string>>(() => new Set(loadFriendEmailsLocal()))
   const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>(() => loadFriendLastActiveLocal())
-  const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([])
+  const [friendProfiles, setFriendProfiles] = useState<(UserProfile & { lastSessionDate?: string | null })[]>([])
   const [showHypePanel, setShowHypePanel] = useState(false)
   const [messagesByFriend, setMessagesByFriend] = useState<Record<string, GymbroMessage[]>>({})
   const [msgPopupFriend, setMsgPopupFriend] = useState<UserPresence | null>(null)
@@ -1029,8 +1029,9 @@ export default function Page() {
 
       {/* Hype panel after session confirm */}
       {showHypePanel && (
-        <HypePanelModal
+        <FriendLiftTimeline
           friends={friendProfiles}
+          currentUserName={profile?.name ?? "Someone"}
           onClose={() => setShowHypePanel(false)}
         />
       )}
