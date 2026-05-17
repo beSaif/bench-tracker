@@ -66,11 +66,12 @@ const ZOOM_LEVELS = [
   { label: "cosmic",  maxMs: MS.year * 13_800_000_000,  minMs: MS.year },
 ]
 
-// Returns 0 (bottom/recent) → 1 (top/old) on a log scale
-function logPos(msAgo: number, maxMs: number): number {
-  if (msAgo <= 0) return 0
-  const clamped = Math.min(msAgo, maxMs)
-  return Math.log(clamped + 1) / Math.log(maxMs + 1)
+// Returns 0 (bottom/recent) → 1 (top/old) on a log scale spanning [minMs, maxMs].
+// Anchoring the bottom at minMs (instead of 1ms) spreads milestones across the
+// full screen — otherwise every value compresses to the upper third.
+function logPos(msAgo: number, minMs: number, maxMs: number): number {
+  const clamped = Math.min(Math.max(msAgo, minMs), maxMs)
+  return Math.log(clamped / minMs) / Math.log(maxMs / minMs)
 }
 
 interface Props {
@@ -124,7 +125,7 @@ export default function FriendLiftTimeline({ friends, currentUserName, onClose }
   const MIN_LABEL_GAP_PCT = 4.5  // skip labels closer than this on the timeline
 
   function bottomPct(msAgo: number) {
-    return BOTTOM_PAD + logPos(Math.max(1, msAgo), zoom.maxMs) * USABLE
+    return BOTTOM_PAD + logPos(msAgo, zoom.minMs, zoom.maxMs) * USABLE
   }
 
   // Thin out milestones so labels never collide. Walk recent → old, keep
@@ -132,7 +133,7 @@ export default function FriendLiftTimeline({ friends, currentUserName, onClose }
   const visibleMilestones: Milestone[] = []
   let lastKeptPct = -Infinity
   for (const m of milestones) {
-    const b = BOTTOM_PAD + logPos(m.ms, zoom.maxMs) * USABLE
+    const b = BOTTOM_PAD + logPos(m.ms, zoom.minMs, zoom.maxMs) * USABLE
     if (b - lastKeptPct >= MIN_LABEL_GAP_PCT) {
       visibleMilestones.push(m)
       lastKeptPct = b
@@ -185,7 +186,7 @@ export default function FriendLiftTimeline({ friends, currentUserName, onClose }
 
         {/* Milestone horizontal lines — bottom = recent, top = old */}
         {visibleMilestones.map((m) => {
-          const b = BOTTOM_PAD + logPos(m.ms, zoom.maxMs) * USABLE
+          const b = BOTTOM_PAD + logPos(m.ms, zoom.minMs, zoom.maxMs) * USABLE
           return (
             <div
               key={m.ms}
