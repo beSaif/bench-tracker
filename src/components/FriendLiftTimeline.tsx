@@ -66,11 +66,12 @@ const ZOOM_LEVELS = [
   { label: "cosmic",  maxMs: MS.year * 13_800_000_000,  minMs: MS.year },
 ]
 
-// Returns 0 (bottom/recent) → 1 (top/old) on a log scale
-function logPos(msAgo: number, maxMs: number): number {
-  if (msAgo <= 0) return 0
-  const clamped = Math.min(msAgo, maxMs)
-  return Math.log(clamped + 1) / Math.log(maxMs + 1)
+// Returns 0 (bottom/recent) → 1 (top/old) on a log scale spanning [minMs, maxMs].
+// Anchoring the bottom at minMs (instead of 1ms) spreads milestones across the
+// full screen — otherwise every value compresses to the upper third.
+function logPos(msAgo: number, minMs: number, maxMs: number): number {
+  const clamped = Math.min(Math.max(msAgo, minMs), maxMs)
+  return Math.log(clamped / minMs) / Math.log(maxMs / minMs)
 }
 
 interface Props {
@@ -121,9 +122,22 @@ export default function FriendLiftTimeline({ friends, currentUserName, onClose }
   // bottom% = BOTTOM_PAD + logPos * USABLE — bottom of screen is "now", top is "old"
   const BOTTOM_PAD = 6   // % from bottom for YOU marker
   const USABLE = 84      // % of height used by the timeline
+  const MIN_LABEL_GAP_PCT = 4.5  // skip labels closer than this on the timeline
 
   function bottomPct(msAgo: number) {
-    return BOTTOM_PAD + logPos(Math.max(1, msAgo), zoom.maxMs) * USABLE
+    return BOTTOM_PAD + logPos(msAgo, zoom.minMs, zoom.maxMs) * USABLE
+  }
+
+  // Thin out milestones so labels never collide. Walk recent → old, keep
+  // each one only if it sits far enough from the last kept.
+  const visibleMilestones: Milestone[] = []
+  let lastKeptPct = -Infinity
+  for (const m of milestones) {
+    const b = BOTTOM_PAD + logPos(m.ms, zoom.minMs, zoom.maxMs) * USABLE
+    if (b - lastKeptPct >= MIN_LABEL_GAP_PCT) {
+      visibleMilestones.push(m)
+      lastKeptPct = b
+    }
   }
 
   return (
@@ -171,18 +185,19 @@ export default function FriendLiftTimeline({ friends, currentUserName, onClose }
       <div className="flex-1 relative overflow-hidden">
 
         {/* Milestone horizontal lines — bottom = recent, top = old */}
-        {milestones.map((m) => {
-          const b = BOTTOM_PAD + logPos(m.ms, zoom.maxMs) * USABLE
+        {visibleMilestones.map((m) => {
+          const b = BOTTOM_PAD + logPos(m.ms, zoom.minMs, zoom.maxMs) * USABLE
           return (
             <div
               key={m.ms}
               className="absolute left-0 right-0 flex items-center pointer-events-none"
               style={{ bottom: `${b}%` }}
             >
-              <span className="text-zinc-600 text-[10px] font-medium pl-5 pr-3 whitespace-nowrap shrink-0 -translate-y-2.5">
+              <span className="w-24 pl-3 pr-3 text-right text-zinc-500 text-[10px] font-medium tracking-tight whitespace-nowrap shrink-0">
                 {m.label}
               </span>
-              <div className="flex-1 h-px bg-zinc-800" />
+              <div className="flex-1 h-px bg-zinc-800/70" />
+              <div className="w-5 shrink-0" />
             </div>
           )
         })}
@@ -223,7 +238,8 @@ export default function FriendLiftTimeline({ friends, currentUserName, onClose }
                 className={[
                   "w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center",
                   "text-xs font-bold text-zinc-200 relative transition-all duration-300",
-                  isSent ? "ring-2 ring-white" : "ring-1 ring-zinc-700",
+                  "ring-4 ring-zinc-950",
+                  isSent ? "outline outline-2 outline-white" : "",
                   isSending ? "animate-pulse" : "",
                 ].join(" ")}
               >

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
 import { loadSessionsLocal, loadBlocksLocal, saveAll, wipeLocalUserData } from "@/lib/storage"
-import { Session, TrainingBlock } from "@/lib/types"
+import { Session, TrainingBlock, UserProfile } from "@/lib/types"
+import FriendLiftTimeline from "@/components/FriendLiftTimeline"
 
 type KvStatus = "loading" | "ok" | "error"
 type Copied = "local" | "kv" | null
@@ -72,6 +73,28 @@ export default function DevPage() {
 
   const [notifStatus, setNotifStatus] = useState<NotifStatus>("idle")
   const [notifCountdown, setNotifCountdown] = useState<number | null>(null)
+
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const mockFriends: (UserProfile & { lastSessionDate?: string | null })[] = (() => {
+    const now = Date.now()
+    const mins = (n: number) => new Date(now - n * 60_000).toISOString()
+    const hrs = (n: number) => new Date(now - n * 3_600_000).toISOString()
+    const days = (n: number) => new Date(now - n * 86_400_000).toISOString()
+    const yrs = (n: number) => new Date(now - n * 31_536_000_000).toISOString()
+    const base = { bw: 70, mainLift: "bench" as const, anchor: 80, target: 140, createdAt: new Date(0).toISOString() }
+    return [
+      { ...base, email: "a@x", name: "Alice Apple",       lastSessionDate: mins(45) },
+      { ...base, email: "b@x", name: "Bob Banana",        lastSessionDate: hrs(2) },
+      { ...base, email: "c@x", name: "Cara Cherry",       lastSessionDate: hrs(5) },
+      { ...base, email: "d@x", name: "Dan Date",          lastSessionDate: days(1) },
+      { ...base, email: "e@x", name: "Eve Elderberry",    lastSessionDate: days(3) },
+      { ...base, email: "f@x", name: "Finn Fig",          lastSessionDate: days(8) },
+      { ...base, email: "g@x", name: "Gus Grape",         lastSessionDate: days(20) },
+      { ...base, email: "h@x", name: "Hana Honeydew",     lastSessionDate: days(95) },
+      { ...base, email: "i@x", name: "Ivan Indigo",       lastSessionDate: yrs(3) },
+      { ...base, email: "j@x", name: "Juno Jackfruit",    lastSessionDate: null },
+    ]
+  })()
 
   async function testNotification(delaySecs: number) {
     setNotifStatus("requesting")
@@ -202,6 +225,26 @@ export default function DevPage() {
           <p className="mt-2 text-xs text-red-500 text-center">Service worker not active — reload and try again</p>
         )}
       </section>
+
+      {/* UI previews */}
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-[#111111] mb-1">UI previews</h2>
+        <p className="text-xs text-[#aaaaaa] mb-3">Open components with mock data to test layout.</p>
+        <button
+          onClick={() => setTimelineOpen(true)}
+          className="w-full py-3 rounded-xl bg-[#f5f5f5] text-sm text-[#111111]"
+        >
+          Open friend lift timeline
+        </button>
+      </section>
+
+      {timelineOpen && (
+        <FriendLiftTimeline
+          friends={mockFriends}
+          currentUserName="Saif"
+          onClose={() => setTimelineOpen(false)}
+        />
+      )}
 
       {/* Sync actions */}
       <section className="mb-6">
