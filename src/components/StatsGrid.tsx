@@ -65,7 +65,6 @@ export default function StatsGrid({ e1rm, best, sessions, bw, target }: StatsGri
         />
         <StatCell
           label="E1RM"
-          sublabel="est. 1 rep max"
           value={e1rm != null ? `${e1rm}kg` : "—"}
           bg="#fdfaf5"
         />
