@@ -8,29 +8,43 @@ interface StatsGridProps {
   target: number
 }
 
-interface StatCellProps {
+function HeroCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[10px] p-4" style={{ backgroundColor: "#fff1f2" }}>
+      <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
+        {label}
+      </span>
+      <div className="mt-2 text-2xl font-bold leading-none" style={{ color: "#7a1f2e" }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function StatCell({
+  label,
+  sublabel,
+  value,
+  bg,
+}: {
   label: string
   sublabel?: string
   value: string
-  accent?: boolean
-}
-
-function StatCell({ label, sublabel, value, accent }: StatCellProps) {
+  bg: string
+}) {
   return (
-    <div className="flex flex-col gap-1 p-3">
-      <span className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest">
+    <div className="rounded-[10px] p-4" style={{ backgroundColor: bg }}>
+      <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
         {label}
       </span>
       {sublabel && (
-        <span className="text-[9px] text-[#bbbbbb] -mt-0.5">{sublabel}</span>
+        <span className="block text-[9px] mt-0.5" style={{ color: "#bbbbbb" }}>
+          {sublabel}
+        </span>
       )}
-      <span
-        className={`text-lg font-semibold leading-none ${
-          accent ? "text-[#7a1f2e]" : "text-[#111111]"
-        }`}
-      >
+      <div className="mt-2 text-xl font-semibold leading-none" style={{ color: "#111111" }}>
         {value}
-      </span>
+      </div>
     </div>
   )
 }
@@ -38,31 +52,27 @@ function StatCell({ label, sublabel, value, accent }: StatCellProps) {
 export default function StatsGrid({ e1rm, best, sessions, bw, target }: StatsGridProps) {
   void bw
   return (
-    <div className="grid grid-cols-2 border border-[#e8e8e8] rounded-[10px] overflow-hidden mb-6">
-      <div className="border-b border-r border-[#e8e8e8]">
-        <StatCell
-          label="Current Best"
-          value={best != null ? `${best}kg` : "—"}
-          accent
-        />
-      </div>
-      <div className="border-b border-[#e8e8e8]">
+    <div className="flex flex-col gap-2 mb-6">
+      <HeroCell
+        label="Current Best"
+        value={best != null ? `${best}kg` : "—"}
+      />
+      <div className="grid grid-cols-3 gap-2">
         <StatCell
           label="Target"
           value={`${target}kg`}
+          bg="#f8f8f8"
         />
-      </div>
-      <div className="border-r border-[#e8e8e8]">
         <StatCell
-          label="e1RM"
+          label="E1RM"
           sublabel="est. 1 rep max"
           value={e1rm != null ? `${e1rm}kg` : "—"}
+          bg="#fdfaf5"
         />
-      </div>
-      <div>
         <StatCell
           label="Sessions"
           value={String(sessions)}
+          bg="#f5f8f8"
         />
       </div>
     </div>
