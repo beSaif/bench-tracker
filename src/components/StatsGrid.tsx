@@ -10,12 +10,14 @@ interface StatsGridProps {
 
 function HeroCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[10px] p-4" style={{ backgroundColor: "#fff1f2" }}>
-      <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
+    <div className="flex flex-col rounded-[10px] p-4 min-h-[80px]" style={{ backgroundColor: "#fff1f2" }}>
+      <span className="text-[10px] font-medium uppercase tracking-widest self-start" style={{ color: "#aaaaaa" }}>
         {label}
       </span>
-      <div className="mt-2 text-2xl font-bold leading-none" style={{ color: "#7a1f2e" }}>
-        {value}
+      <div className="flex-1 flex items-center justify-center">
+        <span className="text-2xl font-bold leading-none" style={{ color: "#7a1f2e" }}>
+          {value}
+        </span>
       </div>
     </div>
   )
@@ -23,27 +25,22 @@ function HeroCell({ label, value }: { label: string; value: string }) {
 
 function StatCell({
   label,
-  sublabel,
   value,
   bg,
 }: {
   label: string
-  sublabel?: string
   value: string
   bg: string
 }) {
   return (
-    <div className="rounded-[10px] p-4" style={{ backgroundColor: bg }}>
-      <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
+    <div className="flex flex-col rounded-[10px] p-4 min-h-[80px]" style={{ backgroundColor: bg }}>
+      <span className="text-[10px] font-medium uppercase tracking-widest self-start" style={{ color: "#aaaaaa" }}>
         {label}
       </span>
-      {sublabel && (
-        <span className="block text-[9px] mt-0.5" style={{ color: "#bbbbbb" }}>
-          {sublabel}
+      <div className="flex-1 flex items-center justify-center">
+        <span className="text-xl font-semibold leading-none" style={{ color: "#111111" }}>
+          {value}
         </span>
-      )}
-      <div className="mt-2 text-xl font-semibold leading-none" style={{ color: "#111111" }}>
-        {value}
       </div>
     </div>
   )
