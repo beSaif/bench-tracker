@@ -835,7 +835,7 @@ export default function Page() {
             const phaseColor: Record<BlockPhase, { bg: string; bar: string; label: string; meta: string }> = {
               accumulation: { bg: "bg-[#f0f7f0]", bar: "bg-[#2d6a2d]", label: "text-[#2d6a2d]", meta: "text-[#4a8a4a]" },
               transmutation: { bg: "bg-[#f5f0ff]", bar: "bg-[#5a2d8a]", label: "text-[#5a2d8a]", meta: "text-[#7a4daa]" },
-              realization: { bg: "bg-[#fff0f2]", bar: "bg-[#7a1f2e]", label: "text-[#7a1f2e]", meta: "text-[#9a3f4e]" },
+              realization: { bg: "bg-[#eff6ff]", bar: "bg-[#1e3a5f]", label: "text-[#1e3a5f]", meta: "text-[#3b5f8a]" },
               deload: { bg: "bg-[#f5f5f5]", bar: "bg-[#888888]", label: "text-[#555555]", meta: "text-[#888888]" },
             }
             const style = phaseColor[viewingUpcomingPhase]
@@ -978,7 +978,7 @@ export default function Page() {
                 setDraftPrompt(null)
                 scheduleIncompleteSessionReminder()
               }}
-              className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 mb-3 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors"
+              className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 mb-3 hover:bg-[#16304f] active:bg-[#0f2540] transition-colors"
             >
               Continue
             </button>
@@ -1013,13 +1013,13 @@ export default function Page() {
               inputMode="decimal"
               value={anchorInput}
               onChange={(e) => setAnchorInput(e.target.value)}
-              className="w-full border border-[#e8e8e8] rounded-xl px-4 py-3 text-xl font-semibold text-[#111111] mb-6 focus:outline-none focus:border-[#7a1f2e]"
+              className="w-full border border-[#e8e8e8] rounded-xl px-4 py-3 text-xl font-semibold text-[#111111] mb-6 focus:outline-none focus:border-[#1e3a5f]"
               placeholder="100"
             />
             <button
               onClick={handleConfirmAnchor}
               disabled={isNaN(parseFloat(anchorInput)) || parseFloat(anchorInput) <= 0}
-              className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors disabled:opacity-40"
+              className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#16304f] active:bg-[#0f2540] transition-colors disabled:opacity-40"
             >
               Start Block 1: Accumulation
             </button>

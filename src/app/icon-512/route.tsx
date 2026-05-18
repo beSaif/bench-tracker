@@ -1,9 +1,9 @@
 import { ImageResponse } from 'next/og'
 
 const BG = '#111827'
-const HI = '#fde68a'
-const MN = '#f59e0b'
-const SH = '#92400e'
+const HI = '#bfdbfe'
+const MN = '#2563eb'
+const SH = '#1e3a5f'
 
 // 32 grid units * 15px = 480px content, centred in 512px → 16px padding each side
 const S = 15

@@ -121,7 +121,7 @@ export default function DevPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => copy(localData, "local")}
-              className="text-xs font-medium text-[#7a1f2e]"
+              className="text-xs font-medium text-[#1e3a5f]"
             >
               {copied === "local" ? "Copied!" : "Copy JSON"}
             </button>
@@ -149,7 +149,7 @@ export default function DevPage() {
           {kvStatus === "ok" && (
             <button
               onClick={() => copy(kvData, "kv")}
-              className="text-xs font-medium text-[#7a1f2e]"
+              className="text-xs font-medium text-[#1e3a5f]"
             >
               {copied === "kv" ? "Copied!" : "Copy JSON"}
             </button>
@@ -193,7 +193,7 @@ export default function DevPage() {
           </button>
         </div>
         {notifStatus === "scheduled" && notifCountdown !== null && (
-          <p className="mt-2 text-xs text-[#7a1f2e] text-center">Firing in {notifCountdown}s — background the app now</p>
+          <p className="mt-2 text-xs text-[#1e3a5f] text-center">Firing in {notifCountdown}s — background the app now</p>
         )}
         {notifStatus === "denied" && (
           <p className="mt-2 text-xs text-red-500 text-center">Permission denied — enable in iOS Settings → Notifications</p>
@@ -217,7 +217,7 @@ export default function DevPage() {
           <button
             onClick={pushToKV}
             disabled={localData.sessions.length === 0}
-            className="w-full py-3 rounded-xl bg-[#7a1f2e] text-sm text-white disabled:opacity-40"
+            className="w-full py-3 rounded-xl bg-[#1e3a5f] text-sm text-white disabled:opacity-40"
           >
             Push localStorage → KV
           </button>

@@ -199,14 +199,14 @@ function SortableGroupRow({
             <div
               key={i}
               className={`w-2 h-2 rounded-full shrink-0 ${
-                i < completedCount ? "bg-[#7a1f2e]" : "bg-[#e0e0e0]"
+                i < completedCount ? "bg-[#1e3a5f]" : "bg-[#e0e0e0]"
               }`}
             />
           ))}
           <span className="text-[11px] text-[#aaaaaa] ml-0.5">{completedCount} / {count}</span>
         </div>
         {topKg !== null && topReps !== null && (
-          <p className="text-[10px] text-[#7a1f2e] mt-0.5 font-medium">
+          <p className="text-[10px] text-[#1e3a5f] mt-0.5 font-medium">
             Top: {topKg} × {topReps}
           </p>
         )}
@@ -1053,13 +1053,13 @@ export default function LogSessionModal({
                   onChange={(e) => setCoachNote(e.target.value)}
                   rows={3}
                   placeholder="How did it feel?"
-                  className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
+                  className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#1e3a5f] resize-none"
                 />
               </div>
 
               <button
                 onClick={handleConfirm}
-                className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
+                className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#16304f] transition-colors"
               >
                 Save Changes
               </button>
@@ -1156,7 +1156,7 @@ export default function LogSessionModal({
   // Full-screen rest timer
   if (restActive && !timerMinimized) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#7a1f2e] flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-50 bg-[#1e3a5f] flex flex-col items-center justify-center">
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
           Rest · {completedCount} / {carouselItems.length}
         </p>
@@ -1190,11 +1190,11 @@ export default function LogSessionModal({
   }
 
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 pt-[env(safe-area-inset-top)] ${restActive && timerMinimized ? "bg-[#fdf5f6]" : "bg-white"}`}>
+    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 pt-[env(safe-area-inset-top)] ${restActive && timerMinimized ? "bg-[#eff6ff]" : "bg-white"}`}>
       {restActive && timerMinimized && (
         <button
           onClick={() => setTimerMinimized(false)}
-          className="w-full bg-[#7a1f2e] flex items-center justify-between px-5 py-3
+          className="w-full bg-[#1e3a5f] flex items-center justify-between px-5 py-3
                      shrink-0 active:opacity-80 transition-opacity"
           aria-label="Restore timer"
         >
@@ -1256,7 +1256,7 @@ export default function LogSessionModal({
                   <div className="absolute h-1 w-full bg-[#e8e8e8] rounded-full" />
                   {/* Completed fill */}
                   <div
-                    className="absolute h-1 bg-[#7a1f2e] rounded-full transition-all duration-500"
+                    className="absolute h-1 bg-[#1e3a5f] rounded-full transition-all duration-500"
                     style={{ width: `${completedPct}%` }}
                   />
                   {/* Thumb */}
@@ -1286,7 +1286,7 @@ export default function LogSessionModal({
                   return (
                     <div
                       className={`rounded-2xl border-2 p-5 transition-colors ${
-                        isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
+                        isDone ? "border-[#1e3a5f]/30 bg-[#1e3a5f]/[0.03]" : "border-[#e8e8e8]"
                       }`}
                     >
                       <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
@@ -1295,10 +1295,10 @@ export default function LogSessionModal({
                       <div className="flex items-center justify-between mb-5">
                         <span className="text-3xl font-bold text-[#111111] leading-none">
                           {item.set.id}
-                          {isDone && <span className="ml-2 text-[#7a1f2e] text-2xl">✓</span>}
+                          {isDone && <span className="ml-2 text-[#1e3a5f] text-2xl">✓</span>}
                         </span>
                         {!isWarmup && item.set.e1rm != null && (
-                          <span className="text-sm font-semibold text-[#7a1f2e]">
+                          <span className="text-sm font-semibold text-[#1e3a5f]">
                             e1RM {item.set.e1rm}kg
                           </span>
                         )}
@@ -1341,7 +1341,7 @@ export default function LogSessionModal({
                         onClick={() => markSetDone(item.set.id)}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
-                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
+                            ? "bg-[#1e3a5f]/10 text-[#1e3a5f] hover:bg-[#1e3a5f]/20 active:bg-[#1e3a5f]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
@@ -1384,7 +1384,7 @@ export default function LogSessionModal({
                   return (
                     <div
                       className={`rounded-2xl border-2 p-5 transition-colors ${
-                        isDone ? "border-[#7a1f2e]/30 bg-[#7a1f2e]/[0.03]" : "border-[#e8e8e8]"
+                        isDone ? "border-[#1e3a5f]/30 bg-[#1e3a5f]/[0.03]" : "border-[#e8e8e8]"
                       }`}
                     >
                       <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] mb-1">
@@ -1394,7 +1394,7 @@ export default function LogSessionModal({
                         <div>
                           <p className="text-xl font-bold text-[#111111] leading-tight">
                             {item.exercise}
-                            {isDone && <span className="ml-2 text-[#7a1f2e] text-lg">✓</span>}
+                            {isDone && <span className="ml-2 text-[#1e3a5f] text-lg">✓</span>}
                           </p>
                           <p className="text-xs text-[#aaaaaa] mt-0.5">Set {item.setIndex + 1}</p>
                         </div>
@@ -1424,7 +1424,7 @@ export default function LogSessionModal({
                         onClick={() => markSetDone(key)}
                         className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
-                            ? "bg-[#7a1f2e]/10 text-[#7a1f2e] hover:bg-[#7a1f2e]/20 active:bg-[#7a1f2e]/30"
+                            ? "bg-[#1e3a5f]/10 text-[#1e3a5f] hover:bg-[#1e3a5f]/20 active:bg-[#1e3a5f]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
@@ -1487,7 +1487,7 @@ export default function LogSessionModal({
             <div className="flex-1 flex flex-col justify-center">
             <div className="w-full space-y-4">
               <div className="text-center mb-2">
-                <p className="text-sm font-semibold text-[#7a1f2e]">Session complete</p>
+                <p className="text-sm font-semibold text-[#1e3a5f]">Session complete</p>
                 <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
               </div>
               <div>
@@ -1499,12 +1499,12 @@ export default function LogSessionModal({
                   onChange={(e) => setCoachNote(e.target.value)}
                   rows={3}
                   placeholder="How did it feel?"
-                  className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#7a1f2e] resize-none"
+                  className="w-full border border-[#e8e8e8] rounded-lg px-3 py-2 text-sm text-[#111111] focus:outline-none focus:border-[#1e3a5f] resize-none"
                 />
               </div>
               <button
                 onClick={handleConfirm}
-                className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] transition-colors"
+                className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#16304f] transition-colors"
               >
                 Confirm Session
               </button>
@@ -1539,7 +1539,7 @@ export default function LogSessionModal({
                 <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
                   Exercises
                 </p>
-                <button onClick={closeReorder} className="text-sm font-semibold text-[#7a1f2e]">
+                <button onClick={closeReorder} className="text-sm font-semibold text-[#1e3a5f]">
                   Done
                 </button>
               </div>

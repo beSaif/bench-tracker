@@ -141,7 +141,7 @@ export default function OnboardingPage() {
           <div
             key={i}
             className={`h-1 rounded-full transition-all ${
-              i === step ? "w-8 bg-[#7a1f2e]" : i < step ? "w-1.5 bg-[#7a1f2e]/40" : "w-1.5 bg-[#e8e8e8]"
+              i === step ? "w-8 bg-[#1e3a5f]" : i < step ? "w-1.5 bg-[#1e3a5f]/40" : "w-1.5 bg-[#e8e8e8]"
             }`}
           />
         ))}
@@ -159,7 +159,7 @@ export default function OnboardingPage() {
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && canAdvance) next() }}
                 placeholder="Saif"
-                className="w-full text-2xl font-semibold text-[#111111] border-b-2 border-[#e8e8e8] focus:border-[#7a1f2e] outline-none bg-transparent pb-2"
+                className="w-full text-2xl font-semibold text-[#111111] border-b-2 border-[#e8e8e8] focus:border-[#1e3a5f] outline-none bg-transparent pb-2"
               />
             </Question>
           )}
@@ -167,7 +167,7 @@ export default function OnboardingPage() {
           {/* Step 1: bodyweight */}
           {step === 1 && (
             <Question label="how much do you weigh?" hint="in kg — we use this to track your relative strength over time.">
-              <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
+              <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#1e3a5f] pb-2">
                 <input
                   autoFocus
                   type="number"
@@ -204,7 +204,7 @@ export default function OnboardingPage() {
               {(bodyVisible, onBodyComplete) => (
                 <div className="space-y-5 mt-2">
                   {([
-                    { dot: "#7a1f2e", name: "main lift", desc: " — one exercise. tracked weekly. you always have a target." },
+                    { dot: "#1e3a5f", name: "main lift", desc: " — one exercise. tracked weekly. you always have a target." },
                     { dot: "#888888", name: "accessories", desc: " — everything else. chest, back, whatever. you pick these each session." },
                   ] as const).map(({ dot, name: itemName, desc }, i, arr) => (
                     <div
@@ -235,7 +235,7 @@ export default function OnboardingPage() {
                     onClick={() => setLift(l)}
                     className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-colors ${
                       lift === l
-                        ? "border-[#7a1f2e] bg-[#fdf5f6] text-[#7a1f2e]"
+                        ? "border-[#1e3a5f] bg-[#eff6ff] text-[#1e3a5f]"
                         : "border-[#e8e8e8] text-[#111111] hover:border-[#cccccc]"
                     }`}
                   >
@@ -265,7 +265,7 @@ export default function OnboardingPage() {
               label={`what's your current 1 rep max on ${lift ? MAIN_LIFT_LABEL[lift].toLowerCase() : "your lift"}?`}
               hint="your best single rep. be honest — every session is a percentage of this."
             >
-              <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
+              <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#1e3a5f] pb-2">
                 <input
                   autoFocus
                   type="number"
@@ -296,7 +296,7 @@ export default function OnboardingPage() {
                       onClick={() => setTarget(String(kg))}
                       className={`flex-1 flex flex-col items-center py-3 rounded-xl border-2 transition-colors ${
                         target === String(kg)
-                          ? "border-[#7a1f2e] bg-[#fdf5f6] text-[#7a1f2e]"
+                          ? "border-[#1e3a5f] bg-[#eff6ff] text-[#1e3a5f]"
                           : "border-[#e8e8e8] text-[#111111] hover:border-[#cccccc]"
                       }`}
                     >
@@ -306,7 +306,7 @@ export default function OnboardingPage() {
                   ))}
                 </div>
               )}
-              <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#7a1f2e] pb-2">
+              <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#1e3a5f] pb-2">
                 <input
                   type="number"
                   inputMode="decimal"
@@ -373,7 +373,7 @@ export default function OnboardingPage() {
             <button
               onClick={next}
               disabled={!canAdvance}
-              className="flex-1 bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#6a1926] active:bg-[#5a1520] transition-colors disabled:opacity-40"
+              className="flex-1 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#16304f] active:bg-[#0f2540] transition-colors disabled:opacity-40"
             >
               continue
             </button>
@@ -387,7 +387,7 @@ export default function OnboardingPage() {
 const PHASES = [
   { color: "#2d6a2d", name: "volume",    desc: "more reps, lighter. build the base. 4 sessions." },
   { color: "#5a2d8a", name: "intensity", desc: "fewer reps, heavier. 4 sessions." },
-  { color: "#7a1f2e", name: "peak",      desc: "near your max. 3 sessions." },
+  { color: "#1e3a5f", name: "peak",      desc: "near your max. 3 sessions." },
   { color: "#888888", name: "deload",    desc: "back off. let it sink in. 1 session." },
 ] as const
 

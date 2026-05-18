@@ -152,7 +152,7 @@ export default function GroupPage() {
   if (!group) {
     return (
       <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
-        <Link href="/exercises" className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6 hover:underline">
+        <Link href="/exercises" className="inline-flex items-center gap-1 text-sm text-[#1e3a5f] mb-6 hover:underline">
           ← Back
         </Link>
         <p className="text-sm text-[#777777]">Group not found.</p>
@@ -164,7 +164,7 @@ export default function GroupPage() {
     <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <Link
         href="/exercises"
-        className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6 hover:underline"
+        className="inline-flex items-center gap-1 text-sm text-[#1e3a5f] mb-6 hover:underline"
       >
         ← Back
       </Link>
@@ -228,7 +228,7 @@ export default function GroupPage() {
                     if (e.key === "Escape") setEditingExId(null)
                   }}
                   onBlur={saveRename}
-                  className="flex-1 text-sm text-[#111111] border-b border-[#7a1f2e] outline-none bg-transparent py-0.5"
+                  className="flex-1 text-sm text-[#111111] border-b border-[#1e3a5f] outline-none bg-transparent py-0.5"
                 />
               ) : (
                 <span className="flex-1 text-sm text-[#333333]">{ex.name}</span>
@@ -292,7 +292,7 @@ export default function GroupPage() {
                 if (e.key === "Escape") { setAddingExercise(false); setSimilarWarning([]) }
               }}
               placeholder="Exercise name"
-              className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#7a1f2e] outline-none bg-transparent pb-1 mb-2"
+              className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#1e3a5f] outline-none bg-transparent pb-1 mb-2"
             />
             {similarWarning.length > 0 && (
               <div className="mb-2">
@@ -301,7 +301,7 @@ export default function GroupPage() {
                 </p>
                 <button
                   onClick={() => addExercise(true)}
-                  className="text-[11px] text-[#7a1f2e] font-semibold underline mt-0.5"
+                  className="text-[11px] text-[#1e3a5f] font-semibold underline mt-0.5"
                 >
                   Add anyway
                 </button>
@@ -310,7 +310,7 @@ export default function GroupPage() {
             <div className="flex gap-3 mt-1">
               <button
                 onClick={() => addExercise()}
-                className="text-xs font-semibold text-white bg-[#7a1f2e] rounded-lg px-4 py-1.5 hover:bg-[#6a1926] transition-colors"
+                className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-1.5 hover:bg-[#16304f] transition-colors"
               >
                 Add
               </button>
@@ -329,7 +329,7 @@ export default function GroupPage() {
       {!addingExercise && (
         <button
           onClick={() => { setAddingExercise(true); setNewExerciseName(""); setSimilarWarning([]) }}
-          className="w-full border border-dashed border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#aaaaaa] hover:border-[#7a1f2e] hover:text-[#7a1f2e] transition-colors"
+          className="w-full border border-dashed border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#aaaaaa] hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
         >
           + Add exercise
         </button>

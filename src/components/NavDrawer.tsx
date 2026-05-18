@@ -53,7 +53,7 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 pathname === "/"
-                  ? "bg-[#fdf5f6] text-[#7a1f2e]"
+                  ? "bg-[#eff6ff] text-[#1e3a5f]"
                   : "text-[#333333] hover:bg-[#f5f5f5]"
               }`}
             >
@@ -68,7 +68,7 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 pathname === "/exercises"
-                  ? "bg-[#fdf5f6] text-[#7a1f2e]"
+                  ? "bg-[#eff6ff] text-[#1e3a5f]"
                   : "text-[#333333] hover:bg-[#f5f5f5]"
               }`}
             >
@@ -87,7 +87,7 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 pathname === "/history"
-                  ? "bg-[#fdf5f6] text-[#7a1f2e]"
+                  ? "bg-[#eff6ff] text-[#1e3a5f]"
                   : "text-[#333333] hover:bg-[#f5f5f5]"
               }`}
             >
@@ -103,7 +103,7 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 pathname === "/gymbros"
-                  ? "bg-[#fdf5f6] text-[#7a1f2e]"
+                  ? "bg-[#eff6ff] text-[#1e3a5f]"
                   : "text-[#333333] hover:bg-[#f5f5f5]"
               }`}
             >

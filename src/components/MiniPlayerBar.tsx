@@ -62,8 +62,8 @@ export default function MiniPlayerBar() {
       >
         {/* Pulsing dot */}
         <span className="relative flex h-2 w-2 shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#7a1f2e] opacity-60" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#7a1f2e]" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1e3a5f] opacity-60" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1e3a5f]" />
         </span>
 
         {/* Label + progress */}
@@ -76,7 +76,7 @@ export default function MiniPlayerBar() {
 
         {/* Rest timer (if active) */}
         {restSeconds !== null && (
-          <span className="text-sm font-bold tabular-nums text-[#7a1f2e] shrink-0">
+          <span className="text-sm font-bold tabular-nums text-[#1e3a5f] shrink-0">
             {formatSeconds(restSeconds)}
           </span>
         )}

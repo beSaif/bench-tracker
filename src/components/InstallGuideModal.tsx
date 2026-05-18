@@ -57,7 +57,7 @@ function IOSAddToHomeIcon() {
 function IOSDoneIcon() {
   return (
     <svg viewBox="0 0 44 44" fill="none" className="w-full h-full">
-      <rect width="44" height="44" rx="10" fill="#7a1f2e" />
+      <rect width="44" height="44" rx="10" fill="#1e3a5f" />
       <path
         d="M14 22l6 6 10-12"
         stroke="white"
@@ -94,7 +94,7 @@ function AndroidInstallIcon() {
 function AndroidDoneIcon() {
   return (
     <svg viewBox="0 0 44 44" fill="none" className="w-full h-full">
-      <rect width="44" height="44" rx="10" fill="#7a1f2e" />
+      <rect width="44" height="44" rx="10" fill="#1e3a5f" />
       <path
         d="M14 22l6 6 10-12"
         stroke="white"
@@ -176,7 +176,7 @@ export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps)
           </p>
           <button
             onClick={dismiss}
-            className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5"
+            className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5"
           >
             got it
           </button>
@@ -219,7 +219,7 @@ export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps)
         </p>
         <button
           onClick={dismiss}
-          className="w-full bg-[#7a1f2e] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#5a1520] transition-colors"
+          className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors"
         >
           on it
         </button>

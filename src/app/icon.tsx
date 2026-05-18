@@ -4,9 +4,9 @@ export const size = { width: 32, height: 32 }
 export const contentType = 'image/png'
 
 const BG = '#111827'
-const HI = '#fde68a'
-const MN = '#f59e0b'
-const SH = '#92400e'
+const HI = '#bfdbfe'
+const MN = '#2563eb'
+const SH = '#1e3a5f'
 
 const rects = [
   // Left outer plate

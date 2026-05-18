@@ -93,7 +93,7 @@ export default function FriendProfilePage() {
   const isLive = presence?.inSession ?? false
 
   const liftColours: Record<UserProfile["mainLift"], string> = {
-    bench: "bg-[#fdf5f6] text-[#7a1f2e]",
+    bench: "bg-[#eff6ff] text-[#1e3a5f]",
     squat: "bg-[#f0f5ff] text-[#1e3a7a]",
     deadlift: "bg-[#f2fdf0] text-[#1e5c1a]",
   }

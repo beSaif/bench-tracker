@@ -14,7 +14,7 @@ const PHASE_SHORT: Record<BlockPhase, string> = {
 const PHASE_COLOR: Record<BlockPhase, string> = {
   accumulation: "#2d6a2d",
   transmutation: "#5a2d8a",
-  realization: "#7a1f2e",
+  realization: "#1e3a5f",
   deload: "#888888",
 }
 
