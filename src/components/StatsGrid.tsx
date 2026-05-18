@@ -10,15 +10,13 @@ interface StatsGridProps {
 
 function HeroCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col rounded-[10px] p-4 min-h-[80px]" style={{ backgroundColor: "#fff1f2" }}>
-      <span className="text-[10px] font-medium uppercase tracking-widest self-start" style={{ color: "#aaaaaa" }}>
+    <div className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: "#fff1f2" }}>
+      <span className="text-2xl font-bold leading-none" style={{ color: "#7a1f2e" }}>
+        {value}
+      </span>
+      <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
         {label}
       </span>
-      <div className="flex-1 flex items-center justify-center">
-        <span className="text-2xl font-bold leading-none" style={{ color: "#7a1f2e" }}>
-          {value}
-        </span>
-      </div>
     </div>
   )
 }
@@ -33,15 +31,13 @@ function StatCell({
   bg: string
 }) {
   return (
-    <div className="flex flex-col rounded-[10px] p-4 min-h-[80px]" style={{ backgroundColor: bg }}>
-      <span className="text-[10px] font-medium uppercase tracking-widest self-start" style={{ color: "#aaaaaa" }}>
+    <div className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: bg }}>
+      <span className="text-xl font-semibold leading-none" style={{ color: "#111111" }}>
+        {value}
+      </span>
+      <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
         {label}
       </span>
-      <div className="flex-1 flex items-center justify-center">
-        <span className="text-xl font-semibold leading-none" style={{ color: "#111111" }}>
-          {value}
-        </span>
-      </div>
     </div>
   )
 }
