@@ -18,7 +18,7 @@ function formatDate(iso: string): string {
 function SetRow({ set }: { set: MainLiftSet }) {
   const isWarmup = set.isWarmup
   const textColor = isWarmup ? "text-[#aaaaaa]" : "text-[#111111]"
-  const e1rmColor = isWarmup ? "text-[#aaaaaa]" : "text-[#7a1f2e]"
+  const e1rmColor = isWarmup ? "text-[#aaaaaa]" : "text-[#1e3a5f]"
 
   return (
     <>
@@ -83,7 +83,7 @@ export default function SessionDetailPage() {
       <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6"
+          className="inline-flex items-center gap-1 text-sm text-[#1e3a5f] mb-6"
         >
           ← Back
         </Link>
@@ -103,7 +103,7 @@ export default function SessionDetailPage() {
       {/* Back */}
       <Link
         href="/"
-        className="inline-flex items-center gap-1 text-sm text-[#7a1f2e] mb-6 hover:underline"
+        className="inline-flex items-center gap-1 text-sm text-[#1e3a5f] mb-6 hover:underline"
       >
         ← Back
       </Link>
@@ -126,7 +126,7 @@ export default function SessionDetailPage() {
           {bestE1RM && (
             <div className="text-right">
               <p className="text-[10px] text-[#aaaaaa] uppercase tracking-wide mb-0.5">e1RM</p>
-              <p className="text-2xl font-semibold text-[#7a1f2e]">{bestE1RM}<span className="text-sm font-normal">kg</span></p>
+              <p className="text-2xl font-semibold text-[#1e3a5f]">{bestE1RM}<span className="text-sm font-normal">kg</span></p>
             </div>
           )}
         </div>
@@ -159,7 +159,7 @@ export default function SessionDetailPage() {
         )}
 
         {/* Sets table */}
-        <div className="bg-[#fdf5f6] rounded-xl px-4 py-3">
+        <div className="bg-[#eff6ff] rounded-xl px-4 py-3">
           <div className="grid grid-cols-[2rem_2.5rem_4.5rem_3.5rem] gap-x-3 mb-2">
             <span className="text-[10px] text-[#aaaaaa] uppercase tracking-wide">Set</span>
             <span className="text-[10px] text-[#aaaaaa] uppercase tracking-wide">kg</span>

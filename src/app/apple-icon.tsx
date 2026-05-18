@@ -4,9 +4,9 @@ export const size = { width: 180, height: 180 }
 export const contentType = 'image/png'
 
 const BG = '#111827'
-const HI = '#fde68a'
-const MN = '#f59e0b'
-const SH = '#92400e'
+const HI = '#bfdbfe'
+const MN = '#2563eb'
+const SH = '#1e3a5f'
 
 // Each original pixel = 5px, centred with 10px padding (32*5=160, 160+20=180)
 const S = 5

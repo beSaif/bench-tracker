@@ -10,8 +10,8 @@ interface StatsGridProps {
 
 function HeroCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: "#fff1f2" }}>
-      <span className="text-2xl font-bold leading-none" style={{ color: "#7a1f2e" }}>
+    <div className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: "#eff6ff" }}>
+      <span className="text-2xl font-bold leading-none" style={{ color: "#1e3a5f" }}>
         {value}
       </span>
       <span className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "#aaaaaa" }}>
@@ -59,7 +59,7 @@ export default function StatsGrid({ e1rm, best, sessions, bw, target }: StatsGri
         <StatCell
           label="E1RM"
           value={e1rm != null ? `${e1rm}kg` : "—"}
-          bg="#fdfaf5"
+          bg="#eff6ff"
         />
         <StatCell
           label="Sessions"

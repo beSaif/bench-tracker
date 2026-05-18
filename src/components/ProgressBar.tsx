@@ -17,12 +17,12 @@ export default function ProgressBar({ current, target }: ProgressBarProps) {
         </span>
         <span className="text-xs text-[#777777]">
           best {current != null ? `${current}kg` : "—"} / {target}kg
-          <span className="ml-2 text-[#7a1f2e] font-medium">{pctStr}%</span>
+          <span className="ml-2 text-[#1e3a5f] font-medium">{pctStr}%</span>
         </span>
       </div>
       <div className="h-[2px] w-full bg-[#e8e8e8] rounded-full overflow-hidden">
         <div
-          className="h-full bg-[#7a1f2e] rounded-full transition-all duration-500"
+          className="h-full bg-[#1e3a5f] rounded-full transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>

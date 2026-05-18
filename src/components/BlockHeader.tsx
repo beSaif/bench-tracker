@@ -17,10 +17,10 @@ const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string
     bg: "bg-[#f5f0ff]",
   },
   realization: {
-    bar: "bg-[#7a1f2e]",
-    label: "text-[#7a1f2e]",
-    meta: "text-[#9a3f4e]",
-    bg: "bg-[#fff0f2]",
+    bar: "bg-[#1e3a5f]",
+    label: "text-[#1e3a5f]",
+    meta: "text-[#3b5f8a]",
+    bg: "bg-[#eff6ff]",
   },
   deload: {
     bar: "bg-[#888888]",

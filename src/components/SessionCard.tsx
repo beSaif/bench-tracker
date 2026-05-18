@@ -35,7 +35,7 @@ function MainLiftSummaryLine({ session }: { session: Session }) {
 
   return (
     <div className="flex items-baseline gap-2 flex-wrap">
-      <span className="text-sm font-semibold text-[#7a1f2e]">{weight}kg</span>
+      <span className="text-sm font-semibold text-[#1e3a5f]">{weight}kg</span>
       <span className="text-sm text-[#555555]">
         × {reps} × {setCount}
       </span>
@@ -43,7 +43,7 @@ function MainLiftSummaryLine({ session }: { session: Session }) {
         <>
           <span className="text-[#dddddd]">·</span>
           <span className="text-xs text-[#777777]">
-            e1RM <span className="font-semibold text-[#7a1f2e]">{bestE1RM}kg</span>
+            e1RM <span className="font-semibold text-[#1e3a5f]">{bestE1RM}kg</span>
           </span>
         </>
       )}
@@ -74,10 +74,10 @@ export default function SessionCard({
   }, [pickerOpen, session.selectedMuscleGroups])
 
   const cardBorder = isUpcoming
-    ? "border-dashed border-[#e0c8cb]"
+    ? "border-dashed border-[#bfdbfe]"
     : "border-solid border-[#e8e8e8]"
-  const cardBg = isUpcoming ? "bg-[#fdf5f6]" : "bg-white"
-  const headerColor = isUpcoming ? "text-[#7a1f2e]" : "text-[#111111]"
+  const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-white"
+  const headerColor = isUpcoming ? "text-[#1e3a5f]" : "text-[#111111]"
 
   const allGroups = [...exerciseConfig].sort((a, b) => a.name.localeCompare(b.name))
 
@@ -89,7 +89,7 @@ export default function SessionCard({
           Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
         </span>
         {isUpcoming ? (
-          <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e] text-white rounded-full px-2 py-0.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f] text-white rounded-full px-2 py-0.5">
             Up next
           </span>
         ) : session.date ? (
@@ -132,7 +132,7 @@ export default function SessionCard({
                   key={g.id}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                     checked
-                      ? "border-[#7a1f2e]/40 bg-[#7a1f2e]/[0.04] text-[#7a1f2e]"
+                      ? "border-[#1e3a5f]/40 bg-[#1e3a5f]/[0.04] text-[#1e3a5f]"
                       : "border-[#e8e8e8] text-[#111111]"
                   }`}
                 >
@@ -144,7 +144,7 @@ export default function SessionCard({
                         prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id]
                       )
                     }
-                    className="accent-[#7a1f2e]"
+                    className="accent-[#1e3a5f]"
                   />
                   <span className="font-medium text-xs">{g.name}</span>
                 </label>
@@ -156,7 +156,7 @@ export default function SessionCard({
               onUpdateMuscleGroups?.(session, selectedGroups)
               setPickerOpen(false)
             }}
-            className="w-full rounded-lg border border-[#7a1f2e] text-[#7a1f2e] text-xs font-semibold py-2 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+            className="w-full rounded-lg border border-[#1e3a5f] text-[#1e3a5f] text-xs font-semibold py-2 hover:bg-[#1e3a5f] hover:text-white transition-colors"
           >
             Save Selection
           </button>
@@ -164,7 +164,7 @@ export default function SessionCard({
       )}
 
       {/* Card Footer */}
-      <div className={`${isUpcoming ? "bg-[#f5e6e8]" : "bg-[#fdf5f6]"} px-4 py-3 flex items-center justify-between`}>
+      <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#eff6ff]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
             const muscles = isUpcoming
@@ -173,7 +173,7 @@ export default function SessionCard({
             return muscles.map((id) => (
               <span
                 key={id}
-                className="text-[10px] font-semibold uppercase tracking-wide bg-[#7a1f2e]/10 text-[#7a1f2e] rounded-full px-2 py-0.5"
+                className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
               >
                 {getMuscleLabel(exerciseConfig, id)}
               </span>
@@ -198,7 +198,7 @@ export default function SessionCard({
             {onStartLogging && (
               <button
                 onClick={() => onStartLogging(session)}
-                className="text-xs font-semibold text-[#7a1f2e] border border-[#7a1f2e] rounded-lg px-3 py-1.5 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+                className="text-xs font-semibold text-[#1e3a5f] border border-[#1e3a5f] rounded-lg px-3 py-1.5 hover:bg-[#1e3a5f] hover:text-white transition-colors"
               >
                 Log Session
               </button>
@@ -211,7 +211,7 @@ export default function SessionCard({
             {onEdit && (
               <button
                 onClick={() => onEdit(session)}
-                className="text-xs font-semibold text-[#7a1f2e] border border-[#7a1f2e] rounded-lg px-3 py-1.5 hover:bg-[#7a1f2e] hover:text-white transition-colors"
+                className="text-xs font-semibold text-[#1e3a5f] border border-[#1e3a5f] rounded-lg px-3 py-1.5 hover:bg-[#1e3a5f] hover:text-white transition-colors"
               >
                 Edit
               </button>
