@@ -25,7 +25,7 @@ import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
-import FriendPresenceStrip from "@/components/FriendPresenceStrip"
+import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
 import { relativeTime } from "@/lib/time"
@@ -747,11 +747,14 @@ export default function Page() {
           </div>
         </header>
 
-        {/* Friends presence */}
-        <FriendPresenceStrip
-          presences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))}
+        {/* Gymbros timeline */}
+        <GymbrosTimeline
+          friendPresences={presences.filter((p) => friendEmails.has(p.email.trim().toLowerCase()))}
           currentUserEmail={profile.email}
-          lastActiveDates={friendLastActive}
+          currentUserName={profile.name}
+          currentUserInSession={presences.find((p) => p.email === profile.email)?.inSession ?? false}
+          currentUserLastSessionDate={confirmedSorted[0]?.date ?? null}
+          friendLastActive={friendLastActive}
           messagesByFriend={messagesByFriend}
           onAvatarClick={handleAvatarClick}
         />
