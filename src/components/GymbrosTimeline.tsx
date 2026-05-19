@@ -148,8 +148,8 @@ export default function GymbrosTimeline({
           return (
             <span
               key={cp.label}
-              className="absolute text-[9px] text-[#bbbbbb] font-medium whitespace-nowrap"
-              style={{ left: `${pct}%`, top: "72px", transform: labelTransform }}
+              className="absolute text-[9px] text-[#bbbbbb] font-medium whitespace-nowrap bg-white px-1 leading-none"
+              style={{ left: `${pct}%`, top: "20px", transform: `${labelTransform} translateY(-50%)` }}
             >
               {cp.label}
             </span>
