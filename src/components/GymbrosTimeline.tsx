@@ -99,7 +99,14 @@ export default function GymbrosTimeline({
 
   const entries: Entry[] = allRaw
     .map((e) => {
-      const h = hoursAgo(e.lastLiftDate)
+      let h: number
+      if (e.isMe && currentUserInSession) {
+        h = 0
+      } else if (!e.isMe && e.presence.inSession && e.presence.startedAt) {
+        h = hoursAgo(e.presence.startedAt)
+      } else {
+        h = hoursAgo(e.lastLiftDate)
+      }
       const k = e.presence.email.trim().toLowerCase()
       return {
         key: k,
@@ -122,8 +129,6 @@ export default function GymbrosTimeline({
     e.posPct = Math.min(100, (px / TRACK_WIDTH_PX) * 100)
     lastPx = px
   }
-
-  const anyFriendOnline = friends.some((p) => p.inSession)
 
   return (
     <div className="mb-5">
@@ -160,7 +165,11 @@ export default function GymbrosTimeline({
         })}
 
         {entries.map((e) => {
-          const timeLabel = e.lastLiftDate ? relativeDate(e.lastLiftDate) : "never"
+          const timeLabel = (e.isMe ? currentUserInSession : e.presence.inSession)
+            ? "lifting now"
+            : e.lastLiftDate
+              ? relativeDate(e.lastLiftDate)
+              : "never"
           const displayName = e.isMe ? "me" : e.presence.name.split(" ")[0]
 
           const avatar = (
@@ -200,7 +209,7 @@ export default function GymbrosTimeline({
           )
 
           const wrapperClass = "absolute top-0 flex flex-col items-center"
-          const style = { left: `${e.posPct}%`, transform: "translateX(-50%)" }
+          const style = { left: `${e.posPct}%`, transform: "translateX(-50%)", transition: "left 0.6s cubic-bezier(0.32, 0.72, 0, 1)" }
 
           if (e.isMe) {
             return (
@@ -252,15 +261,6 @@ export default function GymbrosTimeline({
         )}
       </div>
 
-      {friends.length > 0 && (
-        <div className="flex justify-end mt-1">
-          {anyFriendOnline ? (
-            <span className="text-[11px] text-green-600 font-medium">lifting now</span>
-          ) : (
-            <span className="text-[11px] text-[#cccccc]">no one lifting</span>
-          )}
-        </div>
-      )}
     </div>
   )
 }
