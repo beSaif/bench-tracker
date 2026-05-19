@@ -127,6 +127,12 @@ export default function GymbrosTimeline({
       </div>
 
       <div className="relative h-[64px] w-full">
+        {/* Rail */}
+        <div className="absolute left-0 right-0 top-[20px] h-px bg-[#e8e8e8]" />
+        {/* End caps */}
+        <div className="absolute left-0 top-[16px] w-[2px] h-[8px] bg-[#cccccc] rounded-full" />
+        <div className="absolute right-0 top-[16px] w-[2px] h-[8px] bg-[#cccccc] rounded-full" />
+
         {entries.map((e) => {
           const timeLabel = e.lastLiftDate ? relativeDate(e.lastLiftDate) : "never"
           const displayName = e.isMe ? "me" : e.presence.name.split(" ")[0]
