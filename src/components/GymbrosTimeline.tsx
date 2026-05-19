@@ -17,6 +17,14 @@ const AVATAR_PX = 40
 const MIN_GAP_PX = 44
 const THIRTY_DAYS_HOURS = 720
 
+const CHECKPOINTS: { hours: number; label: string }[] = [
+  { hours: 0, label: "now" },
+  { hours: 24, label: "1d" },
+  { hours: 72, label: "3d" },
+  { hours: 168, label: "1w" },
+  { hours: 336, label: "2w+" },
+]
+
 function hoursAgo(dateStr: string | null | undefined): number {
   if (!dateStr) return Infinity
   return Math.max(0, (Date.now() - new Date(dateStr).getTime()) / 3_600_000)
@@ -119,19 +127,37 @@ export default function GymbrosTimeline({
 
   return (
     <div className="mb-5">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">gymbros</p>
-        <span className="text-[10px] text-[#cccccc] font-medium">
-          ← now &nbsp;·&nbsp; older →
-        </span>
-      </div>
+      <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa] mb-2">gymbros</p>
 
-      <div className="relative h-[64px] w-full">
+      <div className="relative h-[88px] w-full">
         {/* Rail */}
         <div className="absolute left-0 right-0 top-[20px] h-px bg-[#e8e8e8]" />
-        {/* End caps */}
-        <div className="absolute left-0 top-[16px] w-[2px] h-[8px] bg-[#cccccc] rounded-full" />
-        <div className="absolute right-0 top-[16px] w-[2px] h-[8px] bg-[#cccccc] rounded-full" />
+
+        {/* Checkpoint ticks + bottom-axis labels */}
+        {CHECKPOINTS.map((cp, i) => {
+          const pct = positionPct(cp.hours, maxH)
+          const isFirst = i === 0
+          const isLast = i === CHECKPOINTS.length - 1
+          const labelTransform = isFirst
+            ? "translateX(0)"
+            : isLast
+              ? "translateX(-100%)"
+              : "translateX(-50%)"
+          return (
+            <div key={cp.label}>
+              <div
+                className="absolute w-px h-[10px] bg-[#d4d4d4]"
+                style={{ left: `${pct}%`, top: "15px", transform: "translateX(-50%)" }}
+              />
+              <span
+                className="absolute text-[9px] text-[#bbbbbb] font-medium whitespace-nowrap"
+                style={{ left: `${pct}%`, top: "72px", transform: labelTransform }}
+              >
+                {cp.label}
+              </span>
+            </div>
+          )
+        })}
 
         {entries.map((e) => {
           const timeLabel = e.lastLiftDate ? relativeDate(e.lastLiftDate) : "never"
