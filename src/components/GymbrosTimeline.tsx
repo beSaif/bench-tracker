@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef, useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { GymbroMessage, UserPresence } from "@/lib/types"
 import { relativeDate } from "@/lib/time"
@@ -12,7 +13,6 @@ function initials(name: string): string {
     .join("")
 }
 
-const TRACK_WIDTH_PX = 360
 const AVATAR_PX = 40
 const MIN_GAP_PX = 44
 const THIRTY_DAYS_HOURS = 720
@@ -35,6 +35,12 @@ function positionPct(h: number, maxH: number): number {
   return (Math.log(h + 1) / Math.log(maxH + 1)) * 100
 }
 
+function stalenessStyle(hours: number, inSession: boolean): { backgroundColor: string; color: string } {
+  if (inSession || hours < 24) return { backgroundColor: "#e8f5e9", color: "#2e7d32" }
+  if (hours < 72) return { backgroundColor: "#fff8e1", color: "#e65100" }
+  return { backgroundColor: "#f0f0f0", color: "#555555" }
+}
+
 interface Entry {
   key: string
   presence: UserPresence
@@ -43,6 +49,7 @@ interface Entry {
   hours: number
   posPct: number
   msgCount: number
+  labelRow: 0 | 1
 }
 
 interface Props {
@@ -66,6 +73,20 @@ export default function GymbrosTimeline({
   messagesByFriend,
   onAvatarClick,
 }: Props) {
+  const railRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(360)
+
+  useEffect(() => {
+    const el = railRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w && w > 0) setContainerWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const friends = friendPresences.filter((p) => p.email !== currentUserEmail)
 
   const mePresence: UserPresence = {
@@ -97,31 +118,50 @@ export default function GymbrosTimeline({
     .filter((h) => isFinite(h))
   const maxH = Math.max(THIRTY_DAYS_HOURS, ...finiteHours)
 
-  const entries: Entry[] = allRaw
-    .map((e) => {
-      const h = hoursAgo(e.lastLiftDate)
-      const k = e.presence.email.trim().toLowerCase()
-      return {
-        key: k,
-        presence: e.presence,
-        isMe: e.isMe,
-        lastLiftDate: e.lastLiftDate,
-        hours: h,
-        posPct: positionPct(h, maxH),
-        msgCount: e.isMe ? 0 : messagesByFriend?.[k]?.length ?? 0,
-      }
-    })
-    .sort((a, b) => a.posPct - b.posPct)
+  const computedEntries = useMemo<Entry[]>(() => {
+    const positioned: Entry[] = allRaw
+      .map((e) => {
+        const h = hoursAgo(e.lastLiftDate)
+        const k = e.presence.email.trim().toLowerCase()
+        return {
+          key: k,
+          presence: e.presence,
+          isMe: e.isMe,
+          lastLiftDate: e.lastLiftDate,
+          hours: h,
+          posPct: positionPct(h, maxH),
+          msgCount: e.isMe ? 0 : messagesByFriend?.[k]?.length ?? 0,
+          labelRow: 0 as 0 | 1,
+        }
+      })
+      .sort((a, b) => a.posPct - b.posPct)
 
-  // Collision avoidance: push items right if they'd overlap.
-  let lastPx = -Infinity
-  const usableWidth = TRACK_WIDTH_PX - AVATAR_PX
-  for (const e of entries) {
-    let px = (e.posPct / 100) * usableWidth + AVATAR_PX / 2
-    if (px - lastPx < MIN_GAP_PX) px = lastPx + MIN_GAP_PX
-    e.posPct = Math.min(100, (px / TRACK_WIDTH_PX) * 100)
-    lastPx = px
-  }
+    // Collision avoidance: push items right using real container width
+    let lastPx = -Infinity
+    const usableWidth = containerWidth - AVATAR_PX
+    for (const e of positioned) {
+      let px = (e.posPct / 100) * usableWidth + AVATAR_PX / 2
+      if (px - lastPx < MIN_GAP_PX) px = lastPx + MIN_GAP_PX
+      e.posPct = Math.min(100, (px / containerWidth) * 100)
+      lastPx = px
+    }
+
+    // Label stagger: alternate rows when avatars are too close
+    const STAGGER_THRESHOLD_PCT = (60 / containerWidth) * 100
+    for (let i = 0; i < positioned.length; i++) {
+      if (i === 0) { positioned[i].labelRow = 0; continue }
+      const tooClose = positioned[i].posPct - positioned[i - 1].posPct < STAGGER_THRESHOLD_PCT
+      positioned[i].labelRow = tooClose ? (positioned[i - 1].labelRow === 0 ? 1 : 0) : 0
+    }
+
+    return positioned
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerWidth, allRaw.length, currentUserLastSessionDate, friendLastActive, messagesByFriend, maxH])
+
+  const activeZonePct =
+    computedEntries.length > 0 && isFinite(computedEntries[0].hours)
+      ? computedEntries[0].posPct
+      : 0
 
   const anyFriendOnline = friends.some((p) => p.inSession)
 
@@ -129,9 +169,17 @@ export default function GymbrosTimeline({
     <div className="mb-5">
       <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa] mb-2">gymbros</p>
 
-      <div className="relative h-[88px] w-full">
+      <div ref={railRef} className="relative h-[88px] w-full">
         {/* Rail */}
         <div className="absolute left-0 right-0 top-[20px] h-px bg-[#e8e8e8]" />
+
+        {/* Active zone: green tint from left edge to most-recent avatar */}
+        {activeZonePct > 0 && (
+          <div
+            className="absolute top-[20px] h-px"
+            style={{ left: 0, width: `${activeZonePct}%`, backgroundColor: "#c8e6c9" }}
+          />
+        )}
 
         {/* Checkpoint ticks + bottom-axis labels */}
         {CHECKPOINTS.map((cp, i) => {
@@ -159,16 +207,18 @@ export default function GymbrosTimeline({
           )
         })}
 
-        {entries.map((e) => {
+        {computedEntries.map((e) => {
           const timeLabel = e.lastLiftDate ? relativeDate(e.lastLiftDate) : "never"
           const displayName = e.isMe ? "me" : e.presence.name.split(" ")[0]
+          const labelTopPx = 44 + (e.labelRow === 1 ? 12 : 0)
 
           const avatar = (
             <div className="relative">
               <div
-                className={`w-10 h-10 rounded-full bg-[#f0f0f0] flex items-center justify-center text-xs font-bold text-[#555555] select-none active:opacity-70 transition-opacity ${
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold select-none active:opacity-70 transition-opacity ${
                   e.isMe ? "ring-2 ring-[#1e3a5f]/40" : ""
                 }`}
+                style={stalenessStyle(e.hours, e.presence.inSession)}
               >
                 {initials(e.presence.name)}
               </div>
@@ -186,26 +236,23 @@ export default function GymbrosTimeline({
           )
 
           const labelBlock = (
-            <div className="flex flex-col items-center gap-0.5 mt-1 leading-none">
-              <span className="text-[10px] text-[#aaaaaa] font-medium">{displayName}</span>
-              <span className="text-[9px] text-[#cccccc]">{timeLabel}</span>
+            <div
+              className="absolute flex flex-col items-center gap-0.5 leading-none"
+              style={{ top: `${labelTopPx}px`, left: "50%", transform: "translateX(-50%)" }}
+            >
+              <span className="text-[10px] text-[#aaaaaa] font-medium whitespace-nowrap">{displayName}</span>
+              <span className="text-[9px] text-[#cccccc] whitespace-nowrap">{timeLabel}</span>
             </div>
           )
 
-          const inner = (
-            <>
-              {avatar}
-              {labelBlock}
-            </>
-          )
-
-          const wrapperClass = "absolute top-0 flex flex-col items-center"
+          const wrapperClass = "absolute top-0"
           const style = { left: `${e.posPct}%`, transform: "translateX(-50%)" }
 
           if (e.isMe) {
             return (
               <div key={e.key} className={wrapperClass} style={style}>
-                {inner}
+                {avatar}
+                {labelBlock}
               </div>
             )
           }
@@ -218,7 +265,8 @@ export default function GymbrosTimeline({
                 className={wrapperClass}
                 style={style}
               >
-                {inner}
+                {avatar}
+                {labelBlock}
               </button>
             )
           }
@@ -230,7 +278,8 @@ export default function GymbrosTimeline({
               className={wrapperClass}
               style={style}
             >
-              {inner}
+              {avatar}
+              {labelBlock}
             </Link>
           )
         })}
@@ -238,7 +287,7 @@ export default function GymbrosTimeline({
         {friends.length === 0 && (
           <Link
             href="/gymbros"
-            className="absolute top-0 flex flex-col items-center"
+            className="absolute top-0"
             style={{ left: "55%", transform: "translateX(-50%)" }}
           >
             <div className="w-10 h-10 rounded-full border-2 border-dashed border-[#cccccc] flex items-center justify-center text-[#aaaaaa] text-lg font-light active:opacity-70 transition-opacity">
