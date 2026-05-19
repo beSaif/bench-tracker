@@ -19,9 +19,6 @@ const THIRTY_DAYS_HOURS = 720
 
 const CHECKPOINTS: { hours: number; label: string }[] = [
   { hours: 0, label: "now" },
-  { hours: 24, label: "1d" },
-  { hours: 72, label: "3d" },
-  { hours: 168, label: "1w" },
   { hours: 336, label: "2w+" },
 ]
 
@@ -149,18 +146,13 @@ export default function GymbrosTimeline({
               ? "translateX(-100%)"
               : "translateX(-50%)"
           return (
-            <div key={cp.label}>
-              <div
-                className="absolute w-px h-[10px] bg-[#d4d4d4]"
-                style={{ left: `${pct}%`, top: "15px", transform: "translateX(-50%)" }}
-              />
-              <span
-                className="absolute text-[9px] text-[#bbbbbb] font-medium whitespace-nowrap"
-                style={{ left: `${pct}%`, top: "72px", transform: labelTransform }}
-              >
-                {cp.label}
-              </span>
-            </div>
+            <span
+              key={cp.label}
+              className="absolute text-[9px] text-[#bbbbbb] font-medium whitespace-nowrap"
+              style={{ left: `${pct}%`, top: "72px", transform: labelTransform }}
+            >
+              {cp.label}
+            </span>
           )
         })}
 
