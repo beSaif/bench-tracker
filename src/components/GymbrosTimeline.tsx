@@ -94,16 +94,18 @@ export default function GymbrosTimeline({
     .filter((h) => isFinite(h))
   const maxH = Math.max(THIRTY_DAYS_HOURS, ...finiteHours)
 
+  const entryHours = allRaw.map((e) => {
+    if (e.isMe && currentUserInSession) return 0
+    if (!e.isMe && e.presence.inSession && e.presence.startedAt) return hoursAgo(e.presence.startedAt)
+    return hoursAgo(e.lastLiftDate)
+  })
+  const finiteEntryHours = entryHours.filter((h) => isFinite(h))
+  const minFiniteH = finiteEntryHours.length > 0 ? Math.min(...finiteEntryHours) : 0
+
   const entries: Entry[] = allRaw
-    .map((e) => {
-      let h: number
-      if (e.isMe && currentUserInSession) {
-        h = 0
-      } else if (!e.isMe && e.presence.inSession && e.presence.startedAt) {
-        h = hoursAgo(e.presence.startedAt)
-      } else {
-        h = hoursAgo(e.lastLiftDate)
-      }
+    .map((e, i) => {
+      const h = entryHours[i]
+      const shifted = isFinite(h) ? Math.max(0, h - minFiniteH) : h
       const k = e.presence.email.trim().toLowerCase()
       return {
         key: k,
@@ -111,7 +113,7 @@ export default function GymbrosTimeline({
         isMe: e.isMe,
         lastLiftDate: e.lastLiftDate,
         hours: h,
-        posPct: positionPct(h, maxH),
+        posPct: positionPct(shifted, maxH),
         msgCount: e.isMe ? 0 : messagesByFriend?.[k]?.length ?? 0,
       }
     })
