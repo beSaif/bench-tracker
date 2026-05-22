@@ -1687,9 +1687,6 @@ export default function LogSessionModal({
                 >
                   ‹ Prev
                 </button>
-                <span className="text-xs text-[#aaaaaa] tabular-nums">
-                  {currentSetIndex + 1} / {carouselItems.length}
-                </span>
                 <button
                   onClick={navigateNext}
                   disabled={currentSetIndex === carouselItems.length - 1}
@@ -1740,10 +1737,10 @@ export default function LogSessionModal({
             className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-[#aaaaaa] hover:text-[#111111] px-3 py-2 transition-colors"
             aria-label="Manage exercises"
           >
+            <span className="text-[11px] uppercase tracking-widest font-medium">Exercises</span>
             <svg width="20" height="11" viewBox="0 0 20 11" fill="none">
               <path d="M1 10L10 1L19 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <span className="text-[11px] uppercase tracking-widest font-medium">Exercises</span>
           </button>
         )}
 
