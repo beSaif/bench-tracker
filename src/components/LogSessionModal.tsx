@@ -1738,8 +1738,8 @@ export default function LogSessionModal({
             aria-label="Manage exercises"
           >
             <span className="text-[11px] uppercase tracking-widest font-medium">Exercises</span>
-            <svg width="20" height="11" viewBox="0 0 20 11" fill="none">
-              <path d="M1 10L10 1L19 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="10" height="6" viewBox="0 0 20 11" fill="none">
+              <path d="M1 10L10 1L19 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         )}
