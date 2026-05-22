@@ -1734,13 +1734,13 @@ export default function LogSessionModal({
         {mode === "log" && !allDone && carouselItems.length > 0 && (
           <button
             onClick={() => { setExercisesSheetTab("current"); setShowExercisesSheet(true) }}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-[#aaaaaa] hover:text-[#111111] px-3 py-2 transition-colors"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 text-[#aaaaaa] hover:text-[#111111] px-3 py-1 transition-colors"
             aria-label="Manage exercises"
           >
-            <span className="text-[11px] uppercase tracking-widest font-medium">Exercises</span>
             <svg width="10" height="6" viewBox="0 0 20 11" fill="none">
               <path d="M1 10L10 1L19 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
+            <span className="text-[11px] uppercase tracking-widest font-medium">Exercises</span>
           </button>
         )}
 
