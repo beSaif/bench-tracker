@@ -7,6 +7,7 @@ import {
   MuscleGroup,
   ExtraWorkout,
   ExtraSet,
+  MAIN_LIFT_LABEL,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
@@ -357,8 +358,10 @@ export default function LogSessionModal({
   const [exerciseOrder, setExerciseOrder] = useState<ExerciseGroup[]>(
     () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig)
   )
-  const [showReorder, setShowReorder] = useState(false)
-  const [showMuscleGroupPicker, setShowMuscleGroupPicker] = useState(false)
+  const [showExercisesSheet, setShowExercisesSheet] = useState(false)
+  const [exercisesSheetTab, setExercisesSheetTab] = useState<"current" | "add">("current")
+  const [swapFromMuscle, setSwapFromMuscle] = useState<string | null>(null)
+  const [pendingSwap, setPendingSwap] = useState<{ from: string; to: string } | null>(null)
   const [pendingDeleteExercise, setPendingDeleteExercise] = useState<
     { kind: "main" } | { kind: "extra"; muscle: string; exercise: string } | null
   >(null)
@@ -735,19 +738,33 @@ export default function LogSessionModal({
     setCompletedSets((prev) => { const n = new Set(prev); n.delete(setId); return n })
   }
 
-  function addMuscleGroup(muscleId: string) {
-    setSelectedGroups((prev) => [...prev, muscleId])
+  function addExerciseToMuscle(muscleId: string, exerciseName: string) {
+    setSelectedGroups((prev) => (prev.includes(muscleId) ? prev : [...prev, muscleId]))
     setExtraState((prev) => {
+      const muscleExercises = prev[muscleId] ?? {}
+      if (muscleExercises[exerciseName]) return prev
       const muscleGroup = exerciseConfig.find((g) => g.id === muscleId)
-      const exercises: Record<string, EditableExtraSet[]> = {}
-      for (const name of getExercisesForMuscle(exerciseConfig, muscleId)) {
-        const exConfig = muscleGroup?.exercises.find((e) => e.name === name)
-        const count = exConfig ? getDefaultSets(exConfig) : 3
-        exercises[name] = Array.from({ length: count }, () => defaultExtraSet())
+      const exConfig = muscleGroup?.exercises.find((e) => e.name === exerciseName)
+      const count = exConfig ? getDefaultSets(exConfig) : 3
+      return {
+        ...prev,
+        [muscleId]: {
+          ...muscleExercises,
+          [exerciseName]: Array.from({ length: count }, () => defaultExtraSet()),
+        },
       }
-      return { ...prev, [muscleId]: exercises }
     })
-    setShowMuscleGroupPicker(false)
+    setExerciseOrder((prev) =>
+      prev.some((g) => g.kind === "extra" && g.muscle === muscleId && g.exercise === exerciseName)
+        ? prev
+        : [...prev, { kind: "extra", muscle: muscleId, exercise: exerciseName }]
+    )
+  }
+
+  function addMuscleGroup(muscleId: string) {
+    for (const name of getExercisesForMuscle(exerciseConfig, muscleId)) {
+      addExerciseToMuscle(muscleId, name)
+    }
   }
 
   function removeMuscleGroup(muscleId: string) {
@@ -757,6 +774,23 @@ export default function LogSessionModal({
       delete next[muscleId]
       return next
     })
+    setExerciseOrder((prev) =>
+      prev.filter((g) => !(g.kind === "extra" && g.muscle === muscleId))
+    )
+    setCompletedSets((prev) => {
+      const prefix = `extra-${muscleId}-`
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (!key.startsWith(prefix)) next.add(key)
+      }
+      return next
+    })
+  }
+
+  function swapMuscleGroup(fromId: string, toId: string) {
+    removeMuscleGroup(fromId)
+    addMuscleGroup(toId)
+    setPendingSwap(null)
   }
 
   function deleteExercise(muscle: string, exercise: string) {
@@ -796,6 +830,10 @@ export default function LogSessionModal({
   }
 
   function deleteMainExercise() {
+    if (mainLiftLabel === MAIN_LIFT_LABEL.bench) {
+      setPendingDeleteExercise(null)
+      return
+    }
     setSets([])
     setCompletedSets((prev) => {
       const next = new Set<string>()
@@ -819,8 +857,9 @@ export default function LogSessionModal({
     })
   }
 
-  function closeReorder() {
-    setShowReorder(false)
+  function closeExercisesSheet() {
+    setShowExercisesSheet(false)
+    setSwapFromMuscle(null)
     const items = buildCarouselItems(exerciseOrder, sets, extraState)
     const first = items.findIndex((item) => !completedSets.has(getItemKey(item)))
     setCurrentSetIndex(first >= 0 ? first : 0)
@@ -872,11 +911,218 @@ export default function LogSessionModal({
     return `${item.exercise} · Set ${item.setIndex + 1}`
   }
 
+  const availableGroups = sortedMuscleGroups(exerciseConfig).filter(
+    (g) => !selectedGroups.includes(g.id)
+  )
+
+  const exercisesSheet = showExercisesSheet ? (
+    <>
+      <div className="absolute inset-0 bg-black/20 z-10" onClick={closeExercisesSheet} />
+      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] flex flex-col z-20 max-h-[75%]">
+        <div className="flex justify-center pt-3 shrink-0">
+          <div className="w-9 h-1 bg-[#e0e0e0] rounded-full" />
+        </div>
+        <div className="pt-3 pb-2 px-4 flex items-center justify-between shrink-0">
+          <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
+            Exercises
+          </p>
+          <button onClick={closeExercisesSheet} className="text-sm font-semibold text-[#1e3a5f]">
+            Done
+          </button>
+        </div>
+        <div className="px-4 pb-3 flex gap-1.5 shrink-0">
+          <button
+            onClick={() => setExercisesSheetTab("current")}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              exercisesSheetTab === "current"
+                ? "bg-[#111111] text-white"
+                : "bg-[#f5f5f5] text-[#777777] hover:bg-[#ebebeb]"
+            }`}
+          >
+            Current
+          </button>
+          <button
+            onClick={() => setExercisesSheetTab("add")}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              exercisesSheetTab === "add"
+                ? "bg-[#111111] text-white"
+                : "bg-[#f5f5f5] text-[#777777] hover:bg-[#ebebeb]"
+            }`}
+          >
+            Add
+          </button>
+        </div>
+
+        {exercisesSheetTab === "current" && (
+          <>
+            <div className="px-4 py-2.5 border-y border-[#f0f0f0] flex items-center gap-2 shrink-0">
+              <span className="text-[12px] font-semibold text-[#111111]">
+                {completedCount} / {carouselItems.length} sets
+              </span>
+              <span className="text-[#dddddd]">·</span>
+              <span className="text-[12px] text-[#777777]">
+                {totalVolume.toLocaleString()} kg volume
+              </span>
+            </div>
+            {selectedGroups.length > 0 && (
+              <div className="px-4 py-3 border-b border-[#f0f0f0] shrink-0 space-y-2">
+                <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium">
+                  Muscle groups
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedGroups.map((muscleId) => (
+                    <div key={muscleId} className="flex items-center gap-1 rounded-full bg-[#f5f5f5] pl-3 pr-1 py-1">
+                      <span className="text-xs font-medium text-[#333333]">
+                        {getMuscleLabel(exerciseConfig, muscleId)}
+                      </span>
+                      {availableGroups.length > 0 && (
+                        <button
+                          onClick={() => setSwapFromMuscle(swapFromMuscle === muscleId ? null : muscleId)}
+                          className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-colors ${
+                            swapFromMuscle === muscleId
+                              ? "bg-[#1e3a5f] text-white"
+                              : "text-[#777777] hover:text-[#111111]"
+                          }`}
+                        >
+                          Swap
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {swapFromMuscle && (
+                  <div className="rounded-xl border border-[#e8e8e8] p-1.5">
+                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium px-2 pt-1 pb-0.5">
+                      Swap {getMuscleLabel(exerciseConfig, swapFromMuscle)} with…
+                    </p>
+                    {availableGroups.map((g) => (
+                      <button
+                        key={g.id}
+                        onClick={() => setPendingSwap({ from: swapFromMuscle, to: g.id })}
+                        className="w-full text-left px-2 py-2 rounded-lg hover:bg-[#f5f5f5] text-sm text-[#111111]"
+                      >
+                        {g.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto py-1 px-4">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={exerciseOrder.map(groupId)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {exerciseOrder.map((group) => {
+                    const isBenchMain = group.kind === "main" && mainLiftLabel === MAIN_LIFT_LABEL.bench
+                    return (
+                      <SortableGroupRow
+                        key={groupId(group)}
+                        id={groupId(group)}
+                        group={group}
+                        sets={sets}
+                        extraState={extraState}
+                        completedSets={completedSets}
+                        exerciseConfig={exerciseConfig}
+                        mainLiftLabel={mainLiftLabel}
+                        onDelete={isBenchMain
+                          ? undefined
+                          : group.kind === "extra"
+                            ? () => setPendingDeleteExercise({ kind: "extra", muscle: group.muscle, exercise: group.exercise })
+                            : () => setPendingDeleteExercise({ kind: "main" })}
+                      />
+                    )
+                  })}
+                </SortableContext>
+              </DndContext>
+            </div>
+          </>
+        )}
+
+        {exercisesSheetTab === "add" && (
+          <div className="flex-1 overflow-y-auto py-3 px-4 space-y-3 border-t border-[#f0f0f0]">
+            {sortedMuscleGroups(exerciseConfig).map((g) => {
+              const present = extraState[g.id] ?? {}
+              const allExercises = getExercisesForMuscle(exerciseConfig, g.id)
+              const allAdded = allExercises.length > 0 && allExercises.every((name) => present[name])
+              return (
+                <div key={g.id} className="rounded-xl border border-[#e8e8e8] p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-[#111111]">{g.name}</p>
+                    {!allAdded && (
+                      <button
+                        onClick={() => addMuscleGroup(g.id)}
+                        className="text-[10px] uppercase tracking-wide text-[#1e3a5f] hover:text-[#16304f] font-semibold px-2 py-1"
+                      >
+                        Add all
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-0.5">
+                    {allExercises.map((name) => {
+                      const added = !!present[name]
+                      return (
+                        <div key={name} className="flex items-center justify-between py-1.5">
+                          <span className="text-sm text-[#333333]">{name}</span>
+                          {added ? (
+                            <span className="text-[10px] uppercase tracking-wide text-[#aaaaaa]">Added</span>
+                          ) : (
+                            <button
+                              onClick={() => addExerciseToMuscle(g.id, name)}
+                              className="text-[10px] uppercase tracking-wide text-[#1e3a5f] hover:text-[#16304f] font-semibold px-2 py-1"
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  ) : null
+
+  const swapConfirmation = pendingSwap ? (
+    <>
+      <div className="absolute inset-0 bg-black/30 z-30" onClick={() => setPendingSwap(null)} />
+      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.15)] z-40 p-5">
+        <p className="text-sm font-semibold text-[#111111] mb-1">Swap muscle group?</p>
+        <p className="text-base font-bold text-[#111111]">
+          {getMuscleLabel(exerciseConfig, pendingSwap.from)} → {getMuscleLabel(exerciseConfig, pendingSwap.to)}
+        </p>
+        <p className="text-xs text-[#aaaaaa] mt-1 mb-4">
+          All {getMuscleLabel(exerciseConfig, pendingSwap.from)} exercises and sets will be removed and replaced with default {getMuscleLabel(exerciseConfig, pendingSwap.to)} exercises.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setPendingSwap(null)}
+            className="flex-1 rounded-xl py-3 text-sm font-semibold bg-[#f5f5f5] text-[#333333] hover:bg-[#ebebeb] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => swapMuscleGroup(pendingSwap.from, pendingSwap.to)}
+            className="flex-1 rounded-xl py-3 text-sm font-semibold bg-[#1e3a5f] text-white hover:bg-[#16304f] transition-colors"
+          >
+            Swap
+          </button>
+        </div>
+      </div>
+    </>
+  ) : null
+
   // Edit mode — scrollable full-session list
   if (mode === "edit") {
-    const availableGroups = sortedMuscleGroups(exerciseConfig).filter(
-      (g) => !selectedGroups.includes(g.id)
-    )
     return (
       <div className="fixed inset-0 z-50 bg-white flex flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
         <div className="mx-auto w-full max-w-[393px] flex flex-col flex-1 min-h-0 relative">
@@ -907,12 +1153,14 @@ export default function LogSessionModal({
                   <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium">
                     {mainLiftLabel}
                   </p>
-                  <button
-                    onClick={() => setPendingDeleteExercise({ kind: "main" })}
-                    className="text-xs text-[#bbbbbb] hover:text-red-400 transition-colors px-1"
-                  >
-                    Remove
-                  </button>
+                  {mainLiftLabel !== MAIN_LIFT_LABEL.bench && (
+                    <button
+                      onClick={() => setPendingDeleteExercise({ kind: "main" })}
+                      className="text-xs text-[#bbbbbb] hover:text-red-400 transition-colors px-1"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-2">
                   {sets.map((set, idx) => (
@@ -1033,15 +1281,13 @@ export default function LogSessionModal({
                 </div>
               ))}
 
-              {/* Add muscle group */}
-              {availableGroups.length > 0 && (
-                <button
-                  onClick={() => setShowMuscleGroupPicker(true)}
-                  className="w-full py-3 rounded-2xl border border-dashed border-[#e8e8e8] text-xs font-medium text-[#aaaaaa] hover:text-[#777777] hover:border-[#aaaaaa] transition-colors"
-                >
-                  + Add muscle group
-                </button>
-              )}
+              {/* Manage exercises */}
+              <button
+                onClick={() => { setExercisesSheetTab("add"); setShowExercisesSheet(true) }}
+                className="w-full py-3 rounded-2xl border border-dashed border-[#e8e8e8] text-xs font-medium text-[#aaaaaa] hover:text-[#777777] hover:border-[#aaaaaa] transition-colors"
+              >
+                + Add exercise or muscle group
+              </button>
 
               {/* Notes */}
               <div>
@@ -1066,37 +1312,8 @@ export default function LogSessionModal({
             </div>
           </div>
 
-          {/* Muscle group picker bottom sheet */}
-          {showMuscleGroupPicker && (
-            <>
-              <div
-                className="absolute inset-0 bg-black/20 z-10"
-                onClick={() => setShowMuscleGroupPicker(false)}
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] z-20">
-                <div className="flex justify-center pt-3">
-                  <div className="w-9 h-1 bg-[#e0e0e0] rounded-full" />
-                </div>
-                <div className="pt-3 pb-3 px-4 border-b border-[#f0f0f0]">
-                  <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
-                    Add Muscle Group
-                  </p>
-                </div>
-                <div className="px-4 py-3 space-y-1">
-                  {availableGroups.map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => addMuscleGroup(g.id)}
-                      className="w-full text-left px-3 py-3 rounded-xl hover:bg-[#f5f5f5] text-sm font-medium text-[#111111] transition-colors"
-                    >
-                      {g.name}
-                    </button>
-                  ))}
-                </div>
-                <div className="h-6" />
-              </div>
-            </>
-          )}
+          {exercisesSheet}
+          {swapConfirmation}
 
           {/* Delete exercise confirmation */}
           {pendingDeleteExercise && (
@@ -1356,12 +1573,14 @@ export default function LogSessionModal({
                           >
                             Delete set
                           </button>
-                          <button
-                            onClick={() => setPendingDeleteExercise({ kind: "main" })}
-                            className="text-xs text-[#bbbbbb] hover:text-red-400 transition-colors px-1"
-                          >
-                            Delete exercise
-                          </button>
+                          {mainLiftLabel !== MAIN_LIFT_LABEL.bench && (
+                            <button
+                              onClick={() => setPendingDeleteExercise({ kind: "main" })}
+                              className="text-xs text-[#bbbbbb] hover:text-red-400 transition-colors px-1"
+                            >
+                              Delete exercise
+                            </button>
+                          )}
                         </div>
                         <button
                           onClick={() => addSetAfterCurrent(item.globalIndex)}
@@ -1514,75 +1733,22 @@ export default function LogSessionModal({
 
         </div>
 
-        {/* Chevron trigger — bottom center, only during active logging */}
+        {/* Exercises sheet trigger — bottom center, only during active logging */}
         {mode === "log" && !allDone && carouselItems.length > 0 && (
           <button
-            onClick={() => setShowReorder(true)}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[#dddddd] hover:text-[#aaaaaa] p-2 transition-colors"
-            aria-label="Reorder exercises"
+            onClick={() => { setExercisesSheetTab("current"); setShowExercisesSheet(true) }}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-[#aaaaaa] hover:text-[#111111] px-3 py-2 transition-colors"
+            aria-label="Manage exercises"
           >
             <svg width="20" height="11" viewBox="0 0 20 11" fill="none">
               <path d="M1 10L10 1L19 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
+            <span className="text-[11px] uppercase tracking-widest font-medium">Exercises</span>
           </button>
         )}
 
-        {/* Bottom sheet */}
-        {showReorder && (
-          <>
-            <div className="absolute inset-0 bg-black/20 z-10" onClick={closeReorder} />
-            <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-[0_-4px_24px_rgba(0,0,0,0.10)] flex flex-col z-20 max-h-[65%]">
-              <div className="flex justify-center pt-3 shrink-0">
-                <div className="w-9 h-1 bg-[#e0e0e0] rounded-full" />
-              </div>
-              <div className="pt-3 pb-3 px-4 flex items-center justify-between shrink-0 border-b border-[#f0f0f0]">
-                <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa]">
-                  Exercises
-                </p>
-                <button onClick={closeReorder} className="text-sm font-semibold text-[#1e3a5f]">
-                  Done
-                </button>
-              </div>
-              <div className="px-4 py-2.5 border-b border-[#f0f0f0] flex items-center gap-2 shrink-0">
-                <span className="text-[12px] font-semibold text-[#111111]">
-                  {completedCount} / {carouselItems.length} sets
-                </span>
-                <span className="text-[#dddddd]">·</span>
-                <span className="text-[12px] text-[#777777]">
-                  {totalVolume.toLocaleString()} kg volume
-                </span>
-              </div>
-              <div className="flex-1 overflow-y-auto py-1 px-4">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={exerciseOrder.map(groupId)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {exerciseOrder.map((group) => (
-                      <SortableGroupRow
-                        key={groupId(group)}
-                        id={groupId(group)}
-                        group={group}
-                        sets={sets}
-                        extraState={extraState}
-                        completedSets={completedSets}
-                        exerciseConfig={exerciseConfig}
-                        mainLiftLabel={mainLiftLabel}
-                        onDelete={group.kind === "extra"
-                          ? () => setPendingDeleteExercise({ kind: "extra", muscle: group.muscle, exercise: group.exercise })
-                          : () => setPendingDeleteExercise({ kind: "main" })}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-              </div>
-            </div>
-          </>
-        )}
+        {exercisesSheet}
+        {swapConfirmation}
 
         {/* Delete exercise confirmation */}
         {pendingDeleteExercise && (
