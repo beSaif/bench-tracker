@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -41,3 +42,30 @@ yarn-error.log*
 next-env.d.ts
 /secrets
 .env*.local
+
+# capacitor / ios build artifacts
+/ios/App/Pods
+/ios/App/build
+/ios/App/Podfile.lock
+/ios/App/App/public
+/ios/DerivedData
+*.xcuserstate
+xcuserdata/
+
+# capacitor / android build artifacts
+/android/.gradle
+/android/build
+/android/app/build
+/android/captures
+/android/local.properties
+/android/app/src/main/assets/public
+/android/app/src/main/assets/capacitor.config.json
+/android/app/src/main/assets/capacitor.plugins.json
+/android/.idea
+*.iml
+
+# capacitor-generated icons / splash (regenerated from resources/)
+/android/app/src/main/res/mipmap-*/ic_launcher*.png
+/android/app/src/main/res/drawable*/splash*.png
+/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-*.png
+/ios/App/App/Assets.xcassets/Splash.imageset/splash-*.png

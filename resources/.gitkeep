@@ -1,0 +1,6 @@
+Drop two PNGs in this directory, then run `npm run mobile:assets`:
+
+  icon.png      1024 x 1024  (app icon, opaque or with transparent corners)
+  splash.png    2732 x 2732  (logo centred; outer area must match #111827)
+
+`@capacitor/assets` generates every iOS / Android size from these two files.
