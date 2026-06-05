@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, TrainingBlock, BlockPhase } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig } from "@/lib/storage"
+import { Session, TrainingBlock, BlockPhase, UserProfile } from "@/lib/types"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal } from "@/lib/storage"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
+import ShareImageModal from "@/components/ShareImageModal"
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
@@ -26,11 +27,14 @@ export default function HistoryPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [shareSession, setShareSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setSessions(loadSessionsLocal())
     setBlocks(loadBlocksLocal())
+    setProfile(loadProfileLocal())
     loadExerciseConfig().then(setExerciseConfig)
     setMounted(true)
   }, [])
@@ -86,9 +90,19 @@ export default function HistoryPage() {
           <SessionCard
             key={s.id}
             session={s}
+            onShare={profile ? setShareSession : undefined}
             exerciseConfig={exerciseConfig}
           />
         ))
+      )}
+
+      {shareSession && profile && (
+        <ShareImageModal
+          session={shareSession}
+          sessions={sessions}
+          profile={profile}
+          onClose={() => setShareSession(null)}
+        />
       )}
     </main>
   )

@@ -24,9 +24,10 @@ function initials(name: string) {
 interface Props {
   friends: UserProfile[]
   onClose: () => void
+  onShareWorkout?: () => void
 }
 
-export default function HypePanelModal({ friends, onClose }: Props) {
+export default function HypePanelModal({ friends, onClose, onShareWorkout }: Props) {
   const autoSelected = friends.length === 1 ? friends[0] : null
   const [pickedFriend, setPickedFriend] = useState<UserProfile | null>(autoSelected)
   const [blastAll, setBlastAll] = useState(false)
@@ -66,12 +67,22 @@ export default function HypePanelModal({ friends, onClose }: Props) {
               "{sentText}"
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="mt-2 px-8 py-3 rounded-full bg-zinc-800 text-zinc-300 text-sm font-medium hover:bg-zinc-700 active:scale-95 transition-all"
-          >
-            close
-          </button>
+          <div className="flex flex-col items-center gap-2 mt-2">
+            {onShareWorkout && (
+              <button
+                onClick={onShareWorkout}
+                className="px-8 py-3 rounded-full bg-white text-zinc-900 text-sm font-semibold hover:bg-zinc-100 active:scale-95 transition-all"
+              >
+                share this session 📸
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-8 py-3 rounded-full bg-zinc-800 text-zinc-300 text-sm font-medium hover:bg-zinc-700 active:scale-95 transition-all"
+            >
+              close
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -107,12 +118,22 @@ export default function HypePanelModal({ friends, onClose }: Props) {
         ) : (
           <div />
         )}
-        <button
-          onClick={onClose}
-          className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
-        >
-          skip
-        </button>
+        <div className="flex items-center gap-4">
+          {!inComposer && onShareWorkout && (
+            <button
+              onClick={onShareWorkout}
+              className="text-white hover:text-zinc-200 text-sm font-medium transition-colors active:scale-95"
+            >
+              share 📸
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+          >
+            skip
+          </button>
+        </div>
       </div>
 
       {/* Title block */}

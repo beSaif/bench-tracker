@@ -28,6 +28,8 @@ import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideMod
 import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
+import ShareImageModal from "@/components/ShareImageModal"
+import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -52,31 +54,6 @@ function suggestNextMuscles(confirmedSessions: Session[], muscleRotation: string
     }
   })
   return muscleRotation[(bestIdx + 1) % muscleRotation.length]
-}
-
-function getBestE1RM(sessions: Session[]): number | null {
-  const validSets = sessions
-    .filter((s) => s.confirmed && s.date != null && s.type !== "Deload")
-    .flatMap((s) => s.sets.filter((set) => !set.isWarmup))
-    .map((set) => set.e1rm)
-    .filter((v): v is number => v != null)
-  return validSets.length > 0 ? Math.max(...validSets) : null
-}
-
-function getBestWeight(sessions: Session[]): number | null {
-  const all = sessions
-    .filter((s) => s.confirmed)
-    .flatMap((s) => s.sets.filter((set) => !set.isWarmup))
-    .map((s) => s.kg)
-    .filter((v): v is number => v != null)
-  return all.length > 0 ? Math.max(...all) : null
-}
-
-function getLatestBW(sessions: Session[]): number | null {
-  const withBW = sessions
-    .filter((s) => s.confirmed && s.bw != null && s.date != null)
-    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
-  return withBW[0]?.bw ?? null
 }
 
 function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
@@ -171,6 +148,8 @@ export default function Page() {
   const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>(() => loadFriendLastActiveLocal())
   const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([])
   const [showHypePanel, setShowHypePanel] = useState(false)
+  const [lastConfirmed, setLastConfirmed] = useState<Session | null>(null)
+  const [shareSession, setShareSession] = useState<Session | null>(null)
   const [messagesByFriend, setMessagesByFriend] = useState<Record<string, GymbroMessage[]>>({})
   const [msgPopupFriend, setMsgPopupFriend] = useState<UserPresence | null>(null)
   const [msgPopupMessages, setMsgPopupMessages] = useState<GymbroMessage[]>([])
@@ -566,6 +545,7 @@ export default function Page() {
     cancelIncompleteSessionReminder()
     scheduleInactivityReminder()
     signalPresence(false)
+    setLastConfirmed(updatedSession)
     setShowHypePanel(true)
   }
 
@@ -899,6 +879,7 @@ export default function Page() {
                   blockIndex={blockIndexMap.get(s.id)}
                   onEdit={handleEditSession}
                   onUnlog={handleUnlogSession}
+                  onShare={setShareSession}
                   exerciseConfig={exerciseConfig}
                 />
               ))}
@@ -933,6 +914,7 @@ export default function Page() {
               session={s}
               onEdit={handleEditSession}
               onUnlog={handleUnlogSession}
+              onShare={setShareSession}
               exerciseConfig={exerciseConfig}
             />
           ))}
@@ -1035,6 +1017,24 @@ export default function Page() {
         <HypePanelModal
           friends={friendProfiles}
           onClose={() => setShowHypePanel(false)}
+          onShareWorkout={
+            lastConfirmed
+              ? () => {
+                  setShowHypePanel(false)
+                  setShareSession(lastConfirmed)
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {/* Shareable workout image */}
+      {shareSession && profile && (
+        <ShareImageModal
+          session={shareSession}
+          sessions={sessions}
+          profile={profile}
+          onClose={() => setShareSession(null)}
         />
       )}
 

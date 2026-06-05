@@ -11,6 +11,7 @@ interface SessionCardProps {
   onStartLogging?: (session: Session) => void
   onEdit?: (session: Session) => void
   onUnlog?: (session: Session) => void
+  onShare?: (session: Session) => void
   onUpdateMuscleGroups?: (session: Session, muscles: MuscleGroup[]) => void
   exerciseConfig: MuscleGroupConfig[]
 }
@@ -57,6 +58,7 @@ export default function SessionCard({
   onStartLogging,
   onEdit,
   onUnlog,
+  onShare,
   onUpdateMuscleGroups,
   exerciseConfig,
 }: SessionCardProps) {
@@ -206,8 +208,16 @@ export default function SessionCard({
           </div>
         )}
 
-        {!isUpcoming && (onEdit || onUnlog) && (
+        {!isUpcoming && (onEdit || onUnlog || onShare) && (
           <div className="flex gap-2">
+            {onShare && (
+              <button
+                onClick={() => onShare(session)}
+                className="text-xs font-semibold text-[#1e3a5f] border border-[#1e3a5f] rounded-lg px-3 py-1.5 hover:bg-[#1e3a5f] hover:text-white transition-colors"
+              >
+                Share
+              </button>
+            )}
             {onEdit && (
               <button
                 onClick={() => onEdit(session)}
