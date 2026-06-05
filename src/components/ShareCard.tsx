@@ -95,7 +95,6 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
       ref={ref}
       style={{
         width: 1080,
-        height: 1350,
         backgroundColor: "#ffffff",
         color: FG,
         fontFamily: FONT,
@@ -130,7 +129,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
       </div>
 
       {/* Hero set line */}
-      <div style={{ marginTop: 96 }}>
+      <div style={{ marginTop: 64 }}>
         <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 20 }}>
           {hasSets ? (
             <>
@@ -157,14 +156,14 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
       </div>
 
       {/* Stat row */}
-      <div style={{ display: "flex", gap: 24, marginTop: 80 }}>
+      <div style={{ display: "flex", gap: 24, marginTop: 56 }}>
         <StatCell label="Best e1RM" value={bestE1RM != null ? `${bestE1RM}kg` : "—"} hero />
         <StatCell label="Goal" value={`${target}kg`} />
         <StatCell label="Bodyweight" value={bodyweight != null ? `${bodyweight}kg` : "—"} />
       </div>
 
       {/* Progress bar */}
-      <div style={{ marginTop: 72 }}>
+      <div style={{ marginTop: 56 }}>
         <div
           style={{
             display: "flex",
@@ -209,34 +208,34 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
         </div>
       </div>
 
-      {/* Branding — pinned to bottom */}
+      {/* Branding — sits just below the progress bar */}
       <div
         style={{
-          marginTop: "auto",
+          marginTop: 56,
           display: "flex",
           alignItems: "center",
-          gap: 16,
-          paddingTop: 64,
+          gap: 20,
+          paddingTop: 48,
           borderTop: `2px solid ${BORDER}`,
         }}
       >
         <div
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
+            width: 72,
+            height: 72,
+            borderRadius: 18,
             backgroundColor: ACCENT,
             color: "#ffffff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 34,
+            fontSize: 44,
             fontWeight: 800,
           }}
         >
           b
         </div>
-        <span style={{ fontSize: 34, fontWeight: 600, letterSpacing: -0.5, color: FG }}>
+        <span style={{ fontSize: 44, fontWeight: 600, letterSpacing: -0.5, color: FG }}>
           best workout tracker
         </span>
       </div>

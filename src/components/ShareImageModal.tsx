@@ -36,7 +36,7 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
 
   const bestE1RM = getBestE1RM(sessions)
   const bestWeight = getBestWeight(sessions)
-  const bodyweight = session.bw ?? getLatestBW(sessions)
+  const bodyweight = session.bw ?? getLatestBW(sessions) ?? profile.bw
   const dateStr = session.date ?? new Date().toISOString()
   const fileName = `bench-${dateStr.slice(0, 10)}.png`
 
@@ -57,9 +57,11 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
         )
 
         const { toBlob } = await import("html-to-image")
+        // Card height is content-driven, so capture its measured height
+        // rather than a fixed value to avoid empty space or clipping.
         const blob = await toBlob(node, {
           width: 1080,
-          height: 1350,
+          height: Math.ceil(node.offsetHeight),
           pixelRatio: 1,
           backgroundColor: "#ffffff",
           cacheBust: true,
@@ -168,7 +170,6 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
             src={previewUrl}
             alt="Workout share card"
             className="max-h-full max-w-full rounded-2xl shadow-2xl object-contain animate-fade-up"
-            style={{ aspectRatio: "1080 / 1350" }}
           />
         )}
       </div>
