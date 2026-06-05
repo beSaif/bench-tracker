@@ -23,6 +23,17 @@ const MUTED_LIGHT = "#aaaaaa"
 const BORDER = "#e8e8e8"
 const FONT = '"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 
+const SHARE_PHASES = [
+  { label: "Volume",    color: "#2d6a2d" },
+  { label: "Intensity", color: "#5a2d8a" },
+  { label: "Peak",      color: "#1e3a5f" },
+  { label: "Deload",    color: "#888888" },
+] as const
+
+const PHASE_INDEX: Record<string, number> = {
+  Volume: 0, Intensity: 1, Peak: 2, Deload: 3,
+}
+
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
@@ -86,8 +97,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
   const summary = sessionSummary(session)
   const hasSets = summary.weight != null && summary.reps != null && summary.setCount > 0
 
-  const pct = bestWeight != null ? Math.min((bestWeight / target) * 100, 100) : 0
-  const pctStr = pct.toFixed(1)
+  const activeIdx = PHASE_INDEX[session.type] ?? 0
 
   return (
     <div
@@ -154,49 +164,72 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
         <StatCell label="Bodyweight" value={bodyweight != null ? `${bodyweight}kg` : "—"} />
       </div>
 
-      {/* Progress bar */}
+      {/* Phase line */}
       <div style={{ marginTop: 56 }}>
+        <span
+          style={{
+            fontSize: 26,
+            fontWeight: 500,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            color: MUTED,
+          }}
+        >
+          Training Phase
+        </span>
         <div
           style={{
             display: "flex",
+            alignItems: "flex-start",
             justifyContent: "space-between",
-            alignItems: "baseline",
-            marginBottom: 20,
+            marginTop: 24,
           }}
         >
-          <span
-            style={{
-              fontSize: 26,
-              fontWeight: 500,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-              color: MUTED,
-            }}
-          >
-            Road to {target}kg
-          </span>
-          <span style={{ fontSize: 26, color: MUTED }}>
-            best {bestWeight != null ? `${bestWeight}kg` : "—"} / {target}kg
-            <span style={{ marginLeft: 16, color: ACCENT, fontWeight: 600 }}>{pctStr}%</span>
-          </span>
-        </div>
-        <div
-          style={{
-            height: 14,
-            width: "100%",
-            backgroundColor: BORDER,
-            borderRadius: 999,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              width: `${pct}%`,
-              backgroundColor: ACCENT,
-              borderRadius: 999,
-            }}
-          />
+          {SHARE_PHASES.map((phase, i) => (
+            <div key={phase.label} style={{ display: "flex", alignItems: "center" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                  minWidth: 120,
+                }}
+              >
+                <div
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    backgroundColor: i <= activeIdx ? phase.color : "#dddddd",
+                    opacity: i < activeIdx ? 0.55 : i > activeIdx ? 0.4 : 1,
+                    boxShadow: i === activeIdx ? `0 0 0 4px ${phase.color}40` : "none",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 24,
+                    textAlign: "center",
+                    color: i === activeIdx ? phase.color : i < activeIdx ? "#999999" : "#aaaaaa",
+                    fontWeight: i === activeIdx ? 700 : 500,
+                    opacity: i < activeIdx ? 0.75 : 1,
+                  }}
+                >
+                  {i < activeIdx ? "✓ " : ""}{phase.label}
+                </span>
+                {i === activeIdx && (
+                  <span style={{ fontSize: 18, color: phase.color, opacity: 0.6, marginTop: -4 }}>
+                    now
+                  </span>
+                )}
+              </div>
+              {i < SHARE_PHASES.length - 1 && (
+                <span style={{ color: "#cccccc", fontSize: 28, margin: "0 8px", marginTop: 8 }}>
+                  ›
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
