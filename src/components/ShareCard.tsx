@@ -6,7 +6,6 @@ import { sessionSummary } from "@/lib/stats"
 
 export interface ShareCardProps {
   session: Session
-  bestE1RM: number | null
   bestWeight: number | null
   bodyweight: number | null
   target: number
@@ -81,7 +80,7 @@ function StatCell({
 }
 
 const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
-  { session, bestE1RM, bestWeight, bodyweight, target, date, mainLiftLabel },
+  { session, bestWeight, bodyweight, target, date, mainLiftLabel },
   ref
 ) {
   const summary = sessionSummary(session)
@@ -146,18 +145,11 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
             </span>
           )}
         </div>
-        {summary.bestE1RM != null && (
-          <div style={{ marginTop: 28, fontSize: 40, color: MUTED }}>
-            e1RM{" "}
-            <span style={{ fontWeight: 700, color: ACCENT }}>{summary.bestE1RM}kg</span>{" "}
-            this session
-          </div>
-        )}
       </div>
 
       {/* Stat row */}
       <div style={{ display: "flex", gap: 24, marginTop: 56 }}>
-        <StatCell label="Best e1RM" value={bestE1RM != null ? `${bestE1RM}kg` : "—"} hero />
+        <StatCell label="Current Best" value={bestWeight != null ? `${bestWeight}kg` : "—"} hero />
         <StatCell label="Goal" value={`${target}kg`} />
         <StatCell label="Bodyweight" value={bodyweight != null ? `${bodyweight}kg` : "—"} />
       </div>

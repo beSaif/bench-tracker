@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Session, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
-import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
+import { getBestWeight, getLatestBW } from "@/lib/stats"
 import ShareCard from "@/components/ShareCard"
 
 interface Props {
@@ -34,7 +34,6 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
     )
   }, [])
 
-  const bestE1RM = getBestE1RM(sessions)
   const bestWeight = getBestWeight(sessions)
   const bodyweight = session.bw ?? getLatestBW(sessions) ?? profile.bw
   const dateStr = session.date ?? new Date().toISOString()
@@ -216,7 +215,6 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
         <ShareCard
           ref={cardRef}
           session={session}
-          bestE1RM={bestE1RM}
           bestWeight={bestWeight}
           bodyweight={bodyweight}
           target={profile.target}
