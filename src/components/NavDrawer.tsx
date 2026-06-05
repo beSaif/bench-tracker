@@ -122,6 +122,22 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               </span>
               Gymbros
             </Link>
+
+            <Link
+              href="/profile"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                pathname === "/profile"
+                  ? "bg-[#eff6ff] text-[#1e3a5f]"
+                  : "text-[#333333] hover:bg-[#f5f5f5]"
+              }`}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="8" cy="5" r="2.75" />
+                <path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5" />
+              </svg>
+              Profile
+            </Link>
           </nav>
 
           <div className="mt-8 pt-4 border-t border-[#f0f0f0]">
