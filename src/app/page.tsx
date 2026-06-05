@@ -162,15 +162,28 @@ export default function Page() {
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
   const sessionsRef = useRef<Session[]>([])
 
   function handleTitlePointerDown() {
+    longPressFired.current = false
     longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
       window.location.href = "/dev"
     }, 800)
   }
 
+  // Short tap on the title opens the profile; long-press (800ms) opens dev tools.
   function handleTitlePointerUp() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+      if (!longPressFired.current) router.push("/profile")
+    }
+  }
+
+  // Pointer left the title before release — cancel without navigating.
+  function handleTitlePointerCancel() {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current)
       longPressTimer.current = null
@@ -705,10 +718,12 @@ export default function Page() {
             <div>
               <p className="text-xs text-[#bbbbbb] lowercase mb-0.5">best workout tracker.</p>
               <h1
-                className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-default"
+                className="text-2xl font-semibold text-[#111111] tracking-tight select-none cursor-pointer"
                 onPointerDown={handleTitlePointerDown}
                 onPointerUp={handleTitlePointerUp}
-                onPointerLeave={handleTitlePointerUp}
+                onPointerLeave={handleTitlePointerCancel}
+                role="button"
+                aria-label="Open profile"
               >
                 hello, {firstName}
               </h1>
