@@ -59,15 +59,15 @@ function StatCell({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 12,
-        padding: "32px 16px",
+        gap: 10,
+        padding: "20px 16px",
         borderRadius: 20,
         backgroundColor: hero ? ACCENT_BG : "#f8f8f8",
       }}
     >
       <span
         style={{
-          fontSize: 56,
+          fontSize: 52,
           fontWeight: 700,
           lineHeight: 1,
           color: hero ? ACCENT : FG,
@@ -77,7 +77,7 @@ function StatCell({
       </span>
       <span
         style={{
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: 500,
           letterSpacing: 2,
           textTransform: "uppercase",
@@ -103,11 +103,11 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
     <div
       ref={ref}
       style={{
-        width: 1080,
+        width: 1200,
         backgroundColor: "#ffffff",
         color: FG,
         fontFamily: FONT,
-        padding: 80,
+        padding: 60,
         display: "flex",
         flexDirection: "column",
         boxSizing: "border-box",
@@ -123,7 +123,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
       >
         <span
           style={{
-            fontSize: 26,
+            fontSize: 24,
             fontWeight: 600,
             letterSpacing: 3,
             textTransform: "uppercase",
@@ -133,12 +133,12 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
           {mainLiftLabel} · {session.type}
         </span>
         {date && (
-          <span style={{ fontSize: 26, color: MUTED_LIGHT }}>{formatDate(date)}</span>
+          <span style={{ fontSize: 24, color: MUTED_LIGHT }}>{formatDate(date)}</span>
         )}
       </div>
 
       {/* Hero set line */}
-      <div style={{ marginTop: 64 }}>
+      <div style={{ marginTop: 40 }}>
         <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 20 }}>
           {hasSets ? (
             <>
@@ -158,17 +158,17 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
       </div>
 
       {/* Stat row */}
-      <div style={{ display: "flex", gap: 24, marginTop: 56 }}>
+      <div style={{ display: "flex", gap: 20, marginTop: 32 }}>
         <StatCell label="Current Best" value={bestWeight != null ? `${bestWeight}kg` : "—"} hero />
         <StatCell label="Goal" value={`${target}kg`} />
         <StatCell label="Bodyweight" value={bodyweight != null ? `${bodyweight}kg` : "—"} />
       </div>
 
       {/* Phase line */}
-      <div style={{ marginTop: 56 }}>
+      <div style={{ marginTop: 28 }}>
         <span
           style={{
-            fontSize: 26,
+            fontSize: 20,
             fontWeight: 500,
             letterSpacing: 2,
             textTransform: "uppercase",
@@ -182,7 +182,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
-            marginTop: 24,
+            marginTop: 16,
           }}
         >
           {SHARE_PHASES.map((phase, i) => (
@@ -192,23 +192,23 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: 8,
-                  minWidth: 120,
+                  gap: 10,
+                  minWidth: 140,
                 }}
               >
                 <div
                   style={{
-                    width: 18,
-                    height: 18,
+                    width: 34,
+                    height: 34,
                     borderRadius: "50%",
                     backgroundColor: i <= activeIdx ? phase.color : "#dddddd",
                     opacity: i < activeIdx ? 0.55 : i > activeIdx ? 0.4 : 1,
-                    boxShadow: i === activeIdx ? `0 0 0 4px ${phase.color}40` : "none",
+                    boxShadow: i === activeIdx ? `0 0 0 7px ${phase.color}40` : "none",
                   }}
                 />
                 <span
                   style={{
-                    fontSize: 24,
+                    fontSize: 22,
                     textAlign: "center",
                     color: i === activeIdx ? phase.color : i < activeIdx ? "#999999" : "#aaaaaa",
                     fontWeight: i === activeIdx ? 700 : 500,
@@ -218,13 +218,13 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                   {i < activeIdx ? "✓ " : ""}{phase.label}
                 </span>
                 {i === activeIdx && (
-                  <span style={{ fontSize: 18, color: phase.color, opacity: 0.6, marginTop: -4 }}>
+                  <span style={{ fontSize: 16, color: phase.color, opacity: 0.6, marginTop: -2 }}>
                     now
                   </span>
                 )}
               </div>
               {i < SHARE_PHASES.length - 1 && (
-                <span style={{ color: "#cccccc", fontSize: 28, margin: "0 8px", marginTop: 8 }}>
+                <span style={{ color: "#cccccc", fontSize: 32, margin: "0 12px", marginTop: 8 }}>
                   ›
                 </span>
               )}
@@ -236,31 +236,31 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
       {/* Branding — sits just below the progress bar */}
       <div
         style={{
-          marginTop: 56,
+          marginTop: 28,
           display: "flex",
           alignItems: "center",
-          gap: 20,
-          paddingTop: 48,
+          gap: 16,
+          paddingTop: 32,
           borderTop: `2px solid ${BORDER}`,
         }}
       >
         <div
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 18,
+            width: 64,
+            height: 64,
+            borderRadius: 16,
             backgroundColor: ACCENT,
             color: "#ffffff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 44,
+            fontSize: 38,
             fontWeight: 800,
           }}
         >
           b
         </div>
-        <span style={{ fontSize: 44, fontWeight: 600, letterSpacing: -0.5, color: FG }}>
+        <span style={{ fontSize: 38, fontWeight: 600, letterSpacing: -0.5, color: FG }}>
           best workout tracker
         </span>
       </div>
