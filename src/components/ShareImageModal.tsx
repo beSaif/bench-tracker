@@ -138,28 +138,28 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       {/* Top bar */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-2">
-        <p className="text-zinc-500 text-xs uppercase tracking-widest font-semibold">
+      <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <p className="text-zinc-500 text-[11px] uppercase tracking-[0.18em] font-semibold">
           share your lift
         </p>
         <button
           onClick={onClose}
-          className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+          className="text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-colors px-1"
         >
           close
         </button>
       </div>
 
       {/* Preview */}
-      <div className="flex-1 flex items-center justify-center px-6 pb-2 min-h-0">
+      <div className="flex-1 flex items-center justify-center px-5 pb-3 min-h-0">
         {status === "loading" && (
           <div className="flex flex-col items-center gap-3 text-zinc-500">
             <div className="w-8 h-8 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin" />
-            <span className="text-sm">building your card…</span>
+            <span className="text-sm tracking-wide">building your card…</span>
           </div>
         )}
         {status === "error" && (
-          <p className="text-zinc-500 text-sm text-center max-w-[260px]">
+          <p className="text-zinc-500 text-sm text-center max-w-[260px] leading-relaxed">
             couldn&apos;t build the image. try again.
           </p>
         )}
@@ -168,14 +168,17 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
           <img
             src={previewUrl}
             alt="Workout share card"
-            className="max-h-full max-w-full rounded-2xl shadow-2xl object-contain animate-fade-up"
+            className="max-h-full max-w-full rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] object-contain animate-fade-up"
           />
         )}
       </div>
 
       {/* Actions */}
-      <div className="px-5 pb-8 pt-3" style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}>
-        <div className="flex gap-2.5">
+      <div
+        className="px-5 pt-2"
+        style={{ paddingBottom: "calc(1.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex gap-2">
           {canShare && (
             <button
               onClick={share}
