@@ -254,14 +254,14 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                   display: "flex",
                   flexDirection: "column",
                   gap: 10,
-                  opacity: i > activeIdx ? 0.28 : 1,
+                  opacity: i > activeIdx ? 0.65 : 1,
                 }}
               >
                 <div
                   style={{
                     height: 6,
                     borderRadius: 4,
-                    backgroundColor: i <= activeIdx ? phase.color : "#e0e0e0",
+                    backgroundColor: i <= activeIdx ? phase.color : "#999999",
                   }}
                 />
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -283,7 +283,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                     style={{
                       fontSize: 20,
                       fontWeight: i === activeIdx ? 700 : 500,
-                      color: i <= activeIdx ? phase.color : "#cccccc",
+                      color: i <= activeIdx ? phase.color : "#888888",
                       lineHeight: 1,
                     }}
                   >
