@@ -112,6 +112,15 @@ export interface FriendRequest {
 
 export type MuscleGroup = string
 
+export interface TrainingDay {
+  id: string
+  name: string
+  order: number
+  muscleGroupIds: string[]
+}
+
+export const TRAINING_DAYS_KEY = "lift-tracker-training-days"
+
 export interface ExtraSet {
   kg: number
   reps: number

@@ -1,5 +1,5 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, UserProfile, UserPresence } from "./types"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "./exerciseConfig"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
 
@@ -95,6 +95,46 @@ export async function saveProfile(profile: Omit<UserProfile, "email" | "createdA
   }
 }
 
+export function loadTrainingDaysLocal(): TrainingDay[] {
+  try {
+    const raw = localStorage.getItem(TRAINING_DAYS_KEY)
+    if (!raw) return DEFAULT_TRAINING_DAYS
+    const parsed = JSON.parse(raw) as TrainingDay[]
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_TRAINING_DAYS
+  } catch {
+    return DEFAULT_TRAINING_DAYS
+  }
+}
+
+function saveTrainingDaysLocal(days: TrainingDay[]): void {
+  localStorage.setItem(TRAINING_DAYS_KEY, JSON.stringify(days))
+}
+
+export async function loadTrainingDays(): Promise<TrainingDay[]> {
+  try {
+    const res = await fetch("/api/training-days")
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data) && data.length > 0) {
+        saveTrainingDaysLocal(data)
+        return data
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return loadTrainingDaysLocal()
+}
+
+export function saveTrainingDays(days: TrainingDay[]): void {
+  saveTrainingDaysLocal(days)
+  fetch("/api/training-days", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(days),
+  }).catch(() => {})
+}
+
 /** Wipe all per-user local data — call on sign out. */
 export function wipeLocalUserData(): void {
   localStorage.removeItem(STORAGE_KEY)
@@ -102,6 +142,7 @@ export function wipeLocalUserData(): void {
   localStorage.removeItem(EXERCISES_KEY)
   localStorage.removeItem(PROFILE_KEY)
   localStorage.removeItem(DRAFT_KEY)
+  localStorage.removeItem(TRAINING_DAYS_KEY)
 }
 
 /** Load sessions + blocks from KV, falling back to localStorage. */

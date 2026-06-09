@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence, GymbroMessage } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadAll, loadExerciseConfig, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -16,7 +16,8 @@ import {
 import { generateWarmups } from "@/lib/warmup"
 import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, buildMuscleRotation } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, buildRotationFromDays } from "@/lib/exerciseConfig"
+import { TrainingDay } from "@/lib/types"
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
@@ -65,7 +66,8 @@ function createUpcomingSession(
   sessions: Session[],
   blocks: TrainingBlock[],
   config: MuscleGroupConfig[],
-  profile: UserProfile
+  profile: UserProfile,
+  trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS
 ): Session {
   const activeBlock = getActiveBlock(blocks)
 
@@ -96,7 +98,7 @@ function createUpcomingSession(
   const phase = activeBlock?.phase ?? "accumulation"
   const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
-  const muscleRotation = buildMuscleRotation(config)
+  const muscleRotation = buildRotationFromDays(trainingDays)
 
   return {
     id: maxId + 1,
@@ -111,11 +113,11 @@ function createUpcomingSession(
   }
 }
 
-function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[]): Session[] {
+function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[], trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS): Session[] {
   const upcoming = sessions.find((s) => !s.confirmed)
   if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
   const confirmed = sessions.filter((s) => s.confirmed)
-  const suggested = suggestNextMuscles(confirmed, buildMuscleRotation(config))
+  const suggested = suggestNextMuscles(confirmed, buildRotationFromDays(trainingDays))
   return sessions.map((s) =>
     s.id === upcoming.id ? { ...s, selectedMuscleGroups: suggested } : s
   )
@@ -135,6 +137,7 @@ export default function Page() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
+  const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
   const [loggingSession, setLoggingSession] = useState<Session | null>(null)
   const [activeDraft, setActiveDraft] = useState<SessionDraft | null>(null)
   const [draftPrompt, setDraftPrompt] = useState<{ session: Session; draft: SessionDraft } | null>(null)
@@ -199,10 +202,12 @@ export default function Page() {
       const localSessions = loadSessionsLocal()
       const localBlocks = loadBlocksLocal()
       const localConfig = loadExerciseConfigLocal()
+      const localDays = loadTrainingDaysLocal()
       setProfile(cachedProfile)
-      if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
+      if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig, localDays))
       if (localBlocks.length > 0) setBlocks(localBlocks)
       setExerciseConfig(localConfig)
+      setTrainingDays(localDays)
       setMounted(true)
     }
 
@@ -222,19 +227,22 @@ export default function Page() {
         const localSessions = loadSessionsLocal()
         const localBlocks = loadBlocksLocal()
         const localConfig = loadExerciseConfigLocal()
-        if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig))
+        const localDays = loadTrainingDaysLocal()
+        if (localSessions.length > 0) setSessions(backfillMuscles(localSessions, localConfig, localDays))
         if (localBlocks.length > 0) setBlocks(localBlocks)
         setExerciseConfig(localConfig)
+        setTrainingDays(localDays)
         setMounted(true)
       }
 
       // Async load from KV
-      Promise.all([loadAll(), loadExerciseConfig()]).then(
-        ([{ sessions: data, blocks: loadedBlocks }, config]) => {
+      Promise.all([loadAll(), loadExerciseConfig(), loadTrainingDays()]).then(
+        ([{ sessions: data, blocks: loadedBlocks }, config, days]) => {
           if (cancelled) return
           setExerciseConfig(config)
+          setTrainingDays(days)
 
-          let finalSessions = backfillMuscles(data, config)
+          let finalSessions = backfillMuscles(data, config, days)
 
           // One-time migration for historical "Push" sessions
           const migrated = migrateSessionTypes(finalSessions)
@@ -254,7 +262,7 @@ export default function Page() {
               startDate: null,
               endDate: null,
             }]
-            const upcoming = createUpcomingSession(confirmed, seededBlocks, config, p)
+            const upcoming = createUpcomingSession(confirmed, seededBlocks, config, p, days)
             finalSessions = sortSessions([...confirmed, upcoming])
             finalBlocks = seededBlocks
             saveAll(finalSessions, finalBlocks)
@@ -267,7 +275,7 @@ export default function Page() {
           const hasUpcoming = finalSessions.some((s) => !s.confirmed)
           if (!hasUpcoming) {
             const confirmed = finalSessions.filter((s) => s.confirmed)
-            const upcoming = createUpcomingSession(confirmed, finalBlocks, config, p)
+            const upcoming = createUpcomingSession(confirmed, finalBlocks, config, p, days)
             finalSessions = sortSessions([...confirmed, upcoming])
             saveAll(finalSessions, finalBlocks)
           }
@@ -500,7 +508,7 @@ export default function Page() {
       }]
     }
 
-    const upcoming = createUpcomingSession(confirmed, finalBlocks, exerciseConfig, profile)
+    const upcoming = createUpcomingSession(confirmed, finalBlocks, exerciseConfig, profile, trainingDays)
     const finalSessions = sortSessions([...confirmed, upcoming])
     saveAll(finalSessions, finalBlocks)
     setSessions(finalSessions)
@@ -545,7 +553,7 @@ export default function Page() {
       }
     }
 
-    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig, profile)
+    const newUpcoming = createUpcomingSession(confirmedSessions, finalBlocks, exerciseConfig, profile, trainingDays)
     const final = sortSessions([...confirmedSessions, newUpcoming])
 
     setSessions(final)
@@ -647,7 +655,7 @@ export default function Page() {
       )
     }
 
-    const newUpcoming = createUpcomingSession(remaining, newBlocks, exerciseConfig, profile)
+    const newUpcoming = createUpcomingSession(remaining, newBlocks, exerciseConfig, profile, trainingDays)
     const final = sortSessions([...remaining, newUpcoming])
 
     setSessions(final)
