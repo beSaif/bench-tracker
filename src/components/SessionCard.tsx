@@ -100,6 +100,13 @@ export default function SessionCard({
   const topReps = working[0]?.reps ?? null
   const setCount = working.length
 
+  // Muscles trained in a completed session (for its training-day card)
+  const confirmedMuscles: MuscleGroup[] =
+    session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
+      ? session.selectedMuscleGroups
+      : session.extraWorkouts?.map((w) => w.muscle) ?? []
+  const confirmedDay = sortedDays.find((d) => d.id === session.selectedTrainingDayId) ?? null
+
   const upcomingBody = (
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
@@ -140,23 +147,43 @@ export default function SessionCard({
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
               Training Day
             </p>
-            {sortedDays.length > 1 && (
-              <button
-                onClick={() => setDayPickerOpen((v) => !v)}
-                className="text-[11px] font-semibold text-[#777777] hover:text-[#1e3a5f] transition-colors"
-              >
-                {dayPickerOpen ? "Close" : "Switch day"}
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {onUpdateMuscleGroups && (
+                <button
+                  onClick={() => setPickerOpen((v) => !v)}
+                  className="text-[11px] font-semibold text-[#777777] hover:text-[#1e3a5f] transition-colors"
+                >
+                  {pickerOpen
+                    ? "Close"
+                    : extraMuscles.length > 0
+                    ? `${extraMuscles.length} extra${extraMuscles.length > 1 ? "s" : ""}`
+                    : "+ Extras"}
+                </button>
+              )}
+              {sortedDays.length > 1 && (
+                <button
+                  onClick={() => setDayPickerOpen((v) => !v)}
+                  className="text-[11px] font-semibold text-[#777777] hover:text-[#1e3a5f] transition-colors"
+                >
+                  {dayPickerOpen ? "Close" : "Switch day"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Prescribed day — single, informative line */}
           <div className="flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-3 py-2 text-white">
             <div className="flex flex-col">
               <span className="text-[13px] font-bold leading-tight">{selectedDay.name}</span>
-              {dayMuscles.length > 0 && (
+              {(dayMuscles.length > 0 || extraMuscles.length > 0) && (
                 <span className="text-[11px] font-medium text-white/70 leading-tight">
                   {dayMuscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" + ")}
+                  {extraMuscles.length > 0 && (
+                    <span className="text-white">
+                      {dayMuscles.length > 0 ? " + " : ""}
+                      {extraMuscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" + ")}
+                    </span>
+                  )}
                 </span>
               )}
             </div>
@@ -214,17 +241,9 @@ export default function SessionCard({
           Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
           {session.bw ? ` · ${session.bw}kg BW` : ""}
         </span>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] inline-block" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#16a34a]">
-              Completed
-            </span>
-          </div>
-          {session.date && (
-            <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
-          )}
-        </div>
+        {session.date && (
+          <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
+        )}
       </div>
 
       {topWeight != null && (
@@ -243,6 +262,30 @@ export default function SessionCard({
                 {setCount} sets
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmedMuscles.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1.5">
+            {confirmedDay ? "Training Day" : "Trained"}
+          </p>
+          <div className="flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-2 text-white">
+            <div className="flex flex-col">
+              {confirmedDay ? (
+                <>
+                  <span className="text-[13px] font-bold leading-tight">{confirmedDay.name}</span>
+                  <span className="text-[11px] font-medium text-white/70 leading-tight">
+                    {confirmedMuscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" + ")}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[13px] font-bold leading-tight">
+                  {confirmedMuscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" + ")}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -314,49 +357,27 @@ export default function SessionCard({
       <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#f3faf4]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
-            if (!isUpcoming) {
-              const muscles =
-                session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
-                  ? session.selectedMuscleGroups
-                  : session.extraWorkouts?.map((w) => w.muscle) ?? []
-              if (muscles.length === 0) return null
-              return muscles.map((id) => (
-                <span
-                  key={id}
-                  className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
-                >
-                  {getMuscleLabel(exerciseConfig, id)}
-                </span>
-              ))
-            }
+            // Completed: muscles are shown in the training-day card above, not here
+            if (!isUpcoming) return null
 
-            // Upcoming: show day's base muscles + extra muscles with visual distinction
-            return (
-              <>
-                {dayMuscles.map((id) => (
-                  <span
-                    key={id}
-                    className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
-                  >
-                    {getMuscleLabel(exerciseConfig, id)}
-                  </span>
-                ))}
-                {extraMuscles.map((id) => (
-                  <span
-                    key={id}
-                    className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/20 text-[#1e3a5f] rounded-full px-2 py-0.5"
-                  >
-                    +{getMuscleLabel(exerciseConfig, id)}
-                  </span>
-                ))}
-              </>
-            )
+            // Upcoming with a Training Day card: muscles are shown there, not here
+            if (hasDays) return null
+
+            // Upcoming with no training days: show selected muscles here as a fallback
+            return extraMuscles.map((id) => (
+              <span
+                key={id}
+                className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
+              >
+                {getMuscleLabel(exerciseConfig, id)}
+              </span>
+            ))
           })()}
         </div>
 
         {isUpcoming && (
           <div className="flex gap-2 items-center">
-            {onUpdateMuscleGroups && (
+            {!hasDays && onUpdateMuscleGroups && (
               <button
                 onClick={() => setPickerOpen((v) => !v)}
                 className="text-xs font-semibold text-[#777777] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
