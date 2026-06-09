@@ -274,7 +274,11 @@ export default function SessionCard({
         <div className="flex flex-wrap gap-1.5">
           {(() => {
             if (!isUpcoming) {
-              const muscles = session.extraWorkouts?.map((w) => w.muscle) ?? []
+              const muscles =
+                session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
+                  ? session.selectedMuscleGroups
+                  : session.extraWorkouts?.map((w) => w.muscle) ?? []
+              if (muscles.length === 0) return null
               return muscles.map((id) => (
                 <span
                   key={id}
