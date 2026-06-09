@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, MuscleGroup } from "@/lib/types"
+import { Session, MuscleGroup, TrainingDay } from "@/lib/types"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 
 interface SessionCardProps {
@@ -12,8 +12,9 @@ interface SessionCardProps {
   onEdit?: (session: Session) => void
   onUnlog?: (session: Session) => void
   onShare?: (session: Session) => void
-  onUpdateMuscleGroups?: (session: Session, muscles: MuscleGroup[]) => void
+  onUpdateMuscleGroups?: (session: Session, muscles: MuscleGroup[], dayId?: string) => void
   exerciseConfig: MuscleGroupConfig[]
+  trainingDays?: TrainingDay[]
 }
 
 function formatDate(iso: string): string {
@@ -33,21 +34,63 @@ export default function SessionCard({
   onShare,
   onUpdateMuscleGroups,
   exerciseConfig,
+  trainingDays,
 }: SessionCardProps) {
   const isUpcoming = !session.confirmed
 
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [selectedGroups, setSelectedGroups] = useState<MuscleGroup[]>(
-    session.selectedMuscleGroups ?? []
+  const sortedDays = trainingDays ? [...trainingDays].sort((a, b) => a.order - b.order) : []
+  const hasDays = sortedDays.length > 0
+
+  const [selectedDayId, setSelectedDayId] = useState<string | null>(
+    session.selectedTrainingDayId ?? sortedDays[0]?.id ?? null
   )
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [extraMuscles, setExtraMuscles] = useState<MuscleGroup[]>(() => {
+    if (!hasDays) return session.selectedMuscleGroups ?? []
+    const dayMuscles = sortedDays.find((d) => d.id === (session.selectedTrainingDayId ?? sortedDays[0]?.id))?.muscleGroupIds ?? []
+    return (session.selectedMuscleGroups ?? []).filter((m) => !dayMuscles.includes(m))
+  })
+
+  // Sync state when the session prop changes (e.g. after save)
+  useEffect(() => {
+    const dayId = session.selectedTrainingDayId ?? sortedDays[0]?.id ?? null
+    setSelectedDayId(dayId)
+    if (hasDays) {
+      const dayMuscles = sortedDays.find((d) => d.id === dayId)?.muscleGroupIds ?? []
+      setExtraMuscles((session.selectedMuscleGroups ?? []).filter((m) => !dayMuscles.includes(m)))
+    } else {
+      setExtraMuscles(session.selectedMuscleGroups ?? [])
+    }
+  }, [session.selectedTrainingDayId, session.selectedMuscleGroups])
 
   useEffect(() => {
     if (pickerOpen) {
-      setSelectedGroups(session.selectedMuscleGroups ?? [])
+      const dayMuscles = sortedDays.find((d) => d.id === selectedDayId)?.muscleGroupIds ?? []
+      setExtraMuscles((session.selectedMuscleGroups ?? []).filter((m) => !dayMuscles.includes(m)))
     }
-  }, [pickerOpen, session.selectedMuscleGroups])
+  }, [pickerOpen])
 
-  const allGroups = [...exerciseConfig].sort((a, b) => a.name.localeCompare(b.name))
+  const selectedDay = sortedDays.find((d) => d.id === selectedDayId) ?? null
+  const dayMuscles: MuscleGroup[] = selectedDay?.muscleGroupIds ?? []
+
+  // Muscles available for "add extra" picker — everything not already in the day
+  const pickableMuscles = [...exerciseConfig]
+    .filter((g) => !dayMuscles.includes(g.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  function handleDayChange(dayId: string) {
+    const day = sortedDays.find((d) => d.id === dayId)
+    if (!day) return
+    setSelectedDayId(dayId)
+    setExtraMuscles([])
+    onUpdateMuscleGroups?.(session, day.muscleGroupIds, dayId)
+  }
+
+  function handleSaveExtras() {
+    const fullList = [...dayMuscles, ...extraMuscles]
+    onUpdateMuscleGroups?.(session, fullList, selectedDayId ?? undefined)
+    setPickerOpen(false)
+  }
 
   const working = session.sets.filter((s) => !s.isWarmup)
   const topWeight = working[0]?.kg ?? null
@@ -86,6 +129,32 @@ export default function SessionCard({
                 {setCount} sets
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {hasDays && (
+        <div className="mt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1.5">
+            Training Day
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {sortedDays.map((day) => {
+              const active = day.id === selectedDayId
+              return (
+                <button
+                  key={day.id}
+                  onClick={() => handleDayChange(day.id)}
+                  className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-colors ${
+                    active
+                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                      : "bg-white text-[#555555] border-[#d0d0d0] hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
+                  }`}
+                >
+                  {day.name}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -159,43 +228,44 @@ export default function SessionCard({
       {isUpcoming && pickerOpen && (
         <div className="px-4 pb-4 pt-2 border-t border-[#e8e8e8]">
           <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
-            Additional Muscle Groups
+            {hasDays ? "Add for this session only" : "Additional Muscle Groups"}
           </p>
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {allGroups.map((g) => {
-              const checked = selectedGroups.includes(g.id)
-              return (
-                <label
-                  key={g.id}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
-                    checked
-                      ? "border-[#1e3a5f]/40 bg-[#1e3a5f]/[0.04] text-[#1e3a5f]"
-                      : "border-[#e8e8e8] text-[#111111]"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() =>
-                      setSelectedGroups((prev) =>
-                        prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id]
-                      )
-                    }
-                    className="accent-[#1e3a5f]"
-                  />
-                  <span className="font-medium text-xs">{g.name}</span>
-                </label>
-              )
-            })}
-          </div>
+          {hasDays && pickableMuscles.length === 0 ? (
+            <p className="text-xs text-[#aaaaaa] mb-4">All muscle groups are already in this day.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {(hasDays ? pickableMuscles : [...exerciseConfig].sort((a, b) => a.name.localeCompare(b.name))).map((g) => {
+                const checked = extraMuscles.includes(g.id)
+                return (
+                  <label
+                    key={g.id}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
+                      checked
+                        ? "border-[#1e3a5f]/40 bg-[#1e3a5f]/[0.04] text-[#1e3a5f]"
+                        : "border-[#e8e8e8] text-[#111111]"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setExtraMuscles((prev) =>
+                          prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id]
+                        )
+                      }
+                      className="accent-[#1e3a5f]"
+                    />
+                    <span className="font-medium text-xs">{g.name}</span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
           <button
-            onClick={() => {
-              onUpdateMuscleGroups?.(session, selectedGroups)
-              setPickerOpen(false)
-            }}
+            onClick={handleSaveExtras}
             className="w-full rounded-lg border border-[#1e3a5f] text-[#1e3a5f] text-xs font-semibold py-2 hover:bg-[#1e3a5f] hover:text-white transition-colors"
           >
-            Save Selection
+            Save
           </button>
         </div>
       )}
@@ -203,17 +273,39 @@ export default function SessionCard({
       <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#eff6ff]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
-            const muscles = isUpcoming
-              ? (session.selectedMuscleGroups ?? [])
-              : (session.extraWorkouts?.map((w) => w.muscle) ?? [])
-            return muscles.map((id) => (
-              <span
-                key={id}
-                className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
-              >
-                {getMuscleLabel(exerciseConfig, id)}
-              </span>
-            ))
+            if (!isUpcoming) {
+              const muscles = session.extraWorkouts?.map((w) => w.muscle) ?? []
+              return muscles.map((id) => (
+                <span
+                  key={id}
+                  className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
+                >
+                  {getMuscleLabel(exerciseConfig, id)}
+                </span>
+              ))
+            }
+
+            // Upcoming: show day's base muscles + extra muscles with visual distinction
+            return (
+              <>
+                {dayMuscles.map((id) => (
+                  <span
+                    key={id}
+                    className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
+                  >
+                    {getMuscleLabel(exerciseConfig, id)}
+                  </span>
+                ))}
+                {extraMuscles.map((id) => (
+                  <span
+                    key={id}
+                    className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/20 text-[#1e3a5f] rounded-full px-2 py-0.5"
+                  >
+                    +{getMuscleLabel(exerciseConfig, id)}
+                  </span>
+                ))}
+              </>
+            )
           })()}
         </div>
 
@@ -226,9 +318,9 @@ export default function SessionCard({
               >
                 {pickerOpen
                   ? "Close"
-                  : session.selectedMuscleGroups?.length
-                  ? `${session.selectedMuscleGroups.length} group${session.selectedMuscleGroups.length > 1 ? "s" : ""}`
-                  : "+ Groups"}
+                  : extraMuscles.length > 0
+                  ? `${extraMuscles.length} extra${extraMuscles.length > 1 ? "s" : ""}`
+                  : "+ Extras"}
               </button>
             )}
             {onStartLogging && (

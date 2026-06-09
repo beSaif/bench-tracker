@@ -19,6 +19,7 @@ export interface Session {
   confirmed: boolean
   coachNote: string
   selectedMuscleGroups?: MuscleGroup[]
+  selectedTrainingDayId?: string
   extraWorkouts?: ExtraWorkout[]
   blockId?: number
 }
