@@ -24,34 +24,6 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-function MainLiftSummaryLine({ session }: { session: Session }) {
-  const working = session.sets.filter((s) => !s.isWarmup)
-  if (working.length === 0) return null
-
-  const weight = working[0].kg
-  const reps = working[0].reps
-  const setCount = working.length
-  const e1rms = working.map((s) => s.e1rm).filter((v): v is number => v != null)
-  const bestE1RM = e1rms.length > 0 ? Math.max(...e1rms) : null
-
-  return (
-    <div className="flex items-baseline gap-2 flex-wrap">
-      <span className="text-sm font-semibold text-[#1e3a5f]">{weight}kg</span>
-      <span className="text-sm text-[#555555]">
-        × {reps} × {setCount}
-      </span>
-      {bestE1RM != null && (
-        <>
-          <span className="text-[#dddddd]">·</span>
-          <span className="text-xs text-[#777777]">
-            e1RM <span className="font-semibold text-[#1e3a5f]">{bestE1RM}kg</span>
-          </span>
-        </>
-      )}
-    </div>
-  )
-}
-
 export default function SessionCard({
   session,
   blockIndex,
@@ -75,52 +47,115 @@ export default function SessionCard({
     }
   }, [pickerOpen, session.selectedMuscleGroups])
 
+  const allGroups = [...exerciseConfig].sort((a, b) => a.name.localeCompare(b.name))
+
+  const working = session.sets.filter((s) => !s.isWarmup)
+  const topWeight = working[0]?.kg ?? null
+  const topReps = working[0]?.reps ?? null
+  const setCount = working.length
+  const e1rms = working.map((s) => s.e1rm).filter((v): v is number => v != null)
+  const bestE1RM = e1rms.length > 0 ? Math.max(...e1rms) : null
+
+  const upcomingBody = (
+    <div className="px-4 pt-3 pb-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[#1e3a5f]">
+          BENCH · {session.type}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#1e3a5f] inline-block" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#1e3a5f]">
+            Up next
+          </span>
+        </div>
+      </div>
+
+      {topWeight != null && (
+        <div className="flex items-center gap-4">
+          <span className="text-5xl font-extrabold text-[#1e3a5f] leading-none tracking-tight">
+            {topWeight}kg
+          </span>
+          <div className="flex flex-col gap-1">
+            {topReps != null && (
+              <span className="text-xl font-bold text-[#444444] leading-none">
+                {topReps} reps
+              </span>
+            )}
+            {setCount > 0 && (
+              <span className="text-base font-medium text-[#aaaaaa] leading-none">
+                {setCount} sets
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {session.bw && (
+        <p className="text-xs text-[#aaaaaa] mt-2">{session.bw}kg BW</p>
+      )}
+    </div>
+  )
+
+  const confirmedBody = (
+    <div className="px-4 pt-3 pb-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-semibold text-[#777777]">
+          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
+          {session.bw ? ` · ${session.bw}kg BW` : ""}
+        </span>
+        {session.date && (
+          <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
+        )}
+      </div>
+
+      <div className="flex border border-[#e8e8e8] rounded-xl overflow-hidden">
+        <div className="flex-1 px-3 py-3 flex flex-col gap-1 bg-[#eff6ff]">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
+            Top Set
+          </span>
+          <span className="text-2xl font-bold text-[#1e3a5f] leading-none">
+            {topWeight != null ? `${topWeight}kg` : "—"}
+          </span>
+        </div>
+
+        <div className="flex-1 px-3 py-3 flex flex-col gap-1 bg-white border-l border-r border-[#e8e8e8]">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
+            Reps × Sets
+          </span>
+          <span className="text-2xl font-bold text-[#111111] leading-none">
+            {topReps != null && setCount > 0 ? `${topReps} × ${setCount}` : "—"}
+          </span>
+        </div>
+
+        <div className="flex-1 px-3 py-3 flex flex-col gap-1 bg-white">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
+            e1RM
+          </span>
+          <span className="text-2xl font-bold text-[#1e3a5f] leading-none">
+            {bestE1RM != null ? `${bestE1RM}kg` : "—"}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+
   const cardBorder = isUpcoming
     ? "border-dashed border-[#bfdbfe]"
     : "border-solid border-[#e8e8e8]"
   const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-white"
-  const headerColor = isUpcoming ? "text-[#1e3a5f]" : "text-[#111111]"
-
-  const allGroups = [...exerciseConfig].sort((a, b) => a.name.localeCompare(b.name))
-
-  const summaryBody = (
-    <div className="px-4 pt-4 pb-4">
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-1">
-        <span className={`text-sm font-semibold ${headerColor}`}>
-          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
-        </span>
-        {isUpcoming ? (
-          <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f] text-white rounded-full px-2 py-0.5">
-            Up next
-          </span>
-        ) : session.date ? (
-          <span className="text-xs text-[#aaaaaa]">{formatDate(session.date)}</span>
-        ) : null}
-      </div>
-
-      {/* BW */}
-      {session.bw && (
-        <p className="text-xs text-[#777777] mb-2">{session.bw}kg BW</p>
-      )}
-
-      {/* Compact main-lift summary */}
-      <MainLiftSummaryLine session={session} />
-    </div>
-  )
 
   return (
     <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
-      {/* Card body */}
-      {!isUpcoming ? (
-        <Link href={`/session/${session.id}`} className="block hover:bg-[#fafafa] transition-colors">
-          {summaryBody}
-        </Link>
+      <div className="h-1 bg-[#1e3a5f]" />
+
+      {isUpcoming ? (
+        upcomingBody
       ) : (
-        summaryBody
+        <Link href={`/session/${session.id}`} className="block hover:bg-[#fafafa] transition-colors">
+          {confirmedBody}
+        </Link>
       )}
 
-      {/* Muscle group picker panel — upcoming only */}
       {isUpcoming && pickerOpen && (
         <div className="px-4 pb-4 pt-2 border-t border-[#e8e8e8]">
           <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
@@ -165,7 +200,6 @@ export default function SessionCard({
         </div>
       )}
 
-      {/* Card Footer */}
       <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#eff6ff]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
