@@ -1,3 +1,5 @@
+import { TrainingDay } from "./types"
+
 export interface ExerciseConfig {
   id: string
   name: string
@@ -92,6 +94,19 @@ export function getExercisesForMuscle(config: MuscleGroupConfig[], id: string): 
   const group = config.find((g) => g.id === id)
   if (!group) return []
   return [...group.exercises].sort((a, b) => a.order - b.order).map((e) => e.name)
+}
+
+export const DEFAULT_TRAINING_DAYS: TrainingDay[] = [
+  { id: "day-a", name: "Day A", order: 0, muscleGroupIds: ["back", "triceps"] },
+  { id: "day-b", name: "Day B", order: 1, muscleGroupIds: ["chest", "biceps"] },
+  { id: "day-c", name: "Day C", order: 2, muscleGroupIds: ["legs", "shoulders"] },
+]
+
+export function buildRotationFromDays(days: TrainingDay[]): string[][] {
+  return [...days]
+    .sort((a, b) => a.order - b.order)
+    .map((d) => d.muscleGroupIds)
+    .filter((ids) => ids.length > 0)
 }
 
 export function buildMuscleRotation(config: MuscleGroupConfig[]): string[][] {
