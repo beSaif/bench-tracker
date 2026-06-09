@@ -16,7 +16,7 @@ import {
 import { generateWarmups } from "@/lib/warmup"
 import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, buildRotationFromDays } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
@@ -35,26 +35,37 @@ import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
-function suggestNextMuscles(confirmedSessions: Session[], muscleRotation: string[][]): MuscleGroup[] {
-  if (muscleRotation.length === 0) return []
+function suggestNextDay(confirmedSessions: Session[], trainingDays: TrainingDay[]): TrainingDay | null {
+  const sortedDays = [...trainingDays].sort((a, b) => a.order - b.order)
+  if (sortedDays.length === 0) return null
 
-  const last = [...confirmedSessions]
-    .filter((s) => s.date && s.extraWorkouts && s.extraWorkouts.length > 0)
+  // Deterministic: find last confirmed session with an explicit training day id
+  const lastWithDay = [...confirmedSessions]
+    .filter((s) => s.confirmed && s.date && s.selectedTrainingDayId)
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
 
-  if (!last) return muscleRotation[0]
+  if (lastWithDay?.selectedTrainingDayId) {
+    const idx = sortedDays.findIndex((d) => d.id === lastWithDay.selectedTrainingDayId)
+    if (idx !== -1) return sortedDays[(idx + 1) % sortedDays.length]
+  }
 
-  const lastMuscles = last.extraWorkouts!.map((w) => w.muscle)
-  let bestIdx = 0
-  let bestScore = -1
-  muscleRotation.forEach((pair, i) => {
-    const score = pair.filter((m) => lastMuscles.includes(m)).length
-    if (score > bestScore) {
-      bestScore = score
-      bestIdx = i
-    }
-  })
-  return muscleRotation[(bestIdx + 1) % muscleRotation.length]
+  // Fallback: match last session's extraWorkouts muscles to closest day, then rotate
+  const lastWithWorkouts = [...confirmedSessions]
+    .filter((s) => s.confirmed && s.date && s.extraWorkouts?.length)
+    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
+
+  if (lastWithWorkouts) {
+    const lastMuscles = lastWithWorkouts.extraWorkouts!.map((w) => w.muscle)
+    let bestIdx = 0
+    let bestScore = -1
+    sortedDays.forEach((day, i) => {
+      const score = day.muscleGroupIds.filter((m) => lastMuscles.includes(m)).length
+      if (score > bestScore) { bestScore = score; bestIdx = i }
+    })
+    return sortedDays[(bestIdx + 1) % sortedDays.length]
+  }
+
+  return sortedDays[0]
 }
 
 function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
@@ -98,7 +109,8 @@ function createUpcomingSession(
   const phase = activeBlock?.phase ?? "accumulation"
   const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
-  const muscleRotation = buildRotationFromDays(trainingDays)
+  const confirmedSessions = sessions.filter((s) => s.confirmed)
+  const nextDay = suggestNextDay(confirmedSessions, trainingDays)
 
   return {
     id: maxId + 1,
@@ -108,7 +120,8 @@ function createUpcomingSession(
     confirmed: false,
     coachNote,
     sets: [...warmups, ...workingSets],
-    selectedMuscleGroups: suggestNextMuscles(sessions, muscleRotation),
+    selectedTrainingDayId: nextDay?.id,
+    selectedMuscleGroups: nextDay?.muscleGroupIds ?? [],
     blockId,
   }
 }
@@ -117,9 +130,11 @@ function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[], train
   const upcoming = sessions.find((s) => !s.confirmed)
   if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
   const confirmed = sessions.filter((s) => s.confirmed)
-  const suggested = suggestNextMuscles(confirmed, buildRotationFromDays(trainingDays))
+  const nextDay = suggestNextDay(confirmed, trainingDays)
   return sessions.map((s) =>
-    s.id === upcoming.id ? { ...s, selectedMuscleGroups: suggested } : s
+    s.id === upcoming.id
+      ? { ...s, selectedTrainingDayId: nextDay?.id, selectedMuscleGroups: nextDay?.muscleGroupIds ?? [] }
+      : s
   )
 }
 
@@ -616,10 +631,12 @@ export default function Page() {
     setEditingSession(null)
   }
 
-  function handleUpdateMuscleGroups(session: Session, groups: MuscleGroup[]) {
+  function handleUpdateMuscleGroups(session: Session, groups: MuscleGroup[], dayId?: string) {
     setSessions((prev) => {
       const updated = prev.map((s) =>
-        s.id === session.id ? { ...s, selectedMuscleGroups: groups } : s
+        s.id === session.id
+          ? { ...s, selectedMuscleGroups: groups, ...(dayId !== undefined ? { selectedTrainingDayId: dayId } : {}) }
+          : s
       )
       saveAll(updated, blocks)
       return updated
@@ -893,6 +910,7 @@ export default function Page() {
                   onStartLogging={handleStartLogging}
                   onUpdateMuscleGroups={handleUpdateMuscleGroups}
                   exerciseConfig={exerciseConfig}
+                  trainingDays={trainingDays}
                 />
               )}
               {activeBlockSessions.map((s) => (
