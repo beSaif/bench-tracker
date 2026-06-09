@@ -8,6 +8,19 @@ export function relativeTime(isoString: string): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+// Parse "YYYY-MM-DD" (or full ISO) to LOCAL midnight — avoids UTC off-by-one
+export function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number)
+  return new Date(y, m - 1, d)
+}
+
+// Canonical local date key "YYYY-MM-DD"
+export function dateKey(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
 export function relativeDate(dateStr: string): string {
   const now = new Date()
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()

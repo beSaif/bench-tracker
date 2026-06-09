@@ -22,6 +22,7 @@ import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
 import StatsGrid from "@/components/StatsGrid"
+import GymHeatmap from "@/components/GymHeatmap"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
@@ -814,6 +815,9 @@ export default function Page() {
           bw={latestBW}
           target={profile.target}
         />
+
+        {/* Gym days heatmap */}
+        <GymHeatmap sessions={sessions} />
 
         {/* Program timeline */}
         {blocks.length > 0 && (
