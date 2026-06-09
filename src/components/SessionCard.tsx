@@ -96,8 +96,6 @@ export default function SessionCard({
   const topWeight = working[0]?.kg ?? null
   const topReps = working[0]?.reps ?? null
   const setCount = working.length
-  const e1rms = working.map((s) => s.e1rm).filter((v): v is number => v != null)
-  const bestE1RM = e1rms.length > 0 ? Math.max(...e1rms) : null
 
   const upcomingBody = (
     <div className="px-4 pt-3 pb-4">
@@ -177,45 +175,36 @@ export default function SessionCard({
         )}
       </div>
 
-      <div className="flex border border-[#e8e8e8] rounded-xl overflow-hidden">
-        <div className="flex-1 px-3 py-3 flex flex-col gap-1 bg-[#eff6ff]">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-            Top Set
+      {topWeight != null && (
+        <div className="flex items-center gap-4">
+          <span className="text-5xl font-extrabold text-[#6b7280] leading-none tracking-tight">
+            {topWeight}kg
           </span>
-          <span className="text-2xl font-bold text-[#1e3a5f] leading-none">
-            {topWeight != null ? `${topWeight}kg` : "—"}
-          </span>
+          <div className="flex flex-col gap-1">
+            {topReps != null && (
+              <span className="text-xl font-bold text-[#444444] leading-none">
+                {topReps} reps
+              </span>
+            )}
+            {setCount > 0 && (
+              <span className="text-base font-medium text-[#aaaaaa] leading-none">
+                {setCount} sets
+              </span>
+            )}
+          </div>
         </div>
-
-        <div className="flex-1 px-3 py-3 flex flex-col gap-1 bg-white border-l border-r border-[#e8e8e8]">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-            Reps × Sets
-          </span>
-          <span className="text-2xl font-bold text-[#111111] leading-none">
-            {topReps != null && setCount > 0 ? `${topReps} × ${setCount}` : "—"}
-          </span>
-        </div>
-
-        <div className="flex-1 px-3 py-3 flex flex-col gap-1 bg-white">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-            e1RM
-          </span>
-          <span className="text-2xl font-bold text-[#1e3a5f] leading-none">
-            {bestE1RM != null ? `${bestE1RM}kg` : "—"}
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   )
 
   const cardBorder = isUpcoming
     ? "border-dashed border-[#bfdbfe]"
-    : "border-solid border-[#e8e8e8]"
-  const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-white"
+    : "border-solid border-[#e0e0e0]"
+  const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-[#fafafa]"
 
   return (
     <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
-      <div className="h-1 bg-[#1e3a5f]" />
+      <div className={`h-1 ${isUpcoming ? "bg-[#1e3a5f]" : "bg-[#9ca3af]"}`} />
 
       {isUpcoming ? (
         upcomingBody
@@ -270,7 +259,7 @@ export default function SessionCard({
         </div>
       )}
 
-      <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#eff6ff]"} px-4 py-3 flex items-center justify-between`}>
+      <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#efefef]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
             if (!isUpcoming) {
