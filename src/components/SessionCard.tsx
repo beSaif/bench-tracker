@@ -234,14 +234,22 @@ export default function SessionCard({
           Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
           {session.bw ? ` · ${session.bw}kg BW` : ""}
         </span>
-        {session.date && (
-          <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] inline-block" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#16a34a]">
+              Completed
+            </span>
+          </div>
+          {session.date && (
+            <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
+          )}
+        </div>
       </div>
 
       {topWeight != null && (
         <div className="flex items-center gap-4">
-          <span className="text-5xl font-extrabold text-[#6b7280] leading-none tracking-tight">
+          <span className="text-5xl font-extrabold text-[#1f2937] leading-none tracking-tight">
             {topWeight}kg
           </span>
           <div className="flex flex-col gap-1">
@@ -263,12 +271,12 @@ export default function SessionCard({
 
   const cardBorder = isUpcoming
     ? "border-dashed border-[#bfdbfe]"
-    : "border-solid border-[#e0e0e0]"
-  const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-[#fafafa]"
+    : "border-solid border-[#d6e9d9]"
+  const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-white"
 
   return (
     <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
-      <div className={`h-1 ${isUpcoming ? "bg-[#1e3a5f]" : "bg-[#9ca3af]"}`} />
+      <div className={`h-1 ${isUpcoming ? "bg-[#1e3a5f]" : "bg-[#16a34a]"}`} />
 
       {isUpcoming ? (
         upcomingBody
@@ -323,7 +331,7 @@ export default function SessionCard({
         </div>
       )}
 
-      <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#efefef]"} px-4 py-3 flex items-center justify-between`}>
+      <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#f3faf4]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
             if (!isUpcoming) {
