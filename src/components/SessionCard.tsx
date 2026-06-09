@@ -59,8 +59,8 @@ export default function SessionCard({
   const upcomingBody = (
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-[#1e3a5f]">
-          BENCH · {session.type}
+        <span className="text-[11px] font-semibold text-[#777777]">
+          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
         </span>
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#1e3a5f] inline-block" />
@@ -100,7 +100,7 @@ export default function SessionCard({
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-semibold text-[#777777]">
-          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")} · {session.type}
+          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
           {session.bw ? ` · ${session.bw}kg BW` : ""}
         </span>
         {session.date && (
