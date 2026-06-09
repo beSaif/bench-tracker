@@ -924,6 +924,7 @@ export default function Page() {
                   onUnlog={handleUnlogSession}
                   onShare={setShareSession}
                   exerciseConfig={exerciseConfig}
+                  trainingDays={trainingDays}
                 />
               ))}
               {/* Previews for sessions not yet generated */}
@@ -959,6 +960,7 @@ export default function Page() {
               onUnlog={handleUnlogSession}
               onShare={setShareSession}
               exerciseConfig={exerciseConfig}
+              trainingDays={trainingDays}
             />
           ))}
         </div>

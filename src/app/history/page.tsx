@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, TrainingBlock, BlockPhase, UserProfile } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal } from "@/lib/storage"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS } from "@/lib/exerciseConfig"
+import { Session, TrainingBlock, BlockPhase, UserProfile, TrainingDay } from "@/lib/types"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import ShareImageModal from "@/components/ShareImageModal"
 
@@ -27,6 +27,7 @@ export default function HistoryPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
+  const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -35,6 +36,7 @@ export default function HistoryPage() {
     setSessions(loadSessionsLocal())
     setBlocks(loadBlocksLocal())
     setProfile(loadProfileLocal())
+    setTrainingDays(loadTrainingDaysLocal())
     loadExerciseConfig().then(setExerciseConfig)
     setMounted(true)
   }, [])
@@ -92,6 +94,7 @@ export default function HistoryPage() {
             session={s}
             onShare={profile ? setShareSession : undefined}
             exerciseConfig={exerciseConfig}
+            trainingDays={trainingDays}
           />
         ))
       )}

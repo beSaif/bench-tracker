@@ -100,6 +100,13 @@ export default function SessionCard({
   const topReps = working[0]?.reps ?? null
   const setCount = working.length
 
+  // Muscles trained in a completed session (for its training-day card)
+  const confirmedMuscles: MuscleGroup[] =
+    session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
+      ? session.selectedMuscleGroups
+      : session.extraWorkouts?.map((w) => w.muscle) ?? []
+  const confirmedDay = sortedDays.find((d) => d.id === session.selectedTrainingDayId) ?? null
+
   const upcomingBody = (
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
@@ -234,17 +241,9 @@ export default function SessionCard({
           Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
           {session.bw ? ` · ${session.bw}kg BW` : ""}
         </span>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] inline-block" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#16a34a]">
-              Completed
-            </span>
-          </div>
-          {session.date && (
-            <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
-          )}
-        </div>
+        {session.date && (
+          <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
+        )}
       </div>
 
       {topWeight != null && (
@@ -263,6 +262,30 @@ export default function SessionCard({
                 {setCount} sets
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmedMuscles.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1.5">
+            {confirmedDay ? "Training Day" : "Trained"}
+          </p>
+          <div className="flex items-center gap-2 rounded-lg bg-[#16a34a] px-3 py-2 text-white">
+            <div className="flex flex-col">
+              {confirmedDay ? (
+                <>
+                  <span className="text-[13px] font-bold leading-tight">{confirmedDay.name}</span>
+                  <span className="text-[11px] font-medium text-white/70 leading-tight">
+                    {confirmedMuscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" + ")}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[13px] font-bold leading-tight">
+                  {confirmedMuscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" + ")}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -334,21 +357,8 @@ export default function SessionCard({
       <div className={`${isUpcoming ? "bg-[#dbeafe]" : "bg-[#f3faf4]"} px-4 py-3 flex items-center justify-between`}>
         <div className="flex flex-wrap gap-1.5">
           {(() => {
-            if (!isUpcoming) {
-              const muscles =
-                session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
-                  ? session.selectedMuscleGroups
-                  : session.extraWorkouts?.map((w) => w.muscle) ?? []
-              if (muscles.length === 0) return null
-              return muscles.map((id) => (
-                <span
-                  key={id}
-                  className="text-[10px] font-semibold uppercase tracking-wide bg-[#1e3a5f]/10 text-[#1e3a5f] rounded-full px-2 py-0.5"
-                >
-                  {getMuscleLabel(exerciseConfig, id)}
-                </span>
-              ))
-            }
+            // Completed: muscles are shown in the training-day card above, not here
+            if (!isUpcoming) return null
 
             // Upcoming with a Training Day card: muscles are shown there, not here
             if (hasDays) return null
