@@ -693,6 +693,7 @@ export default function Page() {
 
   const confirmed = sessions.filter((s) => s.confirmed)
   const upcoming = sessions.find((s) => !s.confirmed)
+  const recommendedDay = suggestNextDay(confirmed, trainingDays)
   const confirmedSorted = [...confirmed].sort(
     (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
   )
@@ -911,6 +912,7 @@ export default function Page() {
                   onUpdateMuscleGroups={handleUpdateMuscleGroups}
                   exerciseConfig={exerciseConfig}
                   trainingDays={trainingDays}
+                  recommendedDayId={recommendedDay?.id}
                 />
               )}
               {activeBlockSessions.map((s) => (
