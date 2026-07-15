@@ -1,7 +1,7 @@
 "use client"
 
 import { TrainingBlock, BlockPhase } from "@/lib/types"
-import { BLOCK_LENGTHS, PHASE_SESSION_TYPE, PHASE_LABEL } from "@/lib/prescription"
+import { getBlockLength, PHASE_SESSION_TYPE, PHASE_LABEL } from "@/lib/prescription"
 
 const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string; bg: string }> = {
   accumulation: {
@@ -44,7 +44,7 @@ interface BlockHeaderProps {
 
 export default function BlockHeader({ block, confirmedCount, onEditAnchor }: BlockHeaderProps) {
   const style = PHASE_STYLE[block.phase]
-  const total = BLOCK_LENGTHS[block.phase]
+  const total = getBlockLength(block)
 
   return (
     <div className={`${style.bg} rounded-xl px-4 py-3 mb-3${block.status === "completed" ? " opacity-75" : ""}`}>

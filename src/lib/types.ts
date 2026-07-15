@@ -35,6 +35,10 @@ export interface TrainingBlock {
   anchorWeight: number
   startDate: string | null
   endDate: string | null
+  /** Explicit per-session loads for a reacclimation (rebuild) block. */
+  rebuildLoads?: number[]
+  /** Block to reactivate once this reacclimation block completes. */
+  resumeBlockId?: number
 }
 
 export type MainLift = "bench" | "deadlift" | "squat"

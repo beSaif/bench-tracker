@@ -50,11 +50,16 @@ const DELOAD_SCHEME = [
   { pct: 0.600, reps: 5, sets: 3 },
 ]
 
-// Two-session ramp back onto the (recalibrated) anchor after a layoff / regression.
+// Fallback scheme if a reacclimation block has no explicit rebuildLoads (rebuild
+// loads are normally computed to ramp from current capability back to the plan).
 const REACCLIMATION_SCHEME = [
   { pct: 0.675, reps: 5, sets: 3 },
   { pct: 0.750, reps: 5, sets: 4 },
 ]
+
+// Reps/sets for rebuild (reacclimation) sessions — light, moderate volume.
+export const REBUILD_REPS = 5
+export const REBUILD_SETS = 3
 
 const PHASE_SCHEMES: Record<BlockPhase, Array<{ pct: number; reps: number; sets: number }>> = {
   accumulation: ACCUMULATION_SCHEME,
@@ -101,6 +106,30 @@ export function prescribeBlockSession(
     sets: entry.sets,
     sessionType: PHASE_SESSION_TYPE[phase],
   }
+}
+
+/** Number of sessions a block runs for (dynamic for reacclimation rebuild blocks). */
+export function getBlockLength(block: TrainingBlock): number {
+  if (block.phase === "reacclimation" && block.rebuildLoads) return block.rebuildLoads.length
+  return BLOCK_LENGTHS[block.phase]
+}
+
+/**
+ * Prescribe a session for a specific block. Reacclimation blocks use their
+ * explicit rebuildLoads (a ramp back to the interrupted plan); every other
+ * block uses the percentage-of-anchor scheme.
+ */
+export function prescribeSessionForBlock(block: TrainingBlock, sessionIndexInBlock: number): Prescription {
+  if (block.phase === "reacclimation" && block.rebuildLoads && block.rebuildLoads.length > 0) {
+    const idx = Math.min(sessionIndexInBlock, block.rebuildLoads.length - 1)
+    return {
+      weight: block.rebuildLoads[idx],
+      reps: REBUILD_REPS,
+      sets: REBUILD_SETS,
+      sessionType: PHASE_SESSION_TYPE.reacclimation,
+    }
+  }
+  return prescribeBlockSession(block.phase, sessionIndexInBlock, block.anchorWeight)
 }
 
 /**
@@ -207,8 +236,17 @@ export function createNextBlock(
   }
 }
 
-/** Factory for an out-of-cycle re-acclimation block at a recalibrated anchor. */
-export function createReacclimationBlock(newId: number, anchorWeight: number): TrainingBlock {
+/**
+ * Factory for a rebuild (reacclimation) block: keeps the interrupted block's
+ * anchor unchanged, carries the explicit ramp loads, and remembers which block
+ * to resume once the rebuild is done.
+ */
+export function createReacclimationBlock(
+  newId: number,
+  anchorWeight: number,
+  rebuildLoads: number[],
+  resumeBlockId: number
+): TrainingBlock {
   return {
     id: newId,
     phase: "reacclimation",
@@ -217,6 +255,8 @@ export function createReacclimationBlock(newId: number, anchorWeight: number): T
     anchorWeight,
     startDate: null,
     endDate: null,
+    rebuildLoads,
+    resumeBlockId,
   }
 }
 

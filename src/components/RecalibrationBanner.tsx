@@ -9,8 +9,8 @@ interface RecalibrationBannerProps {
 }
 
 export default function RecalibrationBanner({ proposal, onAccept, onDismiss }: RecalibrationBannerProps) {
-  const { reason, oldAnchor, newAnchor, message } = proposal
-  const heading = reason === "layoff" ? "Welcome back — let's recalibrate" : "Time to recalibrate"
+  const { reason, rebuildLoads, resumeLoad, message } = proposal
+  const heading = reason === "layoff" ? "Welcome back — let's rebuild" : "Let's rebuild back up"
 
   return (
     <div className="mb-4 rounded-xl bg-[#fff8f0] border border-[#f0d9b8] px-4 py-3">
@@ -20,7 +20,7 @@ export default function RecalibrationBanner({ proposal, onAccept, onDismiss }: R
           <span className="text-sm font-semibold text-[#8a5311]">{heading}</span>
         </div>
         <span className="text-xs font-semibold text-[#8a5311] opacity-70">
-          {oldAnchor}kg → {newAnchor}kg
+          {rebuildLoads.map((w) => `${w}`).join(" → ")} → {resumeLoad}kg
         </span>
       </div>
 
@@ -31,7 +31,7 @@ export default function RecalibrationBanner({ proposal, onAccept, onDismiss }: R
           onClick={onAccept}
           className="text-sm font-medium text-white bg-[#c8791e] rounded-lg px-3 py-1.5 active:opacity-80"
         >
-          Recalibrate
+          Add rebuild session{rebuildLoads.length === 1 ? "" : "s"}
         </button>
         <button
           onClick={onDismiss}

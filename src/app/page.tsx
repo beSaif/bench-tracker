@@ -7,6 +7,8 @@ import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTraini
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
+  prescribeSessionForBlock,
+  getBlockLength,
   createNextBlock,
   createReacclimationBlock,
   suggestNextAnchor,
@@ -93,7 +95,7 @@ function createUpcomingSession(
 
   if (activeBlock) {
     const sessionIndexInBlock = activeBlock.sessionIds.length
-    prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
+    prescription = prescribeSessionForBlock(activeBlock, sessionIndexInBlock)
     blockId = activeBlock.id
   } else {
     prescription = prescribeBlockSession("accumulation", 0, profile.anchor)
@@ -113,7 +115,8 @@ function createUpcomingSession(
 
   const sessionIndex = activeBlock ? activeBlock.sessionIds.length : 0
   const phase = activeBlock?.phase ?? "accumulation"
-  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
+  const blockTotal = activeBlock ? getBlockLength(activeBlock) : BLOCK_LENGTHS[phase]
+  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${blockTotal}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
   const confirmedSessions = sessions.filter((s) => s.confirmed)
   const nextDay = suggestNextDay(confirmedSessions, trainingDays)
@@ -573,7 +576,7 @@ export default function Page() {
 
     if (activeBlock) {
       const updatedBlockSessionIds = [...activeBlock.sessionIds, updatedSession.id]
-      const isBlockComplete = updatedBlockSessionIds.length >= BLOCK_LENGTHS[activeBlock.phase]
+      const isBlockComplete = updatedBlockSessionIds.length >= getBlockLength(activeBlock)
 
       if (isBlockComplete) {
         const completedBlock: TrainingBlock = {
@@ -582,11 +585,23 @@ export default function Page() {
           status: "completed",
           endDate: updatedSession.date ?? null,
         }
-        const maxBlockId = Math.max(...currentBlocks.map((b) => b.id))
-        const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
-        finalBlocks = currentBlocks
-          .map((b) => (b.id === activeBlock.id ? completedBlock : b))
-          .concat(newBlock)
+        if (activeBlock.phase === "reacclimation" && activeBlock.resumeBlockId != null) {
+          // Rebuild done — reactivate the interrupted block and continue where it left off.
+          const resumeId = activeBlock.resumeBlockId
+          finalBlocks = currentBlocks.map((b) =>
+            b.id === activeBlock.id
+              ? completedBlock
+              : b.id === resumeId
+                ? { ...b, status: "active" as const }
+                : b
+          )
+        } else {
+          const maxBlockId = Math.max(...currentBlocks.map((b) => b.id))
+          const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
+          finalBlocks = currentBlocks
+            .map((b) => (b.id === activeBlock.id ? completedBlock : b))
+            .concat(newBlock)
+        }
       } else {
         finalBlocks = currentBlocks.map((b) =>
           b.id === activeBlock.id ? { ...b, sessionIds: updatedBlockSessionIds } : b
@@ -611,9 +626,9 @@ export default function Page() {
     setShowHypePanel(true)
   }
 
-  // Coach-proposes / user-confirms: apply the recalibration by interrupting the
-  // active block and inserting an out-of-cycle re-acclimation block at the
-  // recalibrated anchor. The cycle resumes at accumulation once it completes.
+  // Coach-proposes / user-confirms: pause the active block (anchor/target
+  // unchanged) and insert a rebuild block that ramps back up to where the block
+  // left off. The interrupted block resumes once the rebuild completes.
   function handleAcceptRecalibration() {
     if (!profile || !recalProposal) return
     const active = getActiveBlock(blocks)
@@ -621,13 +636,14 @@ export default function Page() {
 
     const confirmed = sessions.filter((s) => s.confirmed)
     const maxBlockId = Math.max(...blocks.map((b) => b.id))
-    const reBlock = createReacclimationBlock(maxBlockId + 1, recalProposal.newAnchor)
+    const reBlock = createReacclimationBlock(
+      maxBlockId + 1,
+      active.anchorWeight,
+      recalProposal.rebuildLoads,
+      active.id
+    )
     const newBlocks = blocks
-      .map((b) =>
-        b.id === active.id
-          ? { ...b, status: "interrupted" as const, endDate: new Date().toISOString() }
-          : b
-      )
+      .map((b) => (b.id === active.id ? { ...b, status: "interrupted" as const } : b))
       .concat(reBlock)
 
     const upcoming = createUpcomingSession(confirmed, newBlocks, exerciseConfig, profile, trainingDays)
@@ -1031,11 +1047,11 @@ export default function Page() {
               {/* Previews for sessions not yet generated */}
               {activeBlock && (() => {
                 const shownSessions = activeBlockSessions.length + (upcoming ? 1 : 0)
-                const remaining = BLOCK_LENGTHS[activeBlock.phase] - shownSessions
+                const remaining = getBlockLength(activeBlock) - shownSessions
                 if (remaining <= 0) return null
                 return Array.from({ length: remaining }, (_, i) => {
                   const idx = shownSessions + i
-                  const p = prescribeBlockSession(activeBlock.phase, idx, activeBlock.anchorWeight)
+                  const p = prescribeSessionForBlock(activeBlock, idx)
                   return (
                     <div
                       key={idx}
