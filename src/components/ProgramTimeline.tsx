@@ -26,6 +26,8 @@ interface Step {
   phase: BlockPhase
   status: StepStatus
   block?: TrainingBlock
+  /** The single "you are here" step (the ring + "now" marker). */
+  now?: boolean
 }
 
 interface ProgramTimelineProps {
@@ -36,48 +38,76 @@ interface ProgramTimelineProps {
   onUpcomingPhaseSelect?: (phase: BlockPhase | null) => void
 }
 
-export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect, selectedUpcomingPhase, onUpcomingPhaseSelect }: ProgramTimelineProps) {
+/** Reconstruct one cycle (accumulation → deload) around a reference block. */
+function cycleSteps(sorted: TrainingBlock[], referenceIdx: number): Step[] {
+  const reference = sorted[referenceIdx]
+  const refPhaseIdx = PHASE_ORDER.indexOf(reference.phase)
+  const cycleStartIdx = referenceIdx - refPhaseIdx
+  return PHASE_ORDER.map((phase, i): Step => {
+    if (i === refPhaseIdx) return { phase, status: "active", block: reference }
+    const block = sorted[cycleStartIdx + i]
+    // A completed cycle slot only if a real completed block occupies it.
+    if (i < refPhaseIdx && block && block.status !== "active") {
+      return { phase, status: "completed", block }
+    }
+    return { phase, status: "upcoming" }
+  })
+}
+
+/**
+ * Build the phase-dot steps for the timeline. For a normal active block this is
+ * the cycle around it. For a rebuild (reacclimation) block the cycle is
+ * reconstructed around the interrupted block it will resume, with the Rebuild
+ * inserted — as the current "now" step — at that phase's position.
+ */
+export function buildTimelineSteps(blocks: TrainingBlock[]): Step[] {
   const sorted = [...blocks].sort((a, b) => a.id - b.id)
-  const activeBlock = sorted.find((b) => b.status === "active")
-  if (!activeBlock) return null
+  const active = sorted.find((b) => b.status === "active")
+  if (!active) return []
 
-  const activePhaseIdx = PHASE_ORDER.indexOf(activeBlock.phase)
-  const activeIdx = sorted.findIndex((b) => b.id === activeBlock.id)
-  const cycleStartIdx = activeIdx - activePhaseIdx
+  if (active.phase !== "reacclimation") {
+    return cycleSteps(sorted, sorted.findIndex((b) => b.id === active.id)).map((s) =>
+      s.status === "active" ? { ...s, now: true } : s
+    )
+  }
 
-  // Re-acclimation is an out-of-cycle bridge block: show it as its own active
-  // step, with the normal cycle projected as upcoming behind it.
-  const steps: Step[] =
-    activeBlock.phase === "reacclimation"
-      ? [
-          { phase: "reacclimation", status: "active", block: activeBlock },
-          ...PHASE_ORDER.map((phase): Step => ({ phase, status: "upcoming" })),
-        ]
-      : PHASE_ORDER.map((phase, i) => {
-          if (i < activePhaseIdx) {
-            return { phase, status: "completed", block: sorted[cycleStartIdx + i] }
-          }
-          if (i === activePhaseIdx) {
-            return { phase, status: "active", block: activeBlock }
-          }
-          return { phase, status: "upcoming" }
-        })
+  // Rebuild: place it at the interrupted block's position in the current cycle.
+  const interrupted =
+    sorted.find((b) => b.id === active.resumeBlockId) ??
+    sorted.find((b) => b.status === "interrupted")
+
+  if (!interrupted) {
+    // Fallback: no interrupted block to anchor on — rebuild then a fresh cycle.
+    return [
+      { phase: "reacclimation", status: "active", block: active, now: true },
+      ...PHASE_ORDER.map((phase): Step => ({ phase, status: "upcoming" })),
+    ]
+  }
+
+  const interruptedIdx = sorted.findIndex((b) => b.id === interrupted.id)
+  const steps = cycleSteps(sorted, interruptedIdx) // interrupted phase is "active" (resume target), no "now"
+  const insertAt = PHASE_ORDER.indexOf(interrupted.phase)
+  const rebuildStep: Step = { phase: "reacclimation", status: "active", block: active, now: true }
+  return [...steps.slice(0, insertAt), rebuildStep, ...steps.slice(insertAt)]
+}
+
+export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect, selectedUpcomingPhase, onUpcomingPhaseSelect }: ProgramTimelineProps) {
+  const steps = buildTimelineSteps(blocks)
+  if (steps.length === 0) return null
 
   function handleStepClick(step: Step) {
-    if (step.status === "active") {
+    if (step.now) {
       onBlockSelect(null)
       onUpcomingPhaseSelect?.(null)
       return
     }
-    if (step.status === "completed" && step.block) {
+    if (step.block) {
       onUpcomingPhaseSelect?.(null)
       onBlockSelect(step.block)
       return
     }
-    if (step.status === "upcoming") {
-      onBlockSelect(null)
-      onUpcomingPhaseSelect?.(step.phase === selectedUpcomingPhase ? null : step.phase)
-    }
+    onBlockSelect(null)
+    onUpcomingPhaseSelect?.(step.phase === selectedUpcomingPhase ? null : step.phase)
   }
 
   return (
@@ -93,11 +123,11 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
               <StepDot
                 step={step}
                 isSelected={
-                  step.status === "upcoming"
-                    ? step.phase === selectedUpcomingPhase
-                    : step.block != null && step.block.id === selectedBlockId
+                  step.block != null
+                    ? step.block.id === selectedBlockId
+                    : step.phase === selectedUpcomingPhase
                 }
-                isActiveBlock={step.status === "active"}
+                isNow={step.now ?? false}
               />
             </button>
             {i < steps.length - 1 && (
@@ -113,11 +143,11 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
 function StepDot({
   step,
   isSelected,
-  isActiveBlock,
+  isNow,
 }: {
   step: Step
   isSelected: boolean
-  isActiveBlock: boolean
+  isNow: boolean
 }) {
   const { phase, status } = step
   const color = PHASE_COLOR[phase]
@@ -135,19 +165,19 @@ function StepDot({
         style={{
           backgroundColor: dotBg,
           opacity: dotOpacity,
-          boxShadow: isActiveBlock ? `0 0 0 2px ${color}40` : isSelected ? `0 0 0 2px ${color}80` : "none",
+          boxShadow: isNow ? `0 0 0 2px ${color}40` : isSelected ? `0 0 0 2px ${color}80` : "none",
         }}
       />
       <span
         className="text-[10px] text-center leading-tight transition-colors"
         style={{
           color: textColor,
-          fontWeight: isActiveBlock || isSelected ? 700 : 500,
+          fontWeight: isNow || isSelected ? 700 : 500,
           opacity: isCompleted && !isSelected ? 0.75 : 1,
         }}
       >
         {isCompleted ? "✓ " : ""}{PHASE_SHORT[phase]}
-        {isActiveBlock && <span className="block text-[8px] opacity-60">now</span>}
+        {isNow && <span className="block text-[8px] opacity-60">now</span>}
       </span>
     </>
   )

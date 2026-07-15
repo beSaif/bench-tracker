@@ -18,9 +18,16 @@ function getCurrentCycleCompletedBlockIds(blocks: TrainingBlock[]): Set<number> 
   const active = getActiveBlock(blocks)
   if (!active) return new Set()
   const sorted = [...blocks].sort((a, b) => a.id - b.id)
-  const activeIdx = sorted.findIndex((b) => b.id === active.id)
-  const phaseIdx = BLOCK_PHASE_ORDER.indexOf(active.phase)
-  return new Set(sorted.slice(activeIdx - phaseIdx, activeIdx).map((b) => b.id))
+  // During a rebuild the active block is out-of-cycle; anchor on the block it resumes.
+  const reference =
+    active.phase === "reacclimation"
+      ? (sorted.find((b) => b.id === active.resumeBlockId) ??
+         sorted.find((b) => b.status === "interrupted") ??
+         active)
+      : active
+  const refIdx = sorted.findIndex((b) => b.id === reference.id)
+  const phaseIdx = BLOCK_PHASE_ORDER.indexOf(reference.phase)
+  return new Set(sorted.slice(refIdx - phaseIdx, refIdx).map((b) => b.id))
 }
 
 export default function HistoryPage() {
