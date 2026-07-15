@@ -1,7 +1,7 @@
 "use client"
 
 import { TrainingBlock, BlockPhase } from "@/lib/types"
-import { BLOCK_LENGTHS, PHASE_SESSION_TYPE } from "@/lib/prescription"
+import { BLOCK_LENGTHS, PHASE_SESSION_TYPE, PHASE_LABEL } from "@/lib/prescription"
 
 const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string; bg: string }> = {
   accumulation: {
@@ -28,6 +28,12 @@ const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string
     meta: "text-[#888888]",
     bg: "bg-[#f5f5f5]",
   },
+  reacclimation: {
+    bar: "bg-[#c8791e]",
+    label: "text-[#8a5311]",
+    meta: "text-[#a9722a]",
+    bg: "bg-[#fff8f0]",
+  },
 }
 
 interface BlockHeaderProps {
@@ -46,7 +52,7 @@ export default function BlockHeader({ block, confirmedCount, onEditAnchor }: Blo
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-4 rounded-full ${style.bar}`} />
           <span className={`text-sm font-semibold ${style.label}`}>
-            {block.status === "completed" ? "✓ " : ""}{PHASE_SESSION_TYPE[block.phase]}
+            {block.status === "completed" ? "✓ " : ""}{block.phase === "reacclimation" ? PHASE_LABEL[block.phase] : PHASE_SESSION_TYPE[block.phase]}
           </span>
           {block.status === "completed" ? (
             <span className={`text-xs ${style.meta}`}>· {block.anchorWeight}kg anchor</span>

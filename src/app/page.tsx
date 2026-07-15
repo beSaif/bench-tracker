@@ -3,16 +3,18 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence, GymbroMessage } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadRecalDismissed, saveRecalDismissed } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
   createNextBlock,
+  createReacclimationBlock,
   migrateSessionTypes,
   BLOCK_LENGTHS,
   PHASE_LABEL,
   PHASE_SESSION_TYPE,
 } from "@/lib/prescription"
+import { evaluateRecalibration, RecalibrationProposal } from "@/lib/recalibration"
 import { generateWarmups } from "@/lib/warmup"
 import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
@@ -21,6 +23,7 @@ import { TrainingDay } from "@/lib/types"
 import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
+import RecalibrationBanner from "@/components/RecalibrationBanner"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
@@ -178,6 +181,7 @@ export default function Page() {
   const presenceInitialisedRef = useRef(false)
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
+  const [recalDismissedSig, setRecalDismissedSig] = useState<string | null>(() => loadRecalDismissed())
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
@@ -306,6 +310,16 @@ export default function Page() {
 
   // Keep ref in sync so event listener always sees fresh sessions
   useEffect(() => { sessionsRef.current = sessions }, [sessions])
+
+  // Derived during render (not an effect): detect when the program has drifted
+  // above current capability — a training layoff or an under-performing logged
+  // session — and surface a recalibration proposal, unless this exact proposal
+  // was already dismissed.
+  const recalProposal: RecalibrationProposal | null = (() => {
+    if (!mounted || blocks.length === 0) return null
+    const p = evaluateRecalibration(sessions, blocks, new Date())
+    return p && p.signature !== recalDismissedSig ? p : null
+  })()
 
   // Listen for mini-player resume event (same-page case)
   useEffect(() => {
@@ -585,6 +599,42 @@ export default function Page() {
     setShowHypePanel(true)
   }
 
+  // Coach-proposes / user-confirms: apply the recalibration by interrupting the
+  // active block and inserting an out-of-cycle re-acclimation block at the
+  // recalibrated anchor. The cycle resumes at accumulation once it completes.
+  function handleAcceptRecalibration() {
+    if (!profile || !recalProposal) return
+    const active = getActiveBlock(blocks)
+    if (!active) return
+
+    const confirmed = sessions.filter((s) => s.confirmed)
+    const maxBlockId = Math.max(...blocks.map((b) => b.id))
+    const reBlock = createReacclimationBlock(maxBlockId + 1, recalProposal.newAnchor)
+    const newBlocks = blocks
+      .map((b) =>
+        b.id === active.id
+          ? { ...b, status: "interrupted" as const, endDate: new Date().toISOString() }
+          : b
+      )
+      .concat(reBlock)
+
+    const upcoming = createUpcomingSession(confirmed, newBlocks, exerciseConfig, profile, trainingDays)
+    const withNote = { ...upcoming, coachNote: `${upcoming.coachNote} — ${recalProposal.message}` }
+    const final = sortSessions([...confirmed, withNote])
+
+    saveAll(final, newBlocks)
+    setSessions(final)
+    setBlocks(newBlocks)
+    saveRecalDismissed(recalProposal.signature)
+    setRecalDismissedSig(recalProposal.signature)
+  }
+
+  function handleDismissRecalibration() {
+    if (!recalProposal) return
+    saveRecalDismissed(recalProposal.signature)
+    setRecalDismissedSig(recalProposal.signature)
+  }
+
   function handleAvatarClick(p: UserPresence) {
     const key = p.email.trim().toLowerCase()
     const msgs = messagesByFriend[key] ?? []
@@ -861,6 +911,7 @@ export default function Page() {
               transmutation: { bg: "bg-[#f5f0ff]", bar: "bg-[#5a2d8a]", label: "text-[#5a2d8a]", meta: "text-[#7a4daa]" },
               realization: { bg: "bg-[#eff6ff]", bar: "bg-[#1e3a5f]", label: "text-[#1e3a5f]", meta: "text-[#3b5f8a]" },
               deload: { bg: "bg-[#f5f5f5]", bar: "bg-[#888888]", label: "text-[#555555]", meta: "text-[#888888]" },
+              reacclimation: { bg: "bg-[#fff8f0]", bar: "bg-[#c8791e]", label: "text-[#8a5311]", meta: "text-[#a9722a]" },
             }
             const style = phaseColor[viewingUpcomingPhase]
             const total = BLOCK_LENGTHS[viewingUpcomingPhase]
@@ -904,6 +955,13 @@ export default function Page() {
           {/* Active block: upcoming + confirmed sessions + previews */}
           {viewingBlock === activeBlock && !viewingUpcomingPhase && (
             <>
+              {recalProposal && (
+                <RecalibrationBanner
+                  proposal={recalProposal}
+                  onAccept={handleAcceptRecalibration}
+                  onDismiss={handleDismissRecalibration}
+                />
+              )}
               {upcoming && (
                 <SessionCard
                   session={upcoming}

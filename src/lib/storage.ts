@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, RECAL_DISMISSED_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -301,4 +301,18 @@ export function loadMiniPlayer(): MiniPlayerState | null {
 
 export function clearMiniPlayer(): void {
   localStorage.removeItem(MINI_PLAYER_KEY)
+}
+
+// Signature of the last recalibration proposal the user dismissed (device-local;
+// no KV sync needed — this only suppresses re-nagging the same proposal).
+export function loadRecalDismissed(): string | null {
+  try {
+    return localStorage.getItem(RECAL_DISMISSED_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function saveRecalDismissed(signature: string): void {
+  localStorage.setItem(RECAL_DISMISSED_KEY, signature)
 }

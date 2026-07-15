@@ -13,6 +13,7 @@ export const BLOCK_LENGTHS: Record<BlockPhase, number> = {
   transmutation: 4,
   realization: 3,
   deload: 1,
+  reacclimation: 2,
 }
 
 export const PHASE_LABEL: Record<BlockPhase, string> = {
@@ -20,6 +21,7 @@ export const PHASE_LABEL: Record<BlockPhase, string> = {
   transmutation: "Transmutation",
   realization: "Realization",
   deload: "Deload",
+  reacclimation: "Re-acclimation",
 }
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
@@ -48,11 +50,18 @@ const DELOAD_SCHEME = [
   { pct: 0.600, reps: 5, sets: 3 },
 ]
 
+// Two-session ramp back onto the (recalibrated) anchor after a layoff / regression.
+const REACCLIMATION_SCHEME = [
+  { pct: 0.675, reps: 5, sets: 3 },
+  { pct: 0.750, reps: 5, sets: 4 },
+]
+
 const PHASE_SCHEMES: Record<BlockPhase, Array<{ pct: number; reps: number; sets: number }>> = {
   accumulation: ACCUMULATION_SCHEME,
   transmutation: TRANSMUTATION_SCHEME,
   realization: REALIZATION_SCHEME,
   deload: DELOAD_SCHEME,
+  reacclimation: REACCLIMATION_SCHEME,
 }
 
 export const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
@@ -60,18 +69,21 @@ export const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
   transmutation: "Intensity",
   realization: "Peak",
   deload: "Deload",
+  reacclimation: "Volume",
 }
 
-function getWorkingSets(session: Session) {
+export function getWorkingSets(session: Session) {
   return session.sets.filter((s) => !s.isWarmup)
 }
 
-function getLastWorkingSet(session: Session) {
+export function getLastWorkingSet(session: Session) {
   const working = getWorkingSets(session)
   return working.length > 0 ? working[working.length - 1] : null
 }
 
 export function nextBlockPhase(current: BlockPhase): BlockPhase {
+  // Re-acclimation is an out-of-cycle bridge block: after it, restart the cycle.
+  if (current === "reacclimation") return "accumulation"
   const idx = BLOCK_PHASE_ORDER.indexOf(current)
   return BLOCK_PHASE_ORDER[(idx + 1) % BLOCK_PHASE_ORDER.length]
 }
@@ -128,6 +140,19 @@ export function createNextBlock(
     status: "active",
     sessionIds: [],
     anchorWeight: anchor,
+    startDate: null,
+    endDate: null,
+  }
+}
+
+/** Factory for an out-of-cycle re-acclimation block at a recalibrated anchor. */
+export function createReacclimationBlock(newId: number, anchorWeight: number): TrainingBlock {
+  return {
+    id: newId,
+    phase: "reacclimation",
+    status: "active",
+    sessionIds: [],
+    anchorWeight,
     startDate: null,
     endDate: null,
   }

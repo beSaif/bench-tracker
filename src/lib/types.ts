@@ -24,8 +24,8 @@ export interface Session {
   blockId?: number
 }
 
-export type BlockPhase = "accumulation" | "transmutation" | "realization" | "deload"
-export type BlockStatus = "active" | "completed"
+export type BlockPhase = "accumulation" | "transmutation" | "realization" | "deload" | "reacclimation"
+export type BlockStatus = "active" | "completed" | "interrupted"
 
 export interface TrainingBlock {
   id: number
@@ -68,6 +68,7 @@ export const EXERCISES_KEY = "lift-tracker-exercises"
 export const PROFILE_KEY = "lift-tracker-profile"
 export const PRESENCES_KEY = "lift-tracker-presences"
 export const FRIENDS_KEY = "lift-tracker-friends"
+export const RECAL_DISMISSED_KEY = "lift-tracker-recal-dismissed"
 
 export interface SessionDraft {
   sessionId: number

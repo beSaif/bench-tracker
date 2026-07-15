@@ -9,6 +9,7 @@ const PHASE_SHORT: Record<BlockPhase, string> = {
   transmutation: "Intensity",
   realization: "Peak",
   deload: "Deload",
+  reacclimation: "Re-acclim",
 }
 
 const PHASE_COLOR: Record<BlockPhase, string> = {
@@ -16,6 +17,7 @@ const PHASE_COLOR: Record<BlockPhase, string> = {
   transmutation: "#5a2d8a",
   realization: "#1e3a5f",
   deload: "#888888",
+  reacclimation: "#c8791e",
 }
 
 type StepStatus = "completed" | "active" | "upcoming"
@@ -43,15 +45,23 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
   const activeIdx = sorted.findIndex((b) => b.id === activeBlock.id)
   const cycleStartIdx = activeIdx - activePhaseIdx
 
-  const steps: Step[] = PHASE_ORDER.map((phase, i) => {
-    if (i < activePhaseIdx) {
-      return { phase, status: "completed", block: sorted[cycleStartIdx + i] }
-    }
-    if (i === activePhaseIdx) {
-      return { phase, status: "active", block: activeBlock }
-    }
-    return { phase, status: "upcoming" }
-  })
+  // Re-acclimation is an out-of-cycle bridge block: show it as its own active
+  // step, with the normal cycle projected as upcoming behind it.
+  const steps: Step[] =
+    activeBlock.phase === "reacclimation"
+      ? [
+          { phase: "reacclimation", status: "active", block: activeBlock },
+          ...PHASE_ORDER.map((phase): Step => ({ phase, status: "upcoming" })),
+        ]
+      : PHASE_ORDER.map((phase, i) => {
+          if (i < activePhaseIdx) {
+            return { phase, status: "completed", block: sorted[cycleStartIdx + i] }
+          }
+          if (i === activePhaseIdx) {
+            return { phase, status: "active", block: activeBlock }
+          }
+          return { phase, status: "upcoming" }
+        })
 
   function handleStepClick(step: Step) {
     if (step.status === "active") {
