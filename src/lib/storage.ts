@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, RECAL_DISMISSED_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, RECAL_DISMISSED_KEY, NEXT_ANCHOR_DISMISSED_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -315,4 +315,18 @@ export function loadRecalDismissed(): string | null {
 
 export function saveRecalDismissed(signature: string): void {
   localStorage.setItem(RECAL_DISMISSED_KEY, signature)
+}
+
+// Signature of the next-anchor suggestion the user has already handled
+// (picked a value or dismissed), so the cycle-end prompt is shown once.
+export function loadNextAnchorDismissed(): string | null {
+  try {
+    return localStorage.getItem(NEXT_ANCHOR_DISMISSED_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function saveNextAnchorDismissed(signature: string): void {
+  localStorage.setItem(NEXT_ANCHOR_DISMISSED_KEY, signature)
 }

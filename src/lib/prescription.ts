@@ -103,22 +103,84 @@ export function prescribeBlockSession(
   }
 }
 
-/** After a realization block, determine the anchor for the next cycle. */
-export function deriveNextAnchor(completedRealizationBlock: TrainingBlock, sessions: Session[]): number {
-  const blockSessions = sessions.filter(
-    (s) => s.confirmed && completedRealizationBlock.sessionIds.includes(s.id)
-  )
+/**
+ * How much to move the anchor for the next cycle, based on how the realization
+ * top single felt. Shared by the silent fallback (deriveNextAnchor) and the
+ * user-facing chooser (suggestNextAnchor) so "ignore the prompt" and "pick the
+ * recommended option" land on the same weight.
+ */
+export function nextAnchorDelta(topSingleRPE: number | null): number {
+  if (topSingleRPE == null || topSingleRPE <= 6.5) return 5
+  if (topSingleRPE <= 7.5) return 2.5
+  if (topSingleRPE <= 8.5) return 0
+  return -2.5
+}
+
+function lastRealizationTopSet(
+  block: TrainingBlock,
+  sessions: Session[]
+): { weight: number; rpe: number | null } | null {
+  const blockSessions = sessions.filter((s) => s.confirmed && block.sessionIds.includes(s.id))
   const peakSessions = blockSessions.filter((s) => s.type === "Peak")
   const lastPeak = peakSessions[peakSessions.length - 1]
+  if (!lastPeak) return null
+  const topSet = getWorkingSets(lastPeak)[0]
+  if (!topSet) return null
+  return { weight: topSet.kg, rpe: getLastWorkingSet(lastPeak)?.rpe ?? null }
+}
 
-  if (!lastPeak) return completedRealizationBlock.anchorWeight
+/** After a realization block, the anchor for the next cycle (silent fallback). */
+export function deriveNextAnchor(completedRealizationBlock: TrainingBlock, sessions: Session[]): number {
+  const top = lastRealizationTopSet(completedRealizationBlock, sessions)
+  if (!top) return completedRealizationBlock.anchorWeight
+  return roundToPlate(top.weight + nextAnchorDelta(top.rpe))
+}
 
-  const lastPeakWeight = getWorkingSets(lastPeak)[0]?.kg ?? completedRealizationBlock.anchorWeight
-  const lastPeakRPE = getLastWorkingSet(lastPeak)?.rpe ?? null
+export interface NextAnchorSuggestion {
+  /** Realization top single the suggestion is built from. */
+  basisWeight: number
+  basisRPE: number | null
+  /** RPE-scaled recommendation (also the silent fallback). */
+  recommended: number
+  /** Distinct plate-rounded options, recommended first. */
+  options: number[]
+  /** Stable identity so a handled suggestion is not re-shown. */
+  signature: string
+}
 
-  return lastPeakRPE !== null && lastPeakRPE <= 7.5
-    ? lastPeakWeight + 2.5
-    : lastPeakWeight
+/**
+ * When the active block is a fresh deload directly following a completed
+ * realization block, propose next-cycle anchor options off the top single.
+ * Returns null at every other point. Purely derived from the caller's data.
+ */
+export function suggestNextAnchor(
+  blocks: TrainingBlock[],
+  sessions: Session[]
+): NextAnchorSuggestion | null {
+  const active = blocks.find((b) => b.status === "active")
+  if (!active || active.phase !== "deload" || active.sessionIds.length > 0) return null
+  const prev = blocks.find((b) => b.id === active.id - 1)
+  if (!prev || prev.phase !== "realization" || prev.status !== "completed") return null
+
+  const top = lastRealizationTopSet(prev, sessions)
+  if (!top) return null
+
+  const delta = nextAnchorDelta(top.rpe)
+  // Recommended first, then a step up and a step down for user override.
+  const rawDeltas = delta === 0 ? [0, 2.5, -2.5] : delta > 0 ? [delta, delta + 2.5, 0] : [delta, 0, delta - 2.5]
+  const options: number[] = []
+  for (const d of rawDeltas) {
+    const w = roundToPlate(top.weight + d)
+    if (w > 0 && !options.includes(w)) options.push(w)
+  }
+
+  return {
+    basisWeight: top.weight,
+    basisRPE: top.rpe,
+    recommended: options[0],
+    options,
+    signature: `nextanchor|${active.id}|${top.weight}`,
+  }
 }
 
 /** Factory for the next block after a completed one. */

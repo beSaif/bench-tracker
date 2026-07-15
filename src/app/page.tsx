@@ -3,12 +3,14 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence, GymbroMessage } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadRecalDismissed, saveRecalDismissed } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadRecalDismissed, saveRecalDismissed, loadNextAnchorDismissed, saveNextAnchorDismissed } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
   createNextBlock,
   createReacclimationBlock,
+  suggestNextAnchor,
+  NextAnchorSuggestion,
   migrateSessionTypes,
   BLOCK_LENGTHS,
   PHASE_LABEL,
@@ -24,6 +26,7 @@ import SessionCard from "@/components/SessionCard"
 import BlockHeader from "@/components/BlockHeader"
 import ProgramTimeline from "@/components/ProgramTimeline"
 import RecalibrationBanner from "@/components/RecalibrationBanner"
+import NextAnchorBanner from "@/components/NextAnchorBanner"
 import StatsGrid from "@/components/StatsGrid"
 import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
@@ -182,6 +185,7 @@ export default function Page() {
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const [recalDismissedSig, setRecalDismissedSig] = useState<string | null>(() => loadRecalDismissed())
+  const [nextAnchorDismissedSig, setNextAnchorDismissedSig] = useState<string | null>(() => loadNextAnchorDismissed())
   const installGuide = useInstallGuide()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
@@ -319,6 +323,14 @@ export default function Page() {
     if (!mounted || blocks.length === 0) return null
     const p = evaluateRecalibration(sessions, blocks, new Date())
     return p && p.signature !== recalDismissedSig ? p : null
+  })()
+
+  // Derived: at cycle end (fresh deload after a completed realization block),
+  // suggest next-cycle anchor options for the user to confirm or override.
+  const nextAnchor: NextAnchorSuggestion | null = (() => {
+    if (!mounted || blocks.length === 0) return null
+    const s = suggestNextAnchor(blocks, sessions.filter((x) => x.confirmed))
+    return s && s.signature !== nextAnchorDismissedSig ? s : null
   })()
 
   // Listen for mini-player resume event (same-page case)
@@ -633,6 +645,30 @@ export default function Page() {
     if (!recalProposal) return
     saveRecalDismissed(recalProposal.signature)
     setRecalDismissedSig(recalProposal.signature)
+  }
+
+  // Apply the user's chosen next-cycle anchor to the active (deload) block and
+  // re-prescribe the upcoming session off it. Marks the suggestion handled.
+  function handlePickNextAnchor(anchor: number) {
+    if (!profile || !nextAnchor) return
+    const active = getActiveBlock(blocks)
+    if (!active) return
+    const newBlocks = blocks.map((b) => (b.id === active.id ? { ...b, anchorWeight: anchor } : b))
+    const confirmed = sessions.filter((s) => s.confirmed)
+    const upcoming = createUpcomingSession(confirmed, newBlocks, exerciseConfig, profile, trainingDays)
+    const final = sortSessions([...confirmed, upcoming])
+    saveAll(final, newBlocks)
+    setSessions(final)
+    setBlocks(newBlocks)
+    saveNextAnchorDismissed(nextAnchor.signature)
+    setNextAnchorDismissedSig(nextAnchor.signature)
+  }
+
+  // Keep the auto-derived (recommended) anchor.
+  function handleDismissNextAnchor() {
+    if (!nextAnchor) return
+    saveNextAnchorDismissed(nextAnchor.signature)
+    setNextAnchorDismissedSig(nextAnchor.signature)
   }
 
   function handleAvatarClick(p: UserPresence) {
@@ -960,6 +996,13 @@ export default function Page() {
                   proposal={recalProposal}
                   onAccept={handleAcceptRecalibration}
                   onDismiss={handleDismissRecalibration}
+                />
+              )}
+              {nextAnchor && (
+                <NextAnchorBanner
+                  suggestion={nextAnchor}
+                  onPick={handlePickNextAnchor}
+                  onDismiss={handleDismissNextAnchor}
                 />
               )}
               {upcoming && (
