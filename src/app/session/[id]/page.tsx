@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Session, MainLiftSet, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
 import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal } from "@/lib/storage"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
+import { buildBlockSessionNumbers } from "@/lib/sessionNumber"
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -49,22 +50,23 @@ export default function SessionDetailPage() {
   const id = Number(params.id)
 
   const [session, setSession] = useState<Session | null>(null)
+  const [sessionNumber, setSessionNumber] = useState<number | null>(null)
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(loadExerciseConfigLocal)
   const [profile, setProfile] = useState<UserProfile | null>(loadProfileLocal)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     const local = loadSessionsLocal()
-    const found = local.find((s) => s.id === id) ?? null
-    setSession(found)
+    setSession(local.find((s) => s.id === id) ?? null)
+    setSessionNumber(buildBlockSessionNumbers(local).get(id) ?? null)
     setMounted(true)
 
     loadExerciseConfig().then(setExerciseConfig)
     loadProfile().then((p) => { if (p) setProfile(p) })
 
     loadAll().then(({ sessions }) => {
-      const updated = sessions.find((s) => s.id === id) ?? null
-      setSession(updated)
+      setSession(sessions.find((s) => s.id === id) ?? null)
+      setSessionNumber(buildBlockSessionNumbers(sessions).get(id) ?? null)
     })
   }, [id])
 
@@ -113,7 +115,7 @@ export default function SessionDetailPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-semibold text-[#111111] tracking-tight">
-              Session {String(session.id).padStart(2, "0")}
+              Session {String(sessionNumber ?? session.id).padStart(2, "0")}
               <span className="text-[#aaaaaa] font-normal"> · {session.type}</span>
             </h1>
             {session.date && (

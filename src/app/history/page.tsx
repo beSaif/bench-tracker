@@ -7,6 +7,7 @@ import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLoca
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import ShareImageModal from "@/components/ShareImageModal"
+import { buildBlockSessionNumbers } from "@/lib/sessionNumber"
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
@@ -74,6 +75,8 @@ export default function HistoryPage() {
     .filter((s) => s.confirmed && !activeBlockIds.has(s.id) && !cycleSessionIds.has(s.id))
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
 
+  const blockSessionNumbers = buildBlockSessionNumbers(sessions)
+
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
       <header className="mb-6">
@@ -99,6 +102,7 @@ export default function HistoryPage() {
           <SessionCard
             key={s.id}
             session={s}
+            blockIndex={blockSessionNumbers.get(s.id)}
             onShare={profile ? setShareSession : undefined}
             exerciseConfig={exerciseConfig}
             trainingDays={trainingDays}
