@@ -49,6 +49,7 @@ const EXTRA_REPS_VALUES = Array.from({ length: 30 }, (_, i) => i + 1)
 
 interface LogSessionModalProps {
   session: Session
+  sessionNumber?: number
   onConfirm: (session: Session) => void
   onClose: () => void
   onMinimize?: () => void
@@ -324,6 +325,7 @@ function getItemKey(item: CarouselItem): string {
 
 export default function LogSessionModal({
   session,
+  sessionNumber,
   onConfirm,
   onClose,
   onMinimize,
@@ -1131,7 +1133,7 @@ export default function LogSessionModal({
           <div className="px-4 pt-6 pb-4 shrink-0 border-b border-[#f0f0f0]">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[#111111]">
-                Edit Session {String(session.id).padStart(2, "0")}
+                Edit Session {String(sessionNumber ?? session.id).padStart(2, "0")}
               </h2>
               <button
                 onClick={onClose}
@@ -1437,7 +1439,7 @@ export default function LogSessionModal({
               </button>
             )}
             <h2 className="flex-1 text-base font-semibold text-[#111111]">
-              Log Session {String(session.id).padStart(2, "0")}
+              Log Session {String(sessionNumber ?? session.id).padStart(2, "0")}
             </h2>
             <button
               onClick={onClose}

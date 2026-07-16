@@ -39,6 +39,7 @@ import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
+import { buildBlockSessionNumbers } from "@/lib/sessionNumber"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -747,7 +748,8 @@ export default function Page() {
 
   function handleUnlogSession(session: Session) {
     if (!profile) return
-    if (!window.confirm(`Unlog Session ${String(session.id).padStart(2, "0")}? This will remove it from your history.`)) return
+    const unlogNumber = buildBlockSessionNumbers(sessions).get(session.id) ?? session.id
+    if (!window.confirm(`Unlog Session ${String(unlogNumber).padStart(2, "0")}? This will remove it from your history.`)) return
 
     const remaining = sessions.filter((s) => s.confirmed && s.id !== session.id)
 
@@ -813,16 +815,10 @@ export default function Page() {
     .filter((s) => viewingBlockSessionIds.has(s.id))
     .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
 
-  const blockIndexMap = new Map<number, number>()
-  if (activeBlock) {
-    const chronoConfirmed = [...activeBlockSessions].sort(
-      (a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()
-    )
-    chronoConfirmed.forEach((s, i) => blockIndexMap.set(s.id, i + 1))
-    if (upcoming?.blockId === activeBlock.id) {
-      blockIndexMap.set(upcoming.id, activeBlockSessions.length + 1)
-    }
-  }
+  // Per-phase numbering: number sessions 1..N within their own block, for every
+  // block (not just the active one), so labels stay consistent across phases —
+  // including inserted re-acclimation blocks.
+  const blockSessionNumbers = buildBlockSessionNumbers(sessions)
 
   const latestE1RM = getBestE1RM(sessions)
   const bestWeight = getBestWeight(sessions)
@@ -1024,7 +1020,7 @@ export default function Page() {
               {upcoming && (
                 <SessionCard
                   session={upcoming}
-                  blockIndex={blockIndexMap.get(upcoming.id)}
+                  blockIndex={blockSessionNumbers.get(upcoming.id)}
                   onStartLogging={handleStartLogging}
                   onUpdateMuscleGroups={handleUpdateMuscleGroups}
                   exerciseConfig={exerciseConfig}
@@ -1036,7 +1032,7 @@ export default function Page() {
                 <SessionCard
                   key={s.id}
                   session={s}
-                  blockIndex={blockIndexMap.get(s.id)}
+                  blockIndex={blockSessionNumbers.get(s.id)}
                   onEdit={handleEditSession}
                   onUnlog={handleUnlogSession}
                   onShare={setShareSession}
@@ -1073,6 +1069,7 @@ export default function Page() {
             <SessionCard
               key={s.id}
               session={s}
+              blockIndex={blockSessionNumbers.get(s.id)}
               onEdit={handleEditSession}
               onUnlog={handleUnlogSession}
               onShare={setShareSession}
@@ -1087,6 +1084,7 @@ export default function Page() {
       {loggingSession && (
         <LogSessionModal
           session={loggingSession}
+          sessionNumber={blockSessionNumbers.get(loggingSession.id)}
           onConfirm={handleConfirmSession}
           onClose={handleCloseModal}
           onMinimize={handleMinimizeModal}
@@ -1101,6 +1099,7 @@ export default function Page() {
       {editingSession && (
         <LogSessionModal
           session={editingSession}
+          sessionNumber={blockSessionNumbers.get(editingSession.id)}
           mode="edit"
           onConfirm={handleSaveEdit}
           onClose={() => setEditingSession(null)}
