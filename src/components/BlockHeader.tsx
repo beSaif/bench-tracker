@@ -37,8 +37,8 @@ interface BlockHeaderProps {
 }
 
 export default function BlockHeader({ block, confirmedCount, onEditAnchor }: BlockHeaderProps) {
-  const style = PHASE_STYLE[block.phase]
-  const total = BLOCK_LENGTHS[block.phase]
+  const style = PHASE_STYLE[block.phase] ?? PHASE_STYLE.accumulation
+  const total = BLOCK_LENGTHS[block.phase] ?? 0
 
   return (
     <div className={`${style.bg} rounded-xl px-4 py-3 mb-3${block.status === "completed" ? " opacity-75" : ""}`}>
