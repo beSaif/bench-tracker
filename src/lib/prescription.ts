@@ -13,6 +13,8 @@ export const BLOCK_LENGTHS: Record<BlockPhase, number> = {
   transmutation: 4,
   realization: 3,
   deload: 1,
+  // Re-acclimation length is dynamic (rebuildLoads.length); use getBlockLength().
+  reacclimation: 0,
 }
 
 export const PHASE_LABEL: Record<BlockPhase, string> = {
@@ -20,6 +22,7 @@ export const PHASE_LABEL: Record<BlockPhase, string> = {
   transmutation: "Transmutation",
   realization: "Realization",
   deload: "Deload",
+  reacclimation: "Re-acclimation",
 }
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
@@ -53,6 +56,8 @@ const PHASE_SCHEMES: Record<BlockPhase, Array<{ pct: number; reps: number; sets:
   transmutation: TRANSMUTATION_SCHEME,
   realization: REALIZATION_SCHEME,
   deload: DELOAD_SCHEME,
+  // Re-acclimation is prescribed from the block's rebuildLoads, not a percentage scheme.
+  reacclimation: [],
 }
 
 export const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
@@ -60,7 +65,12 @@ export const PHASE_SESSION_TYPE: Record<BlockPhase, SessionType> = {
   transmutation: "Intensity",
   realization: "Peak",
   deload: "Deload",
+  reacclimation: "Volume",
 }
+
+// Re-acclimation rebuild sessions are a fixed volume scheme at the given rebuild load.
+const REACCLIMATION_REPS = 5
+const REACCLIMATION_SETS = 3
 
 function getWorkingSets(session: Session) {
   return session.sets.filter((s) => !s.isWarmup)
@@ -81,14 +91,48 @@ export function prescribeBlockSession(
   sessionIndexInBlock: number,
   anchorWeight: number
 ): Prescription {
-  const scheme = PHASE_SCHEMES[phase]
+  // Fall back to accumulation for any phase without a percentage scheme
+  // (e.g. reacclimation, which should go through prescribeForBlock instead).
+  const scheme = PHASE_SCHEMES[phase]?.length ? PHASE_SCHEMES[phase] : ACCUMULATION_SCHEME
+  const type = scheme === ACCUMULATION_SCHEME ? PHASE_SESSION_TYPE.accumulation : PHASE_SESSION_TYPE[phase]
   const entry = scheme[Math.min(sessionIndexInBlock, scheme.length - 1)]
   return {
     weight: roundToPlate(anchorWeight * entry.pct),
     reps: entry.reps,
     sets: entry.sets,
-    sessionType: PHASE_SESSION_TYPE[phase],
+    sessionType: type,
   }
+}
+
+/** Session count for a block — dynamic for re-acclimation (its rebuildLoads length). */
+export function getBlockLength(
+  block: Pick<TrainingBlock, "phase" | "rebuildLoads">
+): number {
+  if (block.phase === "reacclimation") return block.rebuildLoads?.length ?? 0
+  return BLOCK_LENGTHS[block.phase] ?? 0
+}
+
+/**
+ * Prescription for the nth session of a specific block. Re-acclimation reads its
+ * weight from rebuildLoads; every other phase delegates to the percentage scheme.
+ */
+export function prescribeForBlock(
+  block: Pick<TrainingBlock, "phase" | "rebuildLoads" | "anchorWeight">,
+  sessionIndexInBlock: number
+): Prescription {
+  if (block.phase === "reacclimation") {
+    const loads = block.rebuildLoads ?? []
+    const weight = loads.length > 0
+      ? loads[Math.min(sessionIndexInBlock, loads.length - 1)]
+      : block.anchorWeight
+    return {
+      weight: roundToPlate(weight),
+      reps: REACCLIMATION_REPS,
+      sets: REACCLIMATION_SETS,
+      sessionType: PHASE_SESSION_TYPE.reacclimation,
+    }
+  }
+  return prescribeBlockSession(block.phase, sessionIndexInBlock, block.anchorWeight)
 }
 
 /** After a realization block, determine the anchor for the next cycle. */

@@ -9,6 +9,7 @@ const PHASE_SHORT: Record<BlockPhase, string> = {
   transmutation: "Intensity",
   realization: "Peak",
   deload: "Deload",
+  reacclimation: "Rebuild",
 }
 
 const PHASE_COLOR: Record<BlockPhase, string> = {
@@ -16,6 +17,7 @@ const PHASE_COLOR: Record<BlockPhase, string> = {
   transmutation: "#5a2d8a",
   realization: "#1e3a5f",
   deload: "#888888",
+  reacclimation: "#b06a1e",
 }
 
 type StepStatus = "completed" | "active" | "upcoming"
@@ -39,8 +41,17 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
   const activeBlock = sorted.find((b) => b.status === "active")
   if (!activeBlock) return null
 
-  const activePhaseIdx = PHASE_ORDER.indexOf(activeBlock.phase)
-  const activeIdx = sorted.findIndex((b) => b.id === activeBlock.id)
+  // A re-acclimation block is a temporary detour and isn't part of the four-phase
+  // cycle. Anchor the timeline on the interrupted block it will resume, so the
+  // standard cycle still renders and highlights the right phase.
+  const anchorBlock =
+    PHASE_ORDER.indexOf(activeBlock.phase) === -1 && activeBlock.resumeBlockId !== undefined
+      ? sorted.find((b) => b.id === activeBlock.resumeBlockId) ?? activeBlock
+      : activeBlock
+
+  const activePhaseIdx = PHASE_ORDER.indexOf(anchorBlock.phase)
+  if (activePhaseIdx === -1) return null
+  const activeIdx = sorted.findIndex((b) => b.id === anchorBlock.id)
   const cycleStartIdx = activeIdx - activePhaseIdx
 
   const steps: Step[] = PHASE_ORDER.map((phase, i) => {
@@ -48,7 +59,7 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
       return { phase, status: "completed", block: sorted[cycleStartIdx + i] }
     }
     if (i === activePhaseIdx) {
-      return { phase, status: "active", block: activeBlock }
+      return { phase, status: "active", block: anchorBlock }
     }
     return { phase, status: "upcoming" }
   })
