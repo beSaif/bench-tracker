@@ -7,6 +7,8 @@ import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTraini
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
+  prescribeForBlock,
+  getBlockLength,
   createNextBlock,
   migrateSessionTypes,
   BLOCK_LENGTHS,
@@ -87,7 +89,7 @@ function createUpcomingSession(
 
   if (activeBlock) {
     const sessionIndexInBlock = activeBlock.sessionIds.length
-    prescription = prescribeBlockSession(activeBlock.phase, sessionIndexInBlock, activeBlock.anchorWeight)
+    prescription = prescribeForBlock(activeBlock, sessionIndexInBlock)
     blockId = activeBlock.id
   } else {
     prescription = prescribeBlockSession("accumulation", 0, profile.anchor)
@@ -107,7 +109,8 @@ function createUpcomingSession(
 
   const sessionIndex = activeBlock ? activeBlock.sessionIds.length : 0
   const phase = activeBlock?.phase ?? "accumulation"
-  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${BLOCK_LENGTHS[phase]}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
+  const blockLength = activeBlock ? getBlockLength(activeBlock) : BLOCK_LENGTHS.accumulation
+  const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${blockLength}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
   const confirmedSessions = sessions.filter((s) => s.confirmed)
   const nextDay = suggestNextDay(confirmedSessions, trainingDays)
@@ -547,7 +550,7 @@ export default function Page() {
 
     if (activeBlock) {
       const updatedBlockSessionIds = [...activeBlock.sessionIds, updatedSession.id]
-      const isBlockComplete = updatedBlockSessionIds.length >= BLOCK_LENGTHS[activeBlock.phase]
+      const isBlockComplete = updatedBlockSessionIds.length >= getBlockLength(activeBlock)
 
       if (isBlockComplete) {
         const completedBlock: TrainingBlock = {
@@ -556,11 +559,27 @@ export default function Page() {
           status: "completed",
           endDate: updatedSession.date ?? null,
         }
-        const maxBlockId = Math.max(...currentBlocks.map((b) => b.id))
-        const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
-        finalBlocks = currentBlocks
-          .map((b) => (b.id === activeBlock.id ? completedBlock : b))
-          .concat(newBlock)
+
+        // Re-acclimation finishes by resuming the interrupted block it was rebuilding
+        // toward, rather than advancing into a fresh phase.
+        const resumeBlock =
+          activeBlock.phase === "reacclimation" && activeBlock.resumeBlockId !== undefined
+            ? currentBlocks.find((b) => b.id === activeBlock.resumeBlockId)
+            : undefined
+
+        if (resumeBlock) {
+          finalBlocks = currentBlocks.map((b) => {
+            if (b.id === activeBlock.id) return completedBlock
+            if (b.id === resumeBlock.id) return { ...b, status: "active" as const, endDate: null }
+            return b
+          })
+        } else {
+          const maxBlockId = Math.max(...currentBlocks.map((b) => b.id))
+          const newBlock = createNextBlock(completedBlock, confirmedSessions, maxBlockId + 1)
+          finalBlocks = currentBlocks
+            .map((b) => (b.id === activeBlock.id ? completedBlock : b))
+            .concat(newBlock)
+        }
       } else {
         finalBlocks = currentBlocks.map((b) =>
           b.id === activeBlock.id ? { ...b, sessionIds: updatedBlockSessionIds } : b
@@ -861,6 +880,7 @@ export default function Page() {
               transmutation: { bg: "bg-[#f5f0ff]", bar: "bg-[#5a2d8a]", label: "text-[#5a2d8a]", meta: "text-[#7a4daa]" },
               realization: { bg: "bg-[#eff6ff]", bar: "bg-[#1e3a5f]", label: "text-[#1e3a5f]", meta: "text-[#3b5f8a]" },
               deload: { bg: "bg-[#f5f5f5]", bar: "bg-[#888888]", label: "text-[#555555]", meta: "text-[#888888]" },
+              reacclimation: { bg: "bg-[#fdf3e7]", bar: "bg-[#b06a1e]", label: "text-[#8a4d14]", meta: "text-[#b06a1e]" },
             }
             const style = phaseColor[viewingUpcomingPhase]
             const total = BLOCK_LENGTHS[viewingUpcomingPhase]
@@ -930,11 +950,11 @@ export default function Page() {
               {/* Previews for sessions not yet generated */}
               {activeBlock && (() => {
                 const shownSessions = activeBlockSessions.length + (upcoming ? 1 : 0)
-                const remaining = BLOCK_LENGTHS[activeBlock.phase] - shownSessions
+                const remaining = getBlockLength(activeBlock) - shownSessions
                 if (remaining <= 0) return null
                 return Array.from({ length: remaining }, (_, i) => {
                   const idx = shownSessions + i
-                  const p = prescribeBlockSession(activeBlock.phase, idx, activeBlock.anchorWeight)
+                  const p = prescribeForBlock(activeBlock, idx)
                   return (
                     <div
                       key={idx}

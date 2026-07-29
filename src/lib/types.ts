@@ -24,8 +24,8 @@ export interface Session {
   blockId?: number
 }
 
-export type BlockPhase = "accumulation" | "transmutation" | "realization" | "deload"
-export type BlockStatus = "active" | "completed"
+export type BlockPhase = "accumulation" | "transmutation" | "realization" | "deload" | "reacclimation"
+export type BlockStatus = "active" | "completed" | "interrupted"
 
 export interface TrainingBlock {
   id: number
@@ -35,6 +35,10 @@ export interface TrainingBlock {
   anchorWeight: number
   startDate: string | null
   endDate: string | null
+  /** Re-acclimation only: per-session rebuild loads (kg). Block length = rebuildLoads.length. */
+  rebuildLoads?: number[]
+  /** Re-acclimation only: id of the interrupted block to reactivate once rebuilds are done. */
+  resumeBlockId?: number
 }
 
 export type MainLift = "bench" | "deadlift" | "squat"
