@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef } from "react"
-import { Session } from "@/lib/types"
+import { Session, SessionType } from "@/lib/types"
 import { sessionSummary } from "@/lib/stats"
 
 export interface ShareCardProps {
@@ -11,6 +11,10 @@ export interface ShareCardProps {
   target: number
   date: string | null
   mainLiftLabel: string
+  /** True when this session belongs to a re-acclimation (rebuild) block. */
+  isRebuild?: boolean
+  /** The phase the rebuild resumes into, so the track can show what comes next. */
+  resumePhaseType?: SessionType | null
 }
 
 // Palette mirrors the app tokens in globals.css. Inline hex only — no Tailwind
@@ -33,6 +37,15 @@ const PHASE_INDEX: Record<string, number> = {
   Volume: 0, Intensity: 1, Peak: 2, Deload: 3,
 }
 
+const REBUILD_COLOR = "#b06a1e"
+
+type CellState = "completed" | "active" | "upcoming"
+interface PhaseCell {
+  label: string
+  color: string
+  state: CellState
+}
+
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
@@ -42,13 +55,33 @@ function formatDate(iso: string): string {
 }
 
 const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
-  { session, bestWeight, bodyweight, target, date, mainLiftLabel },
+  { session, bestWeight, bodyweight, target, date, mainLiftLabel, isRebuild = false, resumePhaseType = null },
   ref
 ) {
   const summary = sessionSummary(session)
   const hasSets = summary.weight != null && summary.reps != null && summary.setCount > 0
   const activeIdx = PHASE_INDEX[session.type] ?? 0
   const activePhase = SHARE_PHASES[activeIdx]
+
+  // A rebuild session logs as "Volume", so surface its true phase instead.
+  const headerLabel = isRebuild ? "Rebuild" : session.type
+  const headerColor = isRebuild ? REBUILD_COLOR : activePhase.color
+
+  // Phase track. For a rebuild, splice a "Rebuild" step (active) in front of the
+  // phase it resumes into; everything before that phase is already done.
+  const resumeIdx = resumePhaseType != null ? PHASE_INDEX[resumePhaseType] ?? 1 : 1
+  const cells: PhaseCell[] = isRebuild
+    ? SHARE_PHASES.reduce<PhaseCell[]>((acc, p, i) => {
+        if (i === resumeIdx) acc.push({ label: "Rebuild", color: REBUILD_COLOR, state: "active" })
+        acc.push({ label: p.label, color: p.color, state: i < resumeIdx ? "completed" : "upcoming" })
+        return acc
+      }, [])
+    : SHARE_PHASES.map((p, i) => ({
+        label: p.label,
+        color: p.color,
+        state: i < activeIdx ? "completed" : i === activeIdx ? "active" : "upcoming",
+      }))
+
   const progressPct =
     bestWeight != null && target > 0
       ? Math.min(100, Math.round((bestWeight / target) * 100))
@@ -105,7 +138,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                 width: 7,
                 height: 7,
                 borderRadius: "50%",
-                backgroundColor: activePhase.color,
+                backgroundColor: headerColor,
                 display: "inline-block",
                 flexShrink: 0,
               }}
@@ -116,10 +149,10 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                 fontWeight: 600,
                 letterSpacing: 2,
                 textTransform: "uppercase",
-                color: activePhase.color,
+                color: headerColor,
               }}
             >
-              {session.type}
+              {headerLabel}
             </span>
           </div>
           {date && (
@@ -246,35 +279,35 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
         {/* Phase track */}
         <div style={{ marginBottom: 48 }}>
           <div style={{ display: "flex", gap: 10 }}>
-            {SHARE_PHASES.map((phase, i) => (
+            {cells.map((cell, i) => (
               <div
-                key={phase.label}
+                key={`${cell.label}-${i}`}
                 style={{
                   flex: 1,
                   display: "flex",
                   flexDirection: "column",
                   gap: 10,
-                  opacity: i > activeIdx ? 0.65 : 1,
+                  opacity: cell.state === "upcoming" ? 0.65 : 1,
                 }}
               >
                 <div
                   style={{
                     height: 6,
                     borderRadius: 4,
-                    backgroundColor: i <= activeIdx ? phase.color : "#999999",
+                    backgroundColor: cell.state === "upcoming" ? "#999999" : cell.color,
                   }}
                 />
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {i < activeIdx && (
-                    <span style={{ fontSize: 18, color: phase.color, lineHeight: 1 }}>✓</span>
+                  {cell.state === "completed" && (
+                    <span style={{ fontSize: 18, color: cell.color, lineHeight: 1 }}>✓</span>
                   )}
-                  {i === activeIdx && (
+                  {cell.state === "active" && (
                     <div
                       style={{
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        backgroundColor: phase.color,
+                        backgroundColor: cell.color,
                         flexShrink: 0,
                       }}
                     />
@@ -282,19 +315,19 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                   <span
                     style={{
                       fontSize: 20,
-                      fontWeight: i === activeIdx ? 700 : 500,
-                      color: i <= activeIdx ? phase.color : "#888888",
+                      fontWeight: cell.state === "active" ? 700 : 500,
+                      color: cell.state === "upcoming" ? "#888888" : cell.color,
                       lineHeight: 1,
                     }}
                   >
-                    {phase.label}
+                    {cell.label}
                   </span>
-                  {i === activeIdx && (
+                  {cell.state === "active" && (
                     <span
                       style={{
                         fontSize: 16,
                         fontWeight: 400,
-                        color: phase.color,
+                        color: cell.color,
                         opacity: 0.55,
                       }}
                     >

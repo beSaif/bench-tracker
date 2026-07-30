@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
 import { loadSessionsLocal, loadBlocksLocal, saveAll, wipeLocalUserData } from "@/lib/storage"
+import { recalibrate } from "@/lib/recalibrate"
 import { Session, TrainingBlock } from "@/lib/types"
 
 type KvStatus = "loading" | "ok" | "error"
@@ -69,6 +70,16 @@ export default function DevPage() {
   }
 
   const kvCount = kvData?.sessions.length ?? 0
+
+  const [recalNotes, setRecalNotes] = useState<string[] | null>(null)
+
+  function runRecalibrate() {
+    if (!confirm("Recalibrate? This fixes block/session bookkeeping, re-derives rebuild loads from what you actually lifted, and regenerates the upcoming session.")) return
+    const { sessions, blocks, notes } = recalibrate(localData.sessions, localData.blocks)
+    saveAll(sessions, blocks)
+    setLocalData({ sessions, blocks })
+    setRecalNotes(notes)
+  }
 
   const [notifStatus, setNotifStatus] = useState<NotifStatus>("idle")
   const [notifCountdown, setNotifCountdown] = useState<number | null>(null)
@@ -200,6 +211,28 @@ export default function DevPage() {
         )}
         {notifStatus === "no-sw" && (
           <p className="mt-2 text-xs text-red-500 text-center">Service worker not active — reload and try again</p>
+        )}
+      </section>
+
+      {/* Recalibrate */}
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-[#111111] mb-1">Recalibrate</h2>
+        <p className="text-xs text-[#aaaaaa] mb-3">
+          Repairs data inconsistencies: re-syncs block ↔ session links, re-derives rebuild loads from what you actually lifted (so the next session isn&apos;t too high), and regenerates the upcoming session.
+        </p>
+        <button
+          onClick={runRecalibrate}
+          disabled={localData.sessions.length === 0}
+          className="w-full py-3 rounded-xl bg-[#b06a1e] text-sm font-semibold text-white disabled:opacity-40"
+        >
+          Recalibrate data
+        </button>
+        {recalNotes && (
+          <ul className="mt-3 bg-[#fdf3e7] rounded-xl p-3 text-[11px] leading-relaxed text-[#8a4d14] list-disc pl-6">
+            {recalNotes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
         )}
       </section>
 

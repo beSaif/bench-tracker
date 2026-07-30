@@ -1098,6 +1098,7 @@ export default function Page() {
         <ShareImageModal
           session={shareSession}
           sessions={sessions}
+          blocks={blocks}
           profile={profile}
           onClose={() => setShareSession(null)}
         />

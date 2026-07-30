@@ -1,20 +1,22 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Session, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
+import { Session, TrainingBlock, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
 import { getBestWeight, getLatestBW } from "@/lib/stats"
+import { PHASE_SESSION_TYPE } from "@/lib/prescription"
 import ShareCard from "@/components/ShareCard"
 
 interface Props {
   session: Session
   sessions: Session[]
+  blocks: TrainingBlock[]
   profile: UserProfile
   onClose: () => void
 }
 
 type Status = "loading" | "ready" | "error"
 
-export default function ShareImageModal({ session, sessions, profile, onClose }: Props) {
+export default function ShareImageModal({ session, sessions, blocks, profile, onClose }: Props) {
   const cardRef = useRef<HTMLDivElement>(null)
   const blobRef = useRef<Blob | null>(null)
   const [status, setStatus] = useState<Status>("loading")
@@ -36,6 +38,17 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
 
   const bestWeight = getBestWeight(sessions)
   const bodyweight = session.bw ?? getLatestBW(sessions) ?? profile.bw
+
+  // A rebuild session logs its type as "Volume"; look up its block so the card
+  // can label it "Rebuild" and show the phase it resumes into.
+  const block = blocks.find((b) => b.id === session.blockId)
+  const isRebuild = block?.phase === "reacclimation"
+  const resumeBlock =
+    isRebuild && block?.resumeBlockId != null
+      ? blocks.find((b) => b.id === block.resumeBlockId)
+      : undefined
+  const resumePhaseType = resumeBlock ? PHASE_SESSION_TYPE[resumeBlock.phase] : null
+
   const dateStr = session.date ?? new Date().toISOString()
   const fileName = `bench-${dateStr.slice(0, 10)}.png`
 
@@ -223,6 +236,8 @@ export default function ShareImageModal({ session, sessions, profile, onClose }:
           target={profile.target}
           date={session.date}
           mainLiftLabel={MAIN_LIFT_LABEL[profile.mainLift]}
+          isRebuild={isRebuild}
+          resumePhaseType={resumePhaseType}
         />
       </div>
     </div>
