@@ -138,10 +138,14 @@ function StepDot({
   const isCompleted = status === "completed"
   const isResume = status === "resume"
 
-  const dotBg = isUpcoming && !isSelected ? "#dddddd" : color
-  const dotOpacity =
-    isCompleted && !isSelected ? 0.55 : isUpcoming && !isSelected ? 0.4 : isResume && !isSelected ? 0.75 : 1
-  const textColor = isUpcoming && !isSelected ? "#aaaaaa" : isCompleted ? (isSelected ? color : "#999999") : color
+  // Only the active ("now") step should read as lit. The resume step is a phase
+  // you'll return to later, so — like upcoming — it renders muted unless the user
+  // taps it to browse that block.
+  const isDimmed = (isUpcoming || isResume) && !isSelected
+
+  const dotBg = isDimmed ? "#dddddd" : color
+  const dotOpacity = isDimmed ? 0.4 : isCompleted && !isSelected ? 0.55 : 1
+  const textColor = isDimmed ? "#aaaaaa" : isCompleted ? (isSelected ? color : "#999999") : color
 
   return (
     <>

@@ -103,6 +103,7 @@ export default function HistoryPage() {
         <ShareImageModal
           session={shareSession}
           sessions={sessions}
+          blocks={blocks}
           profile={profile}
           onClose={() => setShareSession(null)}
         />
