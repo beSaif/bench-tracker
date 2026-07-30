@@ -20,7 +20,7 @@ const PHASE_COLOR: Record<BlockPhase, string> = {
   reacclimation: "#b06a1e",
 }
 
-type StepStatus = "completed" | "active" | "upcoming"
+type StepStatus = "completed" | "active" | "upcoming" | "resume"
 
 interface Step {
   phase: BlockPhase
@@ -43,25 +43,37 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
 
   // A re-acclimation block is a temporary detour and isn't part of the four-phase
   // cycle. Anchor the timeline on the interrupted block it will resume, so the
-  // standard cycle still renders and highlights the right phase.
-  const anchorBlock =
+  // standard cycle still renders — but surface the rebuild as its own step and
+  // mark the resume phase as "resume" rather than "now".
+  const isReacclimation =
     PHASE_ORDER.indexOf(activeBlock.phase) === -1 && activeBlock.resumeBlockId !== undefined
-      ? sorted.find((b) => b.id === activeBlock.resumeBlockId) ?? activeBlock
-      : activeBlock
+  const anchorBlock = isReacclimation
+    ? sorted.find((b) => b.id === activeBlock.resumeBlockId) ?? activeBlock
+    : activeBlock
 
   const activePhaseIdx = PHASE_ORDER.indexOf(anchorBlock.phase)
   if (activePhaseIdx === -1) return null
   const activeIdx = sorted.findIndex((b) => b.id === anchorBlock.id)
   const cycleStartIdx = activeIdx - activePhaseIdx
 
-  const steps: Step[] = PHASE_ORDER.map((phase, i) => {
+  const steps: Step[] = []
+  PHASE_ORDER.forEach((phase, i) => {
     if (i < activePhaseIdx) {
-      return { phase, status: "completed", block: sorted[cycleStartIdx + i] }
+      steps.push({ phase, status: "completed", block: sorted[cycleStartIdx + i] })
+      return
     }
     if (i === activePhaseIdx) {
-      return { phase, status: "active", block: anchorBlock }
+      // In a re-acclimation detour, insert the rebuild step before the phase it
+      // resumes, and show that phase as "resume" instead of the active "now".
+      if (isReacclimation) {
+        steps.push({ phase: activeBlock.phase, status: "active", block: activeBlock })
+        steps.push({ phase, status: "resume", block: anchorBlock })
+      } else {
+        steps.push({ phase, status: "active", block: anchorBlock })
+      }
+      return
     }
-    return { phase, status: "upcoming" }
+    steps.push({ phase, status: "upcoming" })
   })
 
   function handleStepClick(step: Step) {
@@ -70,7 +82,7 @@ export default function ProgramTimeline({ blocks, selectedBlockId, onBlockSelect
       onUpcomingPhaseSelect?.(null)
       return
     }
-    if (step.status === "completed" && step.block) {
+    if ((step.status === "completed" || step.status === "resume") && step.block) {
       onUpcomingPhaseSelect?.(null)
       onBlockSelect(step.block)
       return
@@ -124,9 +136,11 @@ function StepDot({
   const color = PHASE_COLOR[phase]
   const isUpcoming = status === "upcoming"
   const isCompleted = status === "completed"
+  const isResume = status === "resume"
 
   const dotBg = isUpcoming && !isSelected ? "#dddddd" : color
-  const dotOpacity = isCompleted && !isSelected ? 0.55 : isUpcoming && !isSelected ? 0.4 : 1
+  const dotOpacity =
+    isCompleted && !isSelected ? 0.55 : isUpcoming && !isSelected ? 0.4 : isResume && !isSelected ? 0.75 : 1
   const textColor = isUpcoming && !isSelected ? "#aaaaaa" : isCompleted ? (isSelected ? color : "#999999") : color
 
   return (
@@ -149,6 +163,7 @@ function StepDot({
       >
         {isCompleted ? "✓ " : ""}{PHASE_SHORT[phase]}
         {isActiveBlock && <span className="block text-[8px] opacity-60">now</span>}
+        {isResume && <span className="block text-[8px] opacity-60">resume</span>}
       </span>
     </>
   )

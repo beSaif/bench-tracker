@@ -1,7 +1,7 @@
 "use client"
 
 import { TrainingBlock, BlockPhase } from "@/lib/types"
-import { getBlockLength, PHASE_SESSION_TYPE } from "@/lib/prescription"
+import { getBlockLength, PHASE_SESSION_TYPE, PHASE_LABEL } from "@/lib/prescription"
 
 const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string; bg: string }> = {
   accumulation: {
@@ -45,6 +45,10 @@ interface BlockHeaderProps {
 export default function BlockHeader({ block, confirmedCount, onEditAnchor }: BlockHeaderProps) {
   const style = PHASE_STYLE[block.phase] ?? PHASE_STYLE.accumulation
   const total = getBlockLength(block)
+  // Re-acclimation has no session-type equivalent — show its phase name so the
+  // banner reads "Re-acclimation", not the "Volume" its sessions log as.
+  const label =
+    block.phase === "reacclimation" ? PHASE_LABEL[block.phase] : PHASE_SESSION_TYPE[block.phase]
 
   return (
     <div className={`${style.bg} rounded-xl px-4 py-3 mb-3${block.status === "completed" ? " opacity-75" : ""}`}>
@@ -52,7 +56,7 @@ export default function BlockHeader({ block, confirmedCount, onEditAnchor }: Blo
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-4 rounded-full ${style.bar}`} />
           <span className={`text-sm font-semibold ${style.label}`}>
-            {block.status === "completed" ? "✓ " : ""}{PHASE_SESSION_TYPE[block.phase]}
+            {block.status === "completed" ? "✓ " : ""}{label}
           </span>
           {block.status === "completed" ? (
             <span className={`text-xs ${style.meta}`}>· {block.anchorWeight}kg anchor</span>
