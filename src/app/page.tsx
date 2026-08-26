@@ -31,7 +31,9 @@ import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideMod
 import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
+import RecalibratePromptModal from "@/components/RecalibratePromptModal"
 import ShareImageModal from "@/components/ShareImageModal"
+import { detectShortfall, ShortfallResult } from "@/lib/shortfall"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { relativeTime } from "@/lib/time"
 
@@ -169,6 +171,12 @@ export default function Page() {
   const [friendLastActive, setFriendLastActive] = useState<Record<string, string>>(() => loadFriendLastActiveLocal())
   const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([])
   const [showHypePanel, setShowHypePanel] = useState(false)
+  const [recalPrompt, setRecalPrompt] = useState<{
+    result: ShortfallResult
+    phaseLabel: string
+    interruptedBlockId: number
+    preBlocks: TrainingBlock[]
+  } | null>(null)
   const [lastConfirmed, setLastConfirmed] = useState<Session | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
   const [messagesByFriend, setMessagesByFriend] = useState<Record<string, GymbroMessage[]>>({})
@@ -546,6 +554,8 @@ export default function Page() {
     const confirmedSessions = updatedSessions.filter((s) => s.confirmed)
 
     const activeBlock = getActiveBlock(currentBlocks)
+    // Session index of this session within its block, captured before it's appended.
+    const sessionIndexInBlock = activeBlock ? activeBlock.sessionIds.length : 0
     let finalBlocks = currentBlocks
 
     if (activeBlock) {
@@ -601,6 +611,95 @@ export default function Page() {
     scheduleInactivityReminder()
     signalPresence(false)
     setLastConfirmed(updatedSession)
+
+    // If the main lift fell short of what was prescribed, offer to add training to build up
+    // to the goal (the anchor/goal is never lowered). Otherwise go straight to the hype panel.
+    const shortfall = activeBlock
+      ? detectShortfall(updatedSession, activeBlock, sessionIndexInBlock)
+      : null
+    if (shortfall && activeBlock) {
+      setRecalPrompt({
+        result: shortfall,
+        phaseLabel: PHASE_LABEL[activeBlock.phase],
+        interruptedBlockId: activeBlock.id,
+        preBlocks: currentBlocks,
+      })
+    } else {
+      setShowHypePanel(true)
+    }
+  }
+
+  // Insert a short reacclimation "build block" that ramps back toward the missed target,
+  // then resumes the interrupted block to re-attempt the missed rung. Goal unchanged.
+  function applyBuildBlock() {
+    if (!profile || !recalPrompt) return
+    const { result, interruptedBlockId, preBlocks } = recalPrompt
+    const B = preBlocks.find((b) => b.id === interruptedBlockId)
+    if (!B) {
+      setRecalPrompt(null)
+      setShowHypePanel(true)
+      return
+    }
+    const newId = Math.max(...preBlocks.map((b) => b.id)) + 1
+    const rebuild: TrainingBlock = {
+      id: newId,
+      phase: "reacclimation",
+      status: "active",
+      sessionIds: [],
+      anchorWeight: B.anchorWeight,
+      rebuildLoads: result.rebuildLoads,
+      resumeBlockId: B.id,
+      startDate: null,
+      endDate: null,
+    }
+    const blocks2 = preBlocks
+      .map((b) => (b.id === B.id ? { ...b, status: "interrupted" as const } : b))
+      .concat(rebuild)
+
+    const confirmedSessions = sessions.filter((s) => s.confirmed)
+    const upcoming = createUpcomingSession(confirmedSessions, blocks2, exerciseConfig, profile, trainingDays)
+    const final = sortSessions([...confirmedSessions, upcoming])
+
+    setSessions(final)
+    setBlocks(blocks2)
+    saveAll(final, blocks2)
+    setRecalPrompt(null)
+    setShowHypePanel(true)
+  }
+
+  // Restart the whole cycle: a fresh Accumulation block from session 1 at the same anchor.
+  // History is kept; the goal is unchanged.
+  function applyRestartCycle() {
+    if (!profile || !recalPrompt) return
+    const { preBlocks } = recalPrompt
+    const anchor = getActiveBlock(preBlocks)?.anchorWeight ?? profile.anchor
+    const newId = Math.max(...preBlocks.map((b) => b.id)) + 1
+    const fresh: TrainingBlock = {
+      id: newId,
+      phase: "accumulation",
+      status: "active",
+      sessionIds: [],
+      anchorWeight: anchor,
+      startDate: null,
+      endDate: null,
+    }
+    const blocks2 = preBlocks
+      .map((b) => (b.status === "active" ? { ...b, status: "interrupted" as const } : b))
+      .concat(fresh)
+
+    const confirmedSessions = sessions.filter((s) => s.confirmed)
+    const upcoming = createUpcomingSession(confirmedSessions, blocks2, exerciseConfig, profile, trainingDays)
+    const final = sortSessions([...confirmedSessions, upcoming])
+
+    setSessions(final)
+    setBlocks(blocks2)
+    saveAll(final, blocks2)
+    setRecalPrompt(null)
+    setShowHypePanel(true)
+  }
+
+  function keepPlan() {
+    setRecalPrompt(null)
     setShowHypePanel(true)
   }
 
@@ -1075,6 +1174,17 @@ export default function Page() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Fell-short prompt: build up to the goal (shown before the hype panel) */}
+      {recalPrompt && (
+        <RecalibratePromptModal
+          result={recalPrompt.result}
+          phaseLabel={recalPrompt.phaseLabel}
+          onAddBuildBlock={applyBuildBlock}
+          onRestartCycle={applyRestartCycle}
+          onKeep={keepPlan}
+        />
       )}
 
       {/* Hype panel after session confirm */}
