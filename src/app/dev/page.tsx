@@ -5,6 +5,7 @@ import Link from "next/link"
 import { signOut } from "next-auth/react"
 import { loadSessionsLocal, loadBlocksLocal, saveAll, wipeLocalUserData } from "@/lib/storage"
 import { recalibrate } from "@/lib/recalibrate"
+import { resetToFirstBlock } from "@/lib/layoff"
 import { Session, TrainingBlock } from "@/lib/types"
 
 type KvStatus = "loading" | "ok" | "error"
@@ -79,6 +80,23 @@ export default function DevPage() {
     saveAll(sessions, blocks)
     setLocalData({ sessions, blocks })
     setRecalNotes(notes)
+  }
+
+  const [resetNotes, setResetNotes] = useState<string[] | null>(null)
+
+  function runResetBlock() {
+    const active = localData.blocks.find((b) => b.status === "active")
+    const anchor = active?.anchorWeight ?? localData.blocks[localData.blocks.length - 1]?.anchorWeight ?? 60
+    if (
+      !confirm(
+        `Reset to session 1 of block 1 at ${anchor}kg? Your logged sessions stay in history; only the block structure is cleared.`
+      )
+    )
+      return
+    const { sessions, blocks, notes } = resetToFirstBlock(localData.sessions, localData.blocks)
+    saveAll(sessions, blocks)
+    setLocalData({ sessions, blocks })
+    setResetNotes(notes)
   }
 
   const [notifStatus, setNotifStatus] = useState<NotifStatus>("idle")
@@ -230,6 +248,30 @@ export default function DevPage() {
         {recalNotes && (
           <ul className="mt-3 bg-[#fdf3e7] rounded-xl p-3 text-[11px] leading-relaxed text-[#8a4d14] list-disc pl-6">
             {recalNotes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Reset block */}
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-[#111111] mb-1">Reset block</h2>
+        <p className="text-xs text-[#aaaaaa] mb-3">
+          Winds the program back to session 1 of block 1 (Accumulation), carrying over your
+          current anchor weight. Every logged session stays in history — only the block
+          bookkeeping is cleared. Use after a long layoff.
+        </p>
+        <button
+          onClick={runResetBlock}
+          disabled={localData.blocks.length === 0}
+          className="w-full py-3 rounded-xl bg-[#2d6a2d] text-sm font-semibold text-white disabled:opacity-40"
+        >
+          Reset to block 1, session 1
+        </button>
+        {resetNotes && (
+          <ul className="mt-3 bg-[#f0f7f0] rounded-xl p-3 text-[11px] leading-relaxed text-[#2d6a2d] list-disc pl-6">
+            {resetNotes.map((note, i) => (
               <li key={i}>{note}</li>
             ))}
           </ul>

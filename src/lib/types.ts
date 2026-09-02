@@ -72,6 +72,7 @@ export const EXERCISES_KEY = "lift-tracker-exercises"
 export const PROFILE_KEY = "lift-tracker-profile"
 export const PRESENCES_KEY = "lift-tracker-presences"
 export const FRIENDS_KEY = "lift-tracker-friends"
+export const LAYOFF_DISMISS_KEY = "lift-tracker-layoff-dismissed"
 
 export interface SessionDraft {
   sessionId: number

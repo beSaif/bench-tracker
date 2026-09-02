@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence, GymbroMessage } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadLayoffDismissLocal, saveLayoffDismissLocal } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -16,6 +16,7 @@ import {
   PHASE_SESSION_TYPE,
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
+import { getLayoffState, restartActiveBlock } from "@/lib/layoff"
 import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
@@ -32,6 +33,7 @@ import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
+import LayoffBanner from "@/components/LayoffBanner"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { relativeTime } from "@/lib/time"
 
@@ -178,6 +180,8 @@ export default function Page() {
   const [toasts, setToasts] = useState<Array<{ id: string; name: string }>>([])
   const prevPresencesRef = useRef<UserPresence[]>([])
   const [showNotifBanner, setShowNotifBanner] = useState(false)
+  // Which layoff banner the user already dismissed, so it doesn't nag every load.
+  const [layoffDismissed, setLayoffDismissed] = useState<string | null>(() => loadLayoffDismissLocal())
   const presenceInitialisedRef = useRef(false)
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
@@ -699,6 +703,40 @@ export default function Page() {
     saveAll(final, newBlocks)
   }
 
+  /**
+   * Rewind the active block to session 1 after a long layoff. The phase and anchor
+   * stay put; the sessions logged before the break stay in history, just unlinked
+   * from the block so it re-prescribes from the start.
+   */
+  function handleRestartBlock() {
+    if (!profile) return
+    const active = getActiveBlock(blocks)
+    if (!active) return
+    if (
+      !confirm(
+        `Restart ${PHASE_LABEL[active.phase]} from session 1 at ${active.anchorWeight}kg? Your logged sessions stay in history.`
+      )
+    )
+      return
+
+    const { sessions: restartedSessions, blocks: newBlocks } = restartActiveBlock(sessions, blocks)
+    const newUpcoming = createUpcomingSession(restartedSessions, newBlocks, exerciseConfig, profile, trainingDays)
+    const final = sortSessions([...restartedSessions, newUpcoming])
+
+    setSessions(final)
+    setBlocks(newBlocks)
+    saveAll(final, newBlocks)
+    dismissLayoffBanner()
+  }
+
+  function dismissLayoffBanner() {
+    const state = getLayoffState(sessions)
+    if (!state.lastSessionDate) return
+    const key = `${state.lastSessionDate}:${state.tier}`
+    saveLayoffDismissLocal(key)
+    setLayoffDismissed(key)
+  }
+
   if (!mounted || !profile) {
     return (
       <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]">
@@ -740,6 +778,11 @@ export default function Page() {
       blockIndexMap.set(upcoming.id, activeBlockSessions.length + 1)
     }
   }
+
+  // Long enough away that the plan is stale? Nudge at a week, offer a restart at two.
+  const layoff = getLayoffState(sessions)
+  const showLayoffBanner =
+    layoff.tier !== "none" && layoffDismissed !== `${layoff.lastSessionDate}:${layoff.tier}`
 
   const latestE1RM = getBestE1RM(sessions)
   const bestWeight = getBestWeight(sessions)
@@ -821,6 +864,19 @@ export default function Page() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Layoff warning — time off means the prescribed loads may no longer be real */}
+        {showLayoffBanner && layoff.tier !== "none" && (
+          <LayoffBanner
+            tier={layoff.tier}
+            days={layoff.days}
+            phaseLabel={PHASE_LABEL[activeBlock?.phase ?? "accumulation"]}
+            sessionsIntoBlock={activeBlock?.sessionIds.length ?? 0}
+            anchorWeight={activeBlock?.anchorWeight ?? profile.anchor}
+            onRestart={handleRestartBlock}
+            onDismiss={dismissLayoffBanner}
+          />
         )}
 
         {/* Progress Bar */}
