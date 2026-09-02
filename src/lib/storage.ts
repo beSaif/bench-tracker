@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -143,6 +143,28 @@ export function wipeLocalUserData(): void {
   localStorage.removeItem(PROFILE_KEY)
   localStorage.removeItem(DRAFT_KEY)
   localStorage.removeItem(TRAINING_DAYS_KEY)
+  localStorage.removeItem(LAYOFF_DISMISS_KEY)
+}
+
+/**
+ * The layoff banner the user last dismissed, as "<last session date>:<tier>", so a
+ * dismissal sticks across reloads but a fresh layoff — or one that escalates from a
+ * nudge to a restart suggestion — surfaces again.
+ */
+export function loadLayoffDismissLocal(): string | null {
+  try {
+    return localStorage.getItem(LAYOFF_DISMISS_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function saveLayoffDismissLocal(key: string): void {
+  try {
+    localStorage.setItem(LAYOFF_DISMISS_KEY, key)
+  } catch {
+    // Private mode / quota — the banner just reappears next load.
+  }
 }
 
 /** Load sessions + blocks from KV, falling back to localStorage. */
