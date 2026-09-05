@@ -8,9 +8,11 @@ export interface ShareCardProps {
   session: Session
   bestWeight: number | null
   bodyweight: number | null
-  target: number
+  /** null for Balanced-mode users, who have no goal weight. */
+  target: number | null
   date: string | null
-  mainLiftLabel: string
+  /** null for a Free (Balanced-mode) session, which has no main lift to headline. */
+  mainLiftLabel: string | null
   /** True when this session belongs to a re-acclimation (rebuild) block. */
   isRebuild?: boolean
   /** The phase the rebuild resumes into, so the track can show what comes next. */
@@ -82,8 +84,9 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
         state: i < activeIdx ? "completed" : i === activeIdx ? "active" : "upcoming",
       }))
 
+  const isFree = session.type === "Free"
   const progressPct =
-    bestWeight != null && target > 0
+    bestWeight != null && target != null && target > 0
       ? Math.min(100, Math.round((bestWeight / target) * 100))
       : null
 
@@ -122,27 +125,31 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <span
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: 3,
-                textTransform: "uppercase",
-                color: ACCENT,
-              }}
-            >
-              {mainLiftLabel}
-            </span>
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                backgroundColor: headerColor,
-                display: "inline-block",
-                flexShrink: 0,
-              }}
-            />
+            {mainLiftLabel && (
+              <>
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    letterSpacing: 3,
+                    textTransform: "uppercase",
+                    color: ACCENT,
+                  }}
+                >
+                  {mainLiftLabel}
+                </span>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    backgroundColor: headerColor,
+                    display: "inline-block",
+                    flexShrink: 0,
+                  }}
+                />
+              </>
+            )}
             <span
               style={{
                 fontSize: 22,
@@ -231,7 +238,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
                 value: bestWeight != null ? `${bestWeight}kg` : "—",
                 accent: true,
               },
-              { label: "Goal", value: `${target}kg`, accent: false },
+              { label: "Goal", value: target != null ? `${target}kg` : "—", accent: false },
               {
                 label: "Bodyweight",
                 value: bodyweight != null ? `${bodyweight}kg` : "—",
@@ -276,7 +283,8 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
           ))}
         </div>
 
-        {/* Phase track */}
+        {/* Phase track — a Free session belongs to no block, so there is nothing to track */}
+        {!isFree && (
         <div style={{ marginBottom: 48 }}>
           <div style={{ display: "flex", gap: 10 }}>
             {cells.map((cell, i) => (
@@ -339,6 +347,7 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
             ))}
           </div>
         </div>
+        )}
 
         {/* Footer */}
         <div

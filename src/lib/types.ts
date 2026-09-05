@@ -8,7 +8,8 @@ export interface MainLiftSet {
   isWarmup: boolean
 }
 
-export type SessionType = "Volume" | "Intensity" | "Peak" | "Deload"
+/** "Free" is a Balanced-mode session: accessories only, no main lift, no block. */
+export type SessionType = "Volume" | "Intensity" | "Peak" | "Deload" | "Free"
 
 export interface Session {
   id: number
@@ -55,13 +56,33 @@ export const MAIN_LIFT_SHORT: Record<MainLift, string> = {
   squat: "Squat",
 }
 
+/**
+ * How the app is organised for this user.
+ * - "lift-focused": one main lift opens every session, block periodization, target tracking.
+ * - "balanced": sessions are whatever the training day says; no main lift, no blocks.
+ * Profiles saved before this field existed have no value and are treated as lift-focused.
+ */
+export type TrainingMode = "lift-focused" | "balanced"
+
+export const TRAINING_MODE_LABEL: Record<TrainingMode, string> = {
+  "lift-focused": "Lift-focused",
+  balanced: "Balanced",
+}
+
+export const TRAINING_MODE_DESC: Record<TrainingMode, string> = {
+  "lift-focused": "One main lift opens every session. Block periodization, prescribed loads and a target to chase.",
+  balanced: "Just your training days. Log whatever the day calls for, no forced lift and no block phases.",
+}
+
 export interface UserProfile {
   email: string
   name: string
   bw: number
-  mainLift: MainLift
-  anchor: number
-  target: number
+  trainingMode?: TrainingMode
+  /** Required in lift-focused mode; absent for Balanced users who never picked one. */
+  mainLift?: MainLift
+  anchor?: number
+  target?: number
   createdAt: string
 }
 
@@ -73,6 +94,7 @@ export const PROFILE_KEY = "lift-tracker-profile"
 export const PRESENCES_KEY = "lift-tracker-presences"
 export const FRIENDS_KEY = "lift-tracker-friends"
 export const LAYOFF_DISMISS_KEY = "lift-tracker-layoff-dismissed"
+export const WHATS_NEW_SEEN_KEY = "lift-tracker-whats-new-seen"
 
 export interface SessionDraft {
   sessionId: number

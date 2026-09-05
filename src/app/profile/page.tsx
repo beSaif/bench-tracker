@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
-import { Session, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
+import Link from "next/link"
+import { Session, UserProfile, TRAINING_MODE_LABEL } from "@/lib/types"
+import { isLiftFocused, getMainLiftLabel, getTrainingMode } from "@/lib/trainingMode"
 import {
   loadProfile,
   loadProfileLocal,
@@ -42,7 +44,7 @@ export default function ProfilePage() {
     setProfile(p)
     setName(p.name)
     setBw(String(p.bw))
-    setTarget(String(p.target))
+    setTarget(p.target != null ? String(p.target) : "")
   }
 
   useEffect(() => {
@@ -75,18 +77,20 @@ export default function ProfilePage() {
     }
   }, [router])
 
+  const liftFocused = isLiftFocused(profile)
   const bwVal = parseFloat(bw)
   const targetVal = parseFloat(target)
   const trimmedName = name.trim()
+  // A Balanced user has no goal weight to validate.
+  const targetOk = !liftFocused || (Number.isFinite(targetVal) && targetVal > 0)
   const valid =
     trimmedName.length > 0 &&
     Number.isFinite(bwVal) &&
     bwVal > 0 &&
-    Number.isFinite(targetVal) &&
-    targetVal > 0
+    targetOk
   const changed =
     profile != null &&
-    (trimmedName !== profile.name || bwVal !== profile.bw || targetVal !== profile.target)
+    (trimmedName !== profile.name || bwVal !== profile.bw || (liftFocused && targetVal !== profile.target))
 
   async function handleSave() {
     if (!profile || !valid || saving) return
@@ -95,9 +99,10 @@ export default function ProfilePage() {
     const updated = await saveProfile({
       name: trimmedName,
       bw: bwVal,
+      trainingMode: getTrainingMode(profile),
       mainLift: profile.mainLift,
       anchor: profile.anchor,
-      target: targetVal,
+      target: liftFocused ? targetVal : profile.target,
     })
     setSaving(false)
     if (!updated) {
@@ -186,6 +191,15 @@ export default function ProfilePage() {
           Goal
         </p>
 
+        <div className={`flex items-center justify-between ${liftFocused ? "mb-5" : ""}`}>
+          <span className="text-sm text-[#777777]">Training focus</span>
+          <Link href="/exercises" className="text-sm font-semibold text-[#1e3a5f] hover:underline">
+            {TRAINING_MODE_LABEL[getTrainingMode(profile)]} · change
+          </Link>
+        </div>
+
+        {liftFocused && (
+        <>
         <label className="block text-sm text-[#777777] mb-1.5">Target</label>
         <div className="flex items-baseline gap-2 border-b-2 border-[#e8e8e8] focus-within:border-[#1e3a5f] pb-2 mb-5">
           <input
@@ -203,9 +217,11 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-[#777777]">Main lift</span>
           <span className="text-sm font-semibold text-[#111111]">
-            {MAIN_LIFT_LABEL[profile.mainLift]}
+            {getMainLiftLabel(profile)}
           </span>
         </div>
+        </>
+        )}
       </section>
 
       {/* Stats (read-only) */}
@@ -213,16 +229,27 @@ export default function ProfilePage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-4">
           Stats
         </p>
-        <ProgressBar current={bestWeight} target={targetVal > 0 ? targetVal : profile.target} />
-        <div className="grid grid-cols-3 gap-2 -mt-2">
-          <div>
-            <p className="text-lg font-semibold text-[#111111]">{bestE1RM != null ? `${bestE1RM}` : "—"}</p>
-            <p className="text-xs text-[#999999]">current e1RM</p>
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-[#111111]">{bestWeight != null ? `${bestWeight}` : "—"}</p>
-            <p className="text-xs text-[#999999]">best lift</p>
-          </div>
+        {liftFocused && (
+          <ProgressBar current={bestWeight} target={targetVal > 0 ? targetVal : (profile.target ?? 0)} />
+        )}
+        <div className={`grid grid-cols-3 gap-2 ${liftFocused ? "-mt-2" : ""}`}>
+          {liftFocused ? (
+            <>
+              <div>
+                <p className="text-lg font-semibold text-[#111111]">{bestE1RM != null ? `${bestE1RM}` : "—"}</p>
+                <p className="text-xs text-[#999999]">current e1RM</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-[#111111]">{bestWeight != null ? `${bestWeight}` : "—"}</p>
+                <p className="text-xs text-[#999999]">best lift</p>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-lg font-semibold text-[#111111]">{sessions.filter((s) => s.confirmed).length}</p>
+              <p className="text-xs text-[#999999]">sessions</p>
+            </div>
+          )}
           <div>
             <p className="text-lg font-semibold text-[#111111]">{latestBW != null ? `${latestBW}` : profile.bw}</p>
             <p className="text-xs text-[#999999]">bodyweight</p>

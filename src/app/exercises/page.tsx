@@ -9,6 +9,7 @@ import {
   generateId,
 } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
+import TrainingModeSelector from "@/components/TrainingModeSelector"
 import {
   loadExerciseConfigLocal,
   loadExerciseConfig,
@@ -215,6 +216,9 @@ export default function ExercisesPage() {
       <p className="text-sm text-[#777777] mb-6">
         Organise muscle groups into training days
       </p>
+
+      {/* ─── Training Focus ─── */}
+      <TrainingModeSelector />
 
       {/* ─── Training Days ─── */}
       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">

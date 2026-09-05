@@ -3,14 +3,31 @@
 import { useState, useEffect, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { MainLift, MAIN_LIFT_LABEL } from "@/lib/types"
+import { MainLift, MAIN_LIFT_LABEL, TrainingMode, TRAINING_MODE_LABEL, TRAINING_MODE_DESC } from "@/lib/types"
 import { loadProfile, saveProfile } from "@/lib/storage"
+import { markWhatsNewSeen } from "@/lib/whatsNew"
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+// 0 name · 1 bodyweight · 2 hook · 3 two parts · 4 training focus
+// 5 lift · 6 phases · 7 anchor · 8 target (lift-focused only) · 9 sign in
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+const LAST_STEP: Step = 9
+const MODE_STEP: Step = 4
+const ALL_STEPS: Step[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+const BALANCED_STEPS: Step[] = [0, 1, 2, 3, 4, 9]
 
 const LIFTS: MainLift[] = ["bench", "deadlift", "squat"]
+const MODES: TrainingMode[] = ["lift-focused", "balanced"]
 const PENDING_KEY = "lift-tracker-pending-onboarding"
-const TIMED_STEPS = new Set([2, 3, 5, 8])
+const TIMED_STEPS = new Set([2, 3, 6, 9])
+
+interface PendingOnboarding {
+  name: string
+  bw: string
+  mode: TrainingMode
+  lift: MainLift | null
+  anchor: string
+  target: string
+}
 
 function roundTo2p5(kg: number): number {
   return Math.round(kg / 2.5) * 2.5
@@ -26,6 +43,7 @@ export default function OnboardingPage() {
 
   const [name, setName] = useState("")
   const [bw, setBw] = useState("")
+  const [mode, setMode] = useState<TrainingMode | null>(null)
   const [lift, setLift] = useState<MainLift | null>(null)
   const [anchor, setAnchor] = useState("")
   const [target, setTarget] = useState("")
@@ -38,9 +56,10 @@ export default function OnboardingPage() {
       const raw = localStorage.getItem(PENDING_KEY)
       if (raw) {
         try {
-          const d = JSON.parse(raw) as { name: string; bw: string; lift: MainLift; anchor: string; target: string }
+          const d = JSON.parse(raw) as PendingOnboarding
           localStorage.removeItem(PENDING_KEY)
-          autoFinish(d)
+          // Payloads saved before the mode existed carry no mode field; they were lift-focused.
+          autoFinish({ ...d, mode: d.mode ?? "lift-focused" })
           return
         } catch {
           localStorage.removeItem(PENDING_KEY)
@@ -63,33 +82,47 @@ export default function OnboardingPage() {
     setReadUnlocked(false)
   }, [step])
 
-  async function autoFinish(d: { name: string; bw: string; lift: MainLift; anchor: string; target: string }) {
+  async function autoFinish(d: PendingOnboarding) {
     setSubmitting(true)
+    const liftFocused = d.mode === "lift-focused"
     const result = await saveProfile({
       name: d.name.trim(),
       bw: parseFloat(d.bw),
-      mainLift: d.lift,
-      anchor: parseFloat(d.anchor),
-      target: parseFloat(d.target),
+      trainingMode: d.mode,
+      ...(liftFocused && d.lift
+        ? { mainLift: d.lift, anchor: parseFloat(d.anchor), target: parseFloat(d.target) }
+        : {}),
     })
     setSubmitting(false)
     if (result) {
+      // A brand-new user has nothing "new" to catch up on.
+      markWhatsNewSeen()
       router.replace("/")
     } else {
       setChecking(false)
     }
   }
 
+  // Balanced users skip the lift, phases, anchor and target steps entirely.
+  const visibleSteps = mode === "balanced" ? BALANCED_STEPS : ALL_STEPS
+
   function next() {
-    setStep((s) => Math.min(8, s + 1) as Step)
+    setStep((s) => {
+      const i = visibleSteps.indexOf(s)
+      return visibleSteps[Math.min(visibleSteps.length - 1, i + 1)] ?? LAST_STEP
+    })
   }
 
   function back() {
-    setStep((s) => Math.max(0, s - 1) as Step)
+    setStep((s) => {
+      const i = visibleSteps.indexOf(s)
+      return visibleSteps[Math.max(0, i - 1)] ?? 0
+    })
   }
 
   async function handleGoogleSignIn() {
-    localStorage.setItem(PENDING_KEY, JSON.stringify({ name, bw, lift, anchor, target }))
+    const pending: PendingOnboarding = { name, bw, mode: mode ?? "lift-focused", lift, anchor, target }
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
     await signIn("google", { callbackUrl: "/onboarding?auth=1" })
   }
 
@@ -101,17 +134,18 @@ export default function OnboardingPage() {
     }
     if (step === 2) return readUnlocked
     if (step === 3) return readUnlocked
-    if (step === 4) return lift !== null
-    if (step === 5) return readUnlocked
-    if (step === 6) {
+    if (step === 4) return mode !== null
+    if (step === 5) return lift !== null
+    if (step === 6) return readUnlocked
+    if (step === 7) {
       const v = parseFloat(anchor)
       return Number.isFinite(v) && v > 0
     }
-    if (step === 7) {
+    if (step === 8) {
       const v = parseFloat(target)
       return Number.isFinite(v) && v > 0
     }
-    if (step === 8) return true
+    if (step === 9) return true
     return false
   })()
 
@@ -137,7 +171,7 @@ export default function OnboardingPage() {
     <main className="min-h-dvh flex flex-col bg-white">
       {/* Progress dots */}
       <div className="flex justify-center gap-1.5 pt-8 pb-12">
-        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+        {visibleSteps.map((i) => (
           <div
             key={i}
             className={`h-1 rounded-full transition-all ${
@@ -225,8 +259,34 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 4: lift selection */}
-          {step === 4 && (
+          {/* Step 4: training focus */}
+          {step === MODE_STEP && (
+            <Question label="how do you want to train?" hint="you can change this later in exercise selection.">
+              <div className="space-y-2">
+                {MODES.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-colors ${
+                      mode === m
+                        ? "border-[#1e3a5f] bg-[#eff6ff]"
+                        : "border-[#e8e8e8] hover:border-[#cccccc]"
+                    }`}
+                  >
+                    <span className={`block text-base font-semibold ${mode === m ? "text-[#1e3a5f]" : "text-[#111111]"}`}>
+                      {TRAINING_MODE_LABEL[m].toLowerCase()}
+                    </span>
+                    <span className="block text-sm text-[#777777] mt-1 leading-snug">
+                      {TRAINING_MODE_DESC[m].toLowerCase()}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Question>
+          )}
+
+          {/* Step 5: lift selection */}
+          {step === 5 && (
             <Question label="what lift are you training?" hint="pick the one you're building your program around.">
               <div className="space-y-2">
                 {LIFTS.map((l) => (
@@ -246,8 +306,8 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 5: label then phases — labels first, then descriptions */}
-          {step === 5 && (
+          {/* Step 6: label then phases — labels first, then descriptions */}
+          {step === 6 && (
             <Question
               label="your main lift runs in 4-phase cycles."
               highlight
@@ -259,8 +319,8 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 6: current 1RM */}
-          {step === 6 && (
+          {/* Step 7: current 1RM */}
+          {step === 7 && (
             <Question
               label={`what's your current 1 rep max on ${lift ? MAIN_LIFT_LABEL[lift].toLowerCase() : "your lift"}?`}
               hint="your best single rep. be honest — every session is a percentage of this."
@@ -282,8 +342,8 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 7: target weight */}
-          {step === 7 && (
+          {/* Step 8: target weight */}
+          {step === 8 && (
             <Question
               label="what's your goal weight?"
               hint="the number on the bar you want to hit. doesn't have to be realistic right now."
@@ -322,8 +382,8 @@ export default function OnboardingPage() {
             </Question>
           )}
 
-          {/* Step 8: commitment gate — label then hint, buttons appear after animation */}
-          {step === 8 && (
+          {/* Step 9: commitment gate — label then hint, buttons appear after animation */}
+          {step === LAST_STEP && (
             <Question
               label="only do this if you're actually going to show up."
               hint="no judgment. but this only works if you use it."
@@ -358,8 +418,8 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* Footer — hidden on step 8 */}
-      {step !== 8 && (
+      {/* Footer — hidden on the sign-in step */}
+      {step !== LAST_STEP && (
         <div className="px-6 pb-10 pt-6">
           <div className="max-w-[360px] mx-auto flex items-center gap-3">
             {step > 0 && (

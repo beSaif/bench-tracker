@@ -85,7 +85,8 @@ function groupId(g: ExerciseGroup): string {
 }
 
 function buildDefaultOrder(session: Session, exerciseConfig: MuscleGroupConfig[]): ExerciseGroup[] {
-  const order: ExerciseGroup[] = [{ kind: "main" }]
+  // A Free (Balanced-mode) session carries no main-lift sets, so it gets no main group.
+  const order: ExerciseGroup[] = session.sets.length > 0 ? [{ kind: "main" }] : []
   for (const muscle of session.selectedMuscleGroups ?? []) {
     for (const exercise of getExercisesForMuscle(exerciseConfig, muscle)) {
       order.push({ kind: "extra", muscle, exercise })
@@ -394,6 +395,7 @@ export default function LogSessionModal({
   )
 
   const carouselItems = buildCarouselItems(exerciseOrder, sets, extraState)
+  const hasMain = exerciseOrder.some((g) => g.kind === "main")
 
   const completedCount = carouselItems.filter((item) =>
     completedSets.has(getItemKey(item))
@@ -432,7 +434,7 @@ export default function LogSessionModal({
     })
     saveMiniPlayer({
       sessionId: session.id,
-      label: mainLiftLabel,
+      label: hasMain ? mainLiftLabel : "Session",
       setsCompleted: completedCount,
       totalSets: carouselItems.length,
       restEndTime: restEndTime,
@@ -1147,7 +1149,8 @@ export default function LogSessionModal({
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-5 space-y-7 pb-12">
 
-              {/* Main lift */}
+              {/* Main lift — absent on Free (Balanced-mode) sessions */}
+              {hasMain && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-medium">
@@ -1212,6 +1215,7 @@ export default function LogSessionModal({
                   + Add set
                 </button>
               </div>
+              )}
 
               {/* Muscle group sections */}
               {selectedGroups.map((muscleId) => (

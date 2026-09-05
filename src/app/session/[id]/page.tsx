@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { Session, MainLiftSet, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
+import { Session, MainLiftSet, UserProfile } from "@/lib/types"
+import { getMainLiftLabel } from "@/lib/trainingMode"
 import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal } from "@/lib/storage"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 
@@ -132,10 +133,11 @@ export default function SessionDetailPage() {
         </div>
       </header>
 
-      {/* Main lift section */}
+      {/* Main lift section — absent on Balanced-mode sessions, which log no main lift */}
+      {session.sets.length > 0 && (
       <section className="mb-6">
         <p className="text-[10px] font-medium text-[#aaaaaa] uppercase tracking-widest mb-3">
-          {profile ? MAIN_LIFT_LABEL[profile.mainLift] : "Main Lift"}
+          {getMainLiftLabel(profile)}
         </p>
 
         {/* Quick stats */}
@@ -177,6 +179,7 @@ export default function SessionDetailPage() {
           ))}
         </div>
       </section>
+      )}
 
       {/* Extra workouts */}
       {session.extraWorkouts && session.extraWorkouts.length > 0 && (
