@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, MAIN_LIFT_LABEL, UserPresence, GymbroMessage } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, UserPresence, GymbroMessage } from "@/lib/types"
+import { isLiftFocused, getMainLiftLabel } from "@/lib/trainingMode"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadLayoffDismissLocal, saveLayoffDismissLocal } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -29,6 +30,7 @@ import ProgressBar from "@/components/ProgressBar"
 import LogSessionModal from "@/components/LogSessionModal"
 import NavDrawer from "@/components/NavDrawer"
 import InstallGuideModal, { useInstallGuide } from "@/components/InstallGuideModal"
+import WhatsNewModal, { useWhatsNew } from "@/components/WhatsNewModal"
 import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
@@ -38,6 +40,8 @@ import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
+/** Balanced-mode home shows this many recent sessions before a "show more" button. */
+const RECENT_PAGE_SIZE = 10
 
 function suggestNextDay(confirmedSessions: Session[], trainingDays: TrainingDay[]): TrainingDay | null {
   const sortedDays = [...trainingDays].sort((a, b) => a.order - b.order)
@@ -84,6 +88,24 @@ function createUpcomingSession(
   profile: UserProfile,
   trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS
 ): Session {
+  const maxIdAll = sessions.length > 0 ? Math.max(...sessions.map((s) => s.id)) : 0
+  const nextDayAll = suggestNextDay(sessions.filter((s) => s.confirmed), trainingDays)
+
+  // Balanced mode: no main lift, no block. The upcoming card is just the next training day.
+  if (!isLiftFocused(profile)) {
+    return {
+      id: maxIdAll + 1,
+      date: null,
+      type: "Free",
+      bw: null,
+      sets: [],
+      confirmed: false,
+      coachNote: "",
+      selectedTrainingDayId: nextDayAll?.id,
+      selectedMuscleGroups: nextDayAll?.muscleGroupIds ?? [],
+    }
+  }
+
   const activeBlock = getActiveBlock(blocks)
 
   let prescription: ReturnType<typeof prescribeBlockSession>
@@ -94,7 +116,7 @@ function createUpcomingSession(
     prescription = prescribeForBlock(activeBlock, sessionIndexInBlock)
     blockId = activeBlock.id
   } else {
-    prescription = prescribeBlockSession("accumulation", 0, profile.anchor)
+    prescription = prescribeBlockSession("accumulation", 0, profile.anchor ?? 0)
   }
 
   const warmups = generateWarmups(prescription.weight)
@@ -129,6 +151,16 @@ function createUpcomingSession(
     selectedMuscleGroups: nextDay?.muscleGroupIds ?? [],
     blockId,
   }
+}
+
+/**
+ * The upcoming card must match the current training mode: a Free card in Balanced mode,
+ * a prescribed one in lift-focused mode. A mismatch means the user switched modes since
+ * the card was generated, so it needs regenerating.
+ */
+function upcomingMatchesMode(upcoming: Session | undefined, profile: UserProfile): boolean {
+  if (!upcoming) return false
+  return isLiftFocused(profile) ? upcoming.type !== "Free" : upcoming.type === "Free"
 }
 
 function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[], trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS): Session[] {
@@ -186,6 +218,8 @@ export default function Page() {
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
+  const whatsNew = useWhatsNew()
+  const [recentLimit, setRecentLimit] = useState(RECENT_PAGE_SIZE)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const sessionsRef = useRef<Session[]>([])
@@ -241,6 +275,7 @@ export default function Page() {
       }
       setProfile(p)
       installGuide.trigger()
+      whatsNew.trigger()
 
       if (cachedProfile) {
         // Already mounted from cache — just kick off the background KV sync
@@ -272,15 +307,16 @@ export default function Page() {
 
           let finalBlocks = loadedBlocks
 
-          // First-time block setup: seed first block from profile anchor
-          if (finalBlocks.length === 0) {
+          // First-time block setup: seed first block from profile anchor (lift-focused only —
+          // Balanced users have no anchor and no blocks)
+          if (finalBlocks.length === 0 && isLiftFocused(p)) {
             const confirmed = finalSessions.filter((s) => s.confirmed)
             const seededBlocks: TrainingBlock[] = [{
               id: 1,
               phase: "accumulation",
               status: "active",
               sessionIds: [],
-              anchorWeight: roundToPlate(p.anchor),
+              anchorWeight: roundToPlate(p.anchor ?? 0),
               startDate: null,
               endDate: null,
             }]
@@ -293,9 +329,9 @@ export default function Page() {
             return
           }
 
-          // Normal load: ensure an upcoming session exists
-          const hasUpcoming = finalSessions.some((s) => !s.confirmed)
-          if (!hasUpcoming) {
+          // Normal load: ensure an upcoming session exists and matches the training mode
+          const currentUpcoming = finalSessions.find((s) => !s.confirmed)
+          if (!upcomingMatchesMode(currentUpcoming, p)) {
             const confirmed = finalSessions.filter((s) => s.confirmed)
             const upcoming = createUpcomingSession(confirmed, finalBlocks, config, p, days)
             finalSessions = sortSessions([...confirmed, upcoming])
@@ -549,7 +585,8 @@ export default function Page() {
     )
     const confirmedSessions = updatedSessions.filter((s) => s.confirmed)
 
-    const activeBlock = getActiveBlock(currentBlocks)
+    // Balanced mode never advances a block; whatever blocks exist stay parked for a later switch back.
+    const activeBlock = isLiftFocused(profile) ? getActiveBlock(currentBlocks) : undefined
     let finalBlocks = currentBlocks
 
     if (activeBlock) {
@@ -673,7 +710,7 @@ export default function Page() {
     const remaining = sessions.filter((s) => s.confirmed && s.id !== session.id)
 
     const sessionBlockId = session.blockId
-    let newBlocks = blocks
+    let newBlocks = sessionBlockId === undefined ? blocks : blocks
       .filter((b) => {
         if (sessionBlockId !== undefined && b.id > sessionBlockId) return false
         return true
@@ -688,7 +725,7 @@ export default function Page() {
         }
       })
 
-    if (!getActiveBlock(newBlocks) && newBlocks.length > 0) {
+    if (sessionBlockId !== undefined && !getActiveBlock(newBlocks) && newBlocks.length > 0) {
       const lastBlock = newBlocks[newBlocks.length - 1]
       newBlocks = newBlocks.map((b) =>
         b.id === lastBlock.id ? { ...b, status: "active" as const } : b
@@ -788,8 +825,10 @@ export default function Page() {
   const bestWeight = getBestWeight(sessions)
   const latestBW = getLatestBW(sessions)
 
-  const liftLabel = MAIN_LIFT_LABEL[profile.mainLift]
+  const liftLabel = getMainLiftLabel(profile)
+  const liftFocused = isLiftFocused(profile)
   const firstName = profile.name.split(" ")[0]
+  const recentSessions = confirmedSorted.slice(0, recentLimit)
 
   return (
     <>
@@ -797,6 +836,11 @@ export default function Page() {
 
       {installGuide.show && (
         <InstallGuideModal onDismiss={installGuide.dismiss} />
+      )}
+
+      {/* What's new since the last version this device saw; waits behind the install guide */}
+      {whatsNew.show && !installGuide.show && (
+        <WhatsNewModal releases={whatsNew.releases} onDismiss={whatsNew.dismiss} />
       )}
 
       <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]">
@@ -867,20 +911,63 @@ export default function Page() {
         )}
 
         {/* Layoff warning — time off means the prescribed loads may no longer be real */}
-        {showLayoffBanner && layoff.tier !== "none" && (
+        {liftFocused && showLayoffBanner && layoff.tier !== "none" && (
           <LayoffBanner
             tier={layoff.tier}
             days={layoff.days}
             phaseLabel={PHASE_LABEL[activeBlock?.phase ?? "accumulation"]}
             sessionsIntoBlock={activeBlock?.sessionIds.length ?? 0}
-            anchorWeight={activeBlock?.anchorWeight ?? profile.anchor}
+            anchorWeight={activeBlock?.anchorWeight ?? profile.anchor ?? 0}
             onRestart={handleRestartBlock}
             onDismiss={dismissLayoffBanner}
           />
         )}
 
+        {/* Balanced mode: just the next session and a paged list of recent ones */}
+        {!liftFocused && (
+          <div className="mb-4">
+            {upcoming && (
+              <SessionCard
+                session={upcoming}
+                onStartLogging={handleStartLogging}
+                onUpdateMuscleGroups={handleUpdateMuscleGroups}
+                exerciseConfig={exerciseConfig}
+                trainingDays={trainingDays}
+                recommendedDayId={recommendedDay?.id}
+              />
+            )}
+            {confirmed.length > 0 && (
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3 mt-6">
+                Recent sessions
+              </p>
+            )}
+            {recentSessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                onEdit={handleEditSession}
+                onUnlog={handleUnlogSession}
+                onShare={setShareSession}
+                exerciseConfig={exerciseConfig}
+                trainingDays={trainingDays}
+              />
+            ))}
+            {confirmedSorted.length > recentLimit && (
+              <button
+                onClick={() => setRecentLimit((n) => n + RECENT_PAGE_SIZE)}
+                className="w-full text-xs font-semibold text-[#777777] bg-[#f5f5f5] rounded-xl px-4 py-2.5 hover:text-[#1e3a5f] active:opacity-70 transition-colors"
+              >
+                Show {Math.min(RECENT_PAGE_SIZE, confirmedSorted.length - recentLimit)} more
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Lift-focused mode: target progress, stats, program timeline and the block view */}
+        {liftFocused && (
+        <>
         {/* Progress Bar */}
-        <ProgressBar current={bestWeight} target={profile.target} />
+        <ProgressBar current={bestWeight} target={profile.target ?? 0} />
 
         {/* Stats Grid */}
         <StatsGrid
@@ -888,7 +975,7 @@ export default function Page() {
           best={bestWeight}
           sessions={confirmed.length}
           bw={latestBW}
-          target={profile.target}
+          target={profile.target ?? 0}
         />
 
         {/* Program timeline */}
@@ -1040,6 +1127,8 @@ export default function Page() {
             />
           ))}
         </div>
+        </>
+        )}
       </main>
 
       {/* Log Session Modal */}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { UserProfile, UserPresence, Session, MAIN_LIFT_LABEL } from "@/lib/types"
+import { UserProfile, UserPresence, Session, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL } from "@/lib/types"
+import { isLiftFocused } from "@/lib/trainingMode"
 import MessageComposer from "@/components/MessageComposer"
 
 function initials(name: string): string {
@@ -92,11 +93,18 @@ export default function FriendProfilePage() {
   const { profile, lastSession } = data
   const isLive = presence?.inSession ?? false
 
-  const liftColours: Record<UserProfile["mainLift"], string> = {
+  const liftColours: Record<MainLift, string> = {
     bench: "bg-[#eff6ff] text-[#1e3a5f]",
     squat: "bg-[#f0f5ff] text-[#1e3a7a]",
     deadlift: "bg-[#f2fdf0] text-[#1e5c1a]",
   }
+  // A Balanced friend has no main lift; badge their mode instead.
+  const friendLift: MainLift | undefined = isLiftFocused(profile) ? profile.mainLift : undefined
+  const liftFocused = friendLift !== undefined
+  const badgeClass = friendLift ? liftColours[friendLift] : "bg-[#f5f5f5] text-[#555555]"
+  const badgeLabel = friendLift ? MAIN_LIFT_LABEL[friendLift] : TRAINING_MODE_LABEL.balanced
+  const anchor = profile.anchor ?? 0
+  const target = profile.target ?? 0
 
   const best = lastSession ? topSet(lastSession.sets) : null
 
@@ -141,8 +149,8 @@ export default function FriendProfilePage() {
           <p className="text-[12px] text-[#aaaaaa] mt-0.5">{profile.email}</p>
         </div>
 
-        <span className={`text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-full ${liftColours[profile.mainLift]}`}>
-          {MAIN_LIFT_LABEL[profile.mainLift]}
+        <span className={`text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-full ${badgeClass}`}>
+          {badgeLabel}
         </span>
       </div>
 
@@ -153,27 +161,31 @@ export default function FriendProfilePage() {
             <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">BW</p>
             <p className="text-lg font-semibold text-[#111111]">{profile.bw}<span className="text-sm font-normal text-[#aaaaaa] ml-0.5">kg</span></p>
           </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">Current</p>
-            <p className="text-lg font-semibold text-[#111111]">{profile.anchor}<span className="text-sm font-normal text-[#aaaaaa] ml-0.5">kg</span></p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">Target</p>
-            <p className="text-lg font-semibold text-[#111111]">{profile.target}<span className="text-sm font-normal text-[#aaaaaa] ml-0.5">kg</span></p>
-          </div>
+          {liftFocused && (
+            <>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">Current</p>
+                <p className="text-lg font-semibold text-[#111111]">{anchor}<span className="text-sm font-normal text-[#aaaaaa] ml-0.5">kg</span></p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-1">Target</p>
+                <p className="text-lg font-semibold text-[#111111]">{target}<span className="text-sm font-normal text-[#aaaaaa] ml-0.5">kg</span></p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Progress bar */}
-        {profile.target > 0 && profile.anchor > 0 && (
+        {liftFocused && target > 0 && anchor > 0 && (
           <div>
             <div className="h-1.5 bg-[#f0f0f0] rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#111111] rounded-full transition-all"
-                style={{ width: `${Math.min(100, Math.round((profile.anchor / profile.target) * 100))}%` }}
+                style={{ width: `${Math.min(100, Math.round((anchor / target) * 100))}%` }}
               />
             </div>
             <p className="text-[10px] text-[#aaaaaa] mt-1.5">
-              {Math.min(100, Math.round((profile.anchor / profile.target) * 100))}% to goal
+              {Math.min(100, Math.round((anchor / target) * 100))}% to goal
             </p>
           </div>
         )}

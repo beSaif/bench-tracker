@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { UserProfile, MAIN_LIFT_LABEL, UserPresence, FriendRequest, GymbroMessage } from "@/lib/types"
+import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, UserPresence, FriendRequest, GymbroMessage } from "@/lib/types"
+import { isLiftFocused } from "@/lib/trainingMode"
 
 function initials(name: string): string {
   return name
@@ -12,15 +13,17 @@ function initials(name: string): string {
     .join("")
 }
 
-function LiftBadge({ lift }: { lift: UserProfile["mainLift"] }) {
-  const colours: Record<UserProfile["mainLift"], string> = {
+function LiftBadge({ profile }: { profile: UserProfile }) {
+  const colours: Record<MainLift, string> = {
     bench: "bg-[#eff6ff] text-[#1e3a5f]",
     squat: "bg-[#f0f5ff] text-[#1e3a7a]",
     deadlift: "bg-[#f2fdf0] text-[#1e5c1a]",
   }
+  // A Balanced gymbro has no main lift; badge their mode instead.
+  const lift = isLiftFocused(profile) ? profile.mainLift : undefined
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${colours[lift]}`}>
-      {MAIN_LIFT_LABEL[lift]}
+    <span className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${lift ? colours[lift] : "bg-[#f5f5f5] text-[#555555]"}`}>
+      {lift ? MAIN_LIFT_LABEL[lift] : TRAINING_MODE_LABEL.balanced}
     </span>
   )
 }
@@ -339,7 +342,7 @@ export default function GymBrosPage() {
                     )}
                   </Link>
                   <div className="flex items-center gap-2 shrink-0">
-                    <LiftBadge lift={bro.mainLift} />
+                    <LiftBadge profile={bro} />
                     <button
                       onClick={() => handleRemoveFriend(bro.email)}
                       disabled={isRemoving}

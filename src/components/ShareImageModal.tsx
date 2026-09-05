@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Session, TrainingBlock, UserProfile, MAIN_LIFT_LABEL } from "@/lib/types"
+import { Session, TrainingBlock, UserProfile } from "@/lib/types"
+import { getMainLiftLabel } from "@/lib/trainingMode"
 import { getBestWeight, getLatestBW } from "@/lib/stats"
 import { PHASE_SESSION_TYPE } from "@/lib/prescription"
 import ShareCard from "@/components/ShareCard"
@@ -233,9 +234,9 @@ export default function ShareImageModal({ session, sessions, blocks, profile, on
           session={session}
           bestWeight={bestWeight}
           bodyweight={bodyweight}
-          target={profile.target}
+          target={profile.target ?? null}
           date={session.date}
-          mainLiftLabel={MAIN_LIFT_LABEL[profile.mainLift]}
+          mainLiftLabel={session.type === "Free" ? null : getMainLiftLabel(profile)}
           isRebuild={isRebuild}
           resumePhaseType={resumePhaseType}
         />

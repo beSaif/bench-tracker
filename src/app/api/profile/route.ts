@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
-import { Session, TrainingBlock, UserProfile, MainLift } from "@/lib/types"
+import { Session, TrainingBlock, UserProfile, MainLift, TrainingMode } from "@/lib/types"
 import {
   profileKey,
   sessionsKey,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/userKeys"
 
 const ALLOWED_LIFTS: MainLift[] = ["bench", "deadlift", "squat"]
+const ALLOWED_MODES: TrainingMode[] = ["lift-focused", "balanced"]
 
 interface LegacySessionsData {
   sessions: Session[]
@@ -113,24 +114,37 @@ export async function POST(request: Request) {
 
   const name = typeof body.name === "string" ? body.name.trim() : ""
   const bw = Number(body.bw)
-  const mainLift = body.mainLift as MainLift
-  const anchor = Number(body.anchor)
-  const target = Number(body.target)
+  const trainingMode: TrainingMode = body.trainingMode ?? "lift-focused"
+  const mainLift = body.mainLift as MainLift | undefined
+  const anchor = body.anchor === undefined || body.anchor === null ? undefined : Number(body.anchor)
+  const target = body.target === undefined || body.target === null ? undefined : Number(body.target)
 
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 })
   if (!Number.isFinite(bw) || bw <= 0) return NextResponse.json({ error: "bw invalid" }, { status: 400 })
-  if (!ALLOWED_LIFTS.includes(mainLift)) return NextResponse.json({ error: "mainLift invalid" }, { status: 400 })
-  if (!Number.isFinite(anchor) || anchor <= 0) return NextResponse.json({ error: "anchor invalid" }, { status: 400 })
-  if (!Number.isFinite(target) || target <= 0) return NextResponse.json({ error: "target invalid" }, { status: 400 })
+  if (!ALLOWED_MODES.includes(trainingMode)) return NextResponse.json({ error: "trainingMode invalid" }, { status: 400 })
+
+  const liftValid = mainLift !== undefined && ALLOWED_LIFTS.includes(mainLift)
+  const anchorValid = anchor !== undefined && Number.isFinite(anchor) && anchor > 0
+  const targetValid = target !== undefined && Number.isFinite(target) && target > 0
+
+  // Lift-focused mode prescribes from these, so they are mandatory there. Balanced mode
+  // keeps whatever valid values were sent (so switching back later resumes cleanly) and
+  // silently drops anything missing or malformed.
+  if (trainingMode === "lift-focused") {
+    if (!liftValid) return NextResponse.json({ error: "mainLift invalid" }, { status: 400 })
+    if (!anchorValid) return NextResponse.json({ error: "anchor invalid" }, { status: 400 })
+    if (!targetValid) return NextResponse.json({ error: "target invalid" }, { status: 400 })
+  }
 
   const existing = await kv.get<UserProfile>(profileKey(email))
   const profile: UserProfile = {
     email,
     name,
     bw,
-    mainLift,
-    anchor,
-    target,
+    trainingMode,
+    ...(liftValid ? { mainLift } : {}),
+    ...(anchorValid ? { anchor } : {}),
+    ...(targetValid ? { target } : {}),
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   }
 
