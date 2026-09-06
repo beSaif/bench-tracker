@@ -1,4 +1,4 @@
-import { Session } from "@/lib/types"
+import { MuscleGroup, Session } from "@/lib/types"
 
 export function getBestE1RM(sessions: Session[]): number | null {
   const validSets = sessions
@@ -41,5 +41,64 @@ export function sessionSummary(session: Session): SessionSummary {
     reps: working[0]?.reps ?? null,
     setCount: working.length,
     bestE1RM: e1rms.length > 0 ? Math.max(...e1rms) : null,
+  }
+}
+
+export interface WorkSummary {
+  /** Muscle groups this session trained, by id. */
+  muscles: MuscleGroup[]
+  /** Distinct exercises worked, main lift included when it has working sets. */
+  exercises: number
+  /** Working sets across the main lift and every accessory. */
+  sets: number
+  /** Total tonnage (kg × reps) across those sets. */
+  volume: number
+  /** Heaviest single set of the session, whatever exercise it came from. */
+  topSet: { kg: number; reps: number; exercise: string } | null
+}
+
+/**
+ * Everything a session actually contained, accessories included. Balanced-mode
+ * sessions carry no main lift, so `sessionSummary` alone reports them as empty.
+ */
+export function sessionWork(session: Session, mainLiftLabel = "Main Lift"): WorkSummary {
+  const working = session.sets.filter((s) => !s.isWarmup)
+  const extras = session.extraWorkouts ?? []
+
+  let exercises = working.length > 0 ? 1 : 0
+  let sets = working.length
+  let volume = working.reduce((sum, s) => sum + s.kg * s.reps, 0)
+  let topSet: { kg: number; reps: number } | null =
+    working.length > 0
+      ? working.reduce((best, s) => (s.kg > best.kg ? s : best), working[0])
+      : null
+  let topSetLabel = mainLiftLabel
+
+  for (const workout of extras) {
+    for (const exercise of workout.exercises) {
+      if (exercise.sets.length === 0) continue
+      exercises += 1
+      sets += exercise.sets.length
+      for (const set of exercise.sets) {
+        volume += set.kg * set.reps
+        if (topSet == null || set.kg > topSet.kg) {
+          topSet = set
+          topSetLabel = exercise.name
+        }
+      }
+    }
+  }
+
+  const muscles =
+    session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
+      ? session.selectedMuscleGroups
+      : extras.map((w) => w.muscle)
+
+  return {
+    muscles,
+    exercises,
+    sets,
+    volume: Math.round(volume),
+    topSet: topSet ? { kg: topSet.kg, reps: topSet.reps, exercise: topSetLabel } : null,
   }
 }

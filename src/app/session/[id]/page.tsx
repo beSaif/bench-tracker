@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { Session, MainLiftSet, UserProfile } from "@/lib/types"
-import { getMainLiftLabel } from "@/lib/trainingMode"
-import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal } from "@/lib/storage"
-import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
+import { Session, MainLiftSet, TrainingDay, UserProfile } from "@/lib/types"
+import { getMainLiftLabel, getSessionLabel } from "@/lib/trainingMode"
+import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
+import { MuscleGroupConfig, DEFAULT_TRAINING_DAYS, getMuscleLabel } from "@/lib/exerciseConfig"
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -52,12 +52,14 @@ export default function SessionDetailPage() {
   const [session, setSession] = useState<Session | null>(null)
   const [exerciseConfig, setExerciseConfig] = useState<MuscleGroupConfig[]>(loadExerciseConfigLocal)
   const [profile, setProfile] = useState<UserProfile | null>(loadProfileLocal)
+  const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     const local = loadSessionsLocal()
     const found = local.find((s) => s.id === id) ?? null
     setSession(found)
+    setTrainingDays(loadTrainingDaysLocal())
     setMounted(true)
 
     loadExerciseConfig().then(setExerciseConfig)
@@ -115,7 +117,7 @@ export default function SessionDetailPage() {
           <div>
             <h1 className="text-xl font-semibold text-[#111111] tracking-tight">
               Session {String(session.id).padStart(2, "0")}
-              <span className="text-[#aaaaaa] font-normal"> · {session.type}</span>
+              <span className="text-[#aaaaaa] font-normal"> · {getSessionLabel(session, trainingDays)}</span>
             </h1>
             {session.date && (
               <p className="text-sm text-[#777777] mt-0.5">{formatDate(session.date)}</p>

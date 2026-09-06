@@ -2,7 +2,7 @@
 
 import { forwardRef } from "react"
 import { Session, SessionType } from "@/lib/types"
-import { sessionSummary } from "@/lib/stats"
+import { sessionSummary, WorkSummary } from "@/lib/stats"
 
 export interface ShareCardProps {
   session: Session
@@ -13,6 +13,12 @@ export interface ShareCardProps {
   date: string | null
   /** null for a Free (Balanced-mode) session, which has no main lift to headline. */
   mainLiftLabel: string | null
+  /** What to call this session: the training day for a Free session, the phase otherwise. */
+  dayLabel: string
+  /** Muscle group names trained, already resolved for display. */
+  muscleLabels: string[]
+  /** Work actually done, accessories included — the only content a Free session has. */
+  work: WorkSummary
   /** True when this session belongs to a re-acclimation (rebuild) block. */
   isRebuild?: boolean
   /** The phase the rebuild resumes into, so the track can show what comes next. */
@@ -57,11 +63,26 @@ function formatDate(iso: string): string {
 }
 
 const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
-  { session, bestWeight, bodyweight, target, date, mainLiftLabel, isRebuild = false, resumePhaseType = null },
+  {
+    session,
+    bestWeight,
+    bodyweight,
+    target,
+    date,
+    mainLiftLabel,
+    dayLabel,
+    muscleLabels,
+    work,
+    isRebuild = false,
+    resumePhaseType = null,
+  },
   ref
 ) {
   const summary = sessionSummary(session)
   const hasSets = summary.weight != null && summary.reps != null && summary.setCount > 0
+  // A Free session has no main lift and no block: it headlines the muscles it trained.
+  const isFree = session.type === "Free"
+  const muscleLine = muscleLabels.join(" + ")
   const activeIdx = PHASE_INDEX[session.type] ?? 0
   const activePhase = SHARE_PHASES[activeIdx]
 
@@ -84,7 +105,6 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
         state: i < activeIdx ? "completed" : i === activeIdx ? "active" : "upcoming",
       }))
 
-  const isFree = session.type === "Free"
   const progressPct =
     bestWeight != null && target != null && target > 0
       ? Math.min(100, Math.round((bestWeight / target) * 100))
@@ -125,6 +145,20 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {isFree ? (
+              <span
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: 3,
+                  textTransform: "uppercase",
+                  color: ACCENT,
+                }}
+              >
+                {dayLabel}
+              </span>
+            ) : (
+              <>
             {mainLiftLabel && (
               <>
                 <span
@@ -161,6 +195,8 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
             >
               {headerLabel}
             </span>
+              </>
+            )}
           </div>
           {date && (
             <span style={{ fontSize: 22, color: MUTED_LIGHT, fontWeight: 400 }}>
@@ -171,7 +207,20 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
 
         {/* Hero section */}
         <div style={{ marginBottom: 44 }}>
-          {hasSets ? (
+          {isFree ? (
+            <span
+              style={{
+                fontSize: muscleLine.length > 30 ? 60 : muscleLine.length > 16 ? 78 : 104,
+                fontWeight: 800,
+                lineHeight: 1.05,
+                color: ACCENT,
+                letterSpacing: -2,
+                display: "block",
+              }}
+            >
+              {muscleLine || "Session logged"}
+            </span>
+          ) : hasSets ? (
             <div style={{ display: "flex", alignItems: "flex-end", gap: 32 }}>
               <span
                 style={{
@@ -231,20 +280,29 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function ShareCard(
             marginBottom: 44,
           }}
         >
-          {(
-            [
-              {
-                label: "Current Best",
-                value: bestWeight != null ? `${bestWeight}kg` : "—",
-                accent: true,
-              },
-              { label: "Goal", value: target != null ? `${target}kg` : "—", accent: false },
-              {
-                label: "Bodyweight",
-                value: bodyweight != null ? `${bodyweight}kg` : "—",
-                accent: false,
-              },
-            ] as const
+          {(isFree
+            ? [
+                { label: "Exercises", value: String(work.exercises), accent: true },
+                { label: "Sets", value: String(work.sets), accent: false },
+                {
+                  label: "Volume",
+                  value: work.volume > 0 ? `${work.volume.toLocaleString("en-GB")}kg` : "—",
+                  accent: false,
+                },
+              ]
+            : [
+                {
+                  label: "Current Best",
+                  value: bestWeight != null ? `${bestWeight}kg` : "—",
+                  accent: true,
+                },
+                { label: "Goal", value: target != null ? `${target}kg` : "—", accent: false },
+                {
+                  label: "Bodyweight",
+                  value: bodyweight != null ? `${bodyweight}kg` : "—",
+                  accent: false,
+                },
+              ]
           ).map((stat, i, arr) => (
             <div
               key={stat.label}

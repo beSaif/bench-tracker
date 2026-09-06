@@ -132,6 +132,19 @@ export interface UserPresence extends PresenceRecord {
   name: string
 }
 
+/**
+ * A friend's last session, summarised against *their* training days and muscle names
+ * (both live under per-user keys the viewer cannot read). Built by /api/friends/profile.
+ */
+export interface FriendSessionSummary {
+  label: string
+  muscles: string[]
+  exercises: number
+  sets: number
+  volume: number
+  topSet: { kg: number; reps: number; exercise: string } | null
+}
+
 export interface FriendRequest {
   email: string
   name: string

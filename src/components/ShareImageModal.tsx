@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Session, TrainingBlock, UserProfile } from "@/lib/types"
-import { getMainLiftLabel } from "@/lib/trainingMode"
-import { getBestWeight, getLatestBW } from "@/lib/stats"
+import { Session, TrainingBlock, TrainingDay, UserProfile } from "@/lib/types"
+import { getMainLiftLabel, getSessionLabel } from "@/lib/trainingMode"
+import { getBestWeight, getLatestBW, sessionWork } from "@/lib/stats"
+import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 import { PHASE_SESSION_TYPE } from "@/lib/prescription"
 import ShareCard from "@/components/ShareCard"
 
@@ -12,12 +13,22 @@ interface Props {
   sessions: Session[]
   blocks: TrainingBlock[]
   profile: UserProfile
+  exerciseConfig: MuscleGroupConfig[]
+  trainingDays: TrainingDay[]
   onClose: () => void
 }
 
 type Status = "loading" | "ready" | "error"
 
-export default function ShareImageModal({ session, sessions, blocks, profile, onClose }: Props) {
+export default function ShareImageModal({
+  session,
+  sessions,
+  blocks,
+  profile,
+  exerciseConfig,
+  trainingDays,
+  onClose,
+}: Props) {
   const cardRef = useRef<HTMLDivElement>(null)
   const blobRef = useRef<Blob | null>(null)
   const [status, setStatus] = useState<Status>("loading")
@@ -39,6 +50,13 @@ export default function ShareImageModal({ session, sessions, blocks, profile, on
 
   const bestWeight = getBestWeight(sessions)
   const bodyweight = session.bw ?? getLatestBW(sessions) ?? profile.bw
+
+  // A Balanced session has no main lift to headline, so the card leads with the
+  // training day and the muscles it trained instead.
+  const mainLiftLabel = getMainLiftLabel(profile)
+  const work = sessionWork(session, mainLiftLabel)
+  const dayLabel = getSessionLabel(session, trainingDays)
+  const muscleLabels = work.muscles.map((m) => getMuscleLabel(exerciseConfig, m))
 
   // A rebuild session logs its type as "Volume"; look up its block so the card
   // can label it "Rebuild" and show the phase it resumes into.
@@ -236,7 +254,10 @@ export default function ShareImageModal({ session, sessions, blocks, profile, on
           bodyweight={bodyweight}
           target={profile.target ?? null}
           date={session.date}
-          mainLiftLabel={session.type === "Free" ? null : getMainLiftLabel(profile)}
+          mainLiftLabel={session.type === "Free" ? null : mainLiftLabel}
+          dayLabel={dayLabel}
+          muscleLabels={muscleLabels}
+          work={work}
           isRebuild={isRebuild}
           resumePhaseType={resumePhaseType}
         />
