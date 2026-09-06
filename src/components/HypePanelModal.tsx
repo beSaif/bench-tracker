@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { UserProfile } from "@/lib/types"
+import { UserProfile, TRAINING_MODE_LABEL } from "@/lib/types"
+import { isLiftFocused } from "@/lib/trainingMode"
 
 const PRESETS = [
   "skipping again? 🐔",
@@ -185,7 +186,10 @@ export default function HypePanelModal({ friends, onClose, onShareWorkout }: Pro
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-semibold text-[15px] leading-tight">{f.name}</p>
-                      <p className="text-zinc-500 text-xs mt-0.5">{f.anchor} kg</p>
+                      {/* A Balanced gymbro has no anchor; show their mode instead */}
+                      <p className="text-zinc-500 text-xs mt-0.5">
+                        {isLiftFocused(f) ? `${f.anchor ?? "—"} kg` : TRAINING_MODE_LABEL.balanced}
+                      </p>
                     </div>
                     <svg className="text-zinc-600 shrink-0" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="6,4 10,8 6,12" />

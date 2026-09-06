@@ -105,6 +105,8 @@ export default function HistoryPage() {
           sessions={sessions}
           blocks={blocks}
           profile={profile}
+          exerciseConfig={exerciseConfig}
+          trainingDays={trainingDays}
           onClose={() => setShareSession(null)}
         />
       )}

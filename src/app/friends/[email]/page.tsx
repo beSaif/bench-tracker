@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { UserProfile, UserPresence, Session, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL } from "@/lib/types"
+import { UserProfile, UserPresence, Session, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, FriendSessionSummary } from "@/lib/types"
 import { isLiftFocused } from "@/lib/trainingMode"
 import MessageComposer from "@/components/MessageComposer"
 
@@ -18,15 +18,11 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-function topSet(sets: Session["sets"]): Session["sets"][0] | null {
-  const work = sets.filter((s) => !s.isWarmup && s.kg > 0)
-  if (!work.length) return null
-  return work.reduce((best, s) => (s.kg > best.kg ? s : best), work[0])
-}
-
 interface ProfileData {
   profile: UserProfile
   lastSession: Session | null
+  /** Resolved server-side: the viewer cannot read the friend's days or muscle names. */
+  lastSessionSummary: FriendSessionSummary | null
 }
 
 export default function FriendProfilePage() {
@@ -90,7 +86,7 @@ export default function FriendProfilePage() {
     )
   }
 
-  const { profile, lastSession } = data
+  const { profile, lastSession, lastSessionSummary } = data
   const isLive = presence?.inSession ?? false
 
   const liftColours: Record<MainLift, string> = {
@@ -106,7 +102,6 @@ export default function FriendProfilePage() {
   const anchor = profile.anchor ?? 0
   const target = profile.target ?? 0
 
-  const best = lastSession ? topSet(lastSession.sets) : null
 
   return (
     <main className="mx-auto w-full max-w-[393px] px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
@@ -196,25 +191,43 @@ export default function FriendProfilePage() {
         <div>
           <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold mb-3">Last session</p>
           <div className="bg-white border border-[#eeeeee] rounded-xl px-4 py-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-[#111111]">{lastSession.type}</span>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-[#111111]">
+                {lastSessionSummary?.label ?? lastSession.type}
+              </span>
               {lastSession.date && (
                 <span className="text-[11px] text-[#aaaaaa]">{formatDate(lastSession.date)}</span>
               )}
             </div>
-            {best ? (
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-base font-semibold text-[#111111]">{best.kg} kg</span>
-                <span className="text-sm text-[#aaaaaa]">× {best.reps}</span>
-                {best.e1rm && (
-                  <>
-                    <span className="text-[#dddddd] mx-0.5">·</span>
-                    <span className="text-[11px] text-[#aaaaaa]">e1RM {best.e1rm} kg</span>
-                  </>
-                )}
+            {lastSessionSummary && lastSessionSummary.muscles.length > 0 && (
+              <p className="text-[12px] text-[#777777] mb-3">
+                {lastSessionSummary.muscles.join(" + ")}
+              </p>
+            )}
+            {lastSessionSummary && lastSessionSummary.sets > 0 ? (
+              <div className="flex gap-5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Exercises</p>
+                  <p className="text-sm font-semibold text-[#111111]">{lastSessionSummary.exercises}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Sets</p>
+                  <p className="text-sm font-semibold text-[#111111]">{lastSessionSummary.sets}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Volume</p>
+                  <p className="text-sm font-semibold text-[#111111]">
+                    {lastSessionSummary.volume.toLocaleString("en-GB")}<span className="text-xs font-normal text-[#aaaaaa] ml-0.5">kg</span>
+                  </p>
+                </div>
               </div>
             ) : (
-              <p className="text-sm text-[#aaaaaa]">No sets logged</p>
+              <p className="text-sm text-[#aaaaaa]">Nothing logged in this session</p>
+            )}
+            {lastSessionSummary?.topSet && (
+              <p className="text-[11px] text-[#aaaaaa] mt-3">
+                Top set · {lastSessionSummary.topSet.exercise} {lastSessionSummary.topSet.kg} kg × {lastSessionSummary.topSet.reps}
+              </p>
             )}
           </div>
         </div>

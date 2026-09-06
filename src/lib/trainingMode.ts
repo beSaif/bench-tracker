@@ -1,4 +1,4 @@
-import { MainLift, MAIN_LIFT_LABEL, TrainingMode, UserProfile } from "./types"
+import { MainLift, MAIN_LIFT_LABEL, Session, TrainingDay, TrainingMode, UserProfile } from "./types"
 
 type ModeSource = Pick<UserProfile, "trainingMode"> | null | undefined
 
@@ -27,4 +27,18 @@ export function hasLiftSetup(
     typeof profile.anchor === "number" && profile.anchor > 0 &&
     typeof profile.target === "number" && profile.target > 0
   )
+}
+
+/**
+ * Display label for a session. Balanced-mode sessions are stored with type "Free",
+ * which is a storage value and must never reach the UI — they show their training
+ * day instead ("Push", "Pull"), falling back to a neutral word when no day matches.
+ */
+export function getSessionLabel(
+  session: Pick<Session, "type" | "selectedTrainingDayId">,
+  trainingDays: TrainingDay[]
+): string {
+  if (session.type !== "Free") return session.type
+  const day = trainingDays.find((d) => d.id === session.selectedTrainingDayId)
+  return day?.name ?? "Session"
 }

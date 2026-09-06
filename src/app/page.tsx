@@ -35,6 +35,7 @@ import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
+import MuscleBalance from "@/components/MuscleBalance"
 import LayoffBanner from "@/components/LayoffBanner"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { relativeTime } from "@/lib/time"
@@ -923,9 +924,10 @@ export default function Page() {
           />
         )}
 
-        {/* Balanced mode: just the next session and a paged list of recent ones */}
+        {/* Balanced mode: how balanced the training is, the next session, recent ones */}
         {!liftFocused && (
           <div className="mb-4">
+            <MuscleBalance sessions={confirmed} exerciseConfig={exerciseConfig} />
             {upcoming && (
               <SessionCard
                 session={upcoming}
@@ -1245,6 +1247,8 @@ export default function Page() {
           sessions={sessions}
           blocks={blocks}
           profile={profile}
+          exerciseConfig={exerciseConfig}
+          trainingDays={trainingDays}
           onClose={() => setShareSession(null)}
         />
       )}

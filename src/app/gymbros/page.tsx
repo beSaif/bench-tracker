@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, UserPresence, FriendRequest, GymbroMessage } from "@/lib/types"
 import { isLiftFocused } from "@/lib/trainingMode"
+import { relativeDate } from "@/lib/time"
 
 function initials(name: string): string {
   return name
@@ -28,10 +29,13 @@ function LiftBadge({ profile }: { profile: UserProfile }) {
   )
 }
 
+/** /api/friends attaches the friend's most recent confirmed session date. */
+type Gymbro = UserProfile & { lastSessionDate?: string | null }
+
 type AddState = "idle" | "sending" | "sent" | "not_found" | "already_friends" | "already_pending" | "self" | "error"
 
 export default function GymBrosPage() {
-  const [friends, setFriends] = useState<UserProfile[]>([])
+  const [friends, setFriends] = useState<Gymbro[]>([])
   const [presences, setPresences] = useState<UserPresence[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -50,7 +54,7 @@ export default function GymBrosPage() {
       fetch("/api/friends/requests").then((r) => r.json()),
       fetch("/api/messages").then((r) => r.json()),
     ])
-      .then(([f, req, msgs]: [UserProfile[], { requests: FriendRequest[]; count: number }, GymbroMessage[]]) => {
+      .then(([f, req, msgs]: [Gymbro[], { requests: FriendRequest[]; count: number }, GymbroMessage[]]) => {
         setFriends(Array.isArray(f) ? f : [])
         setRequests(req?.requests ?? [])
         setPendingCount(req?.count ?? 0)
@@ -361,14 +365,26 @@ export default function GymBrosPage() {
                     <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">BW</p>
                     <p className="text-sm font-medium text-[#333333]">{bro.bw} kg</p>
                   </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Current</p>
-                    <p className="text-sm font-medium text-[#333333]">{bro.anchor} kg</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Target</p>
-                    <p className="text-sm font-medium text-[#333333]">{bro.target} kg</p>
-                  </div>
+                  {isLiftFocused(bro) ? (
+                    <>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Current</p>
+                        <p className="text-sm font-medium text-[#333333]">{bro.anchor ?? "—"} kg</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Target</p>
+                        <p className="text-sm font-medium text-[#333333]">{bro.target ?? "—"} kg</p>
+                      </div>
+                    </>
+                  ) : (
+                    /* A Balanced gymbro has no anchor or target to show */
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-[#aaaaaa] font-semibold">Last active</p>
+                      <p className="text-sm font-medium text-[#333333]">
+                        {bro.lastSessionDate ? relativeDate(bro.lastSessionDate) : "never"}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </li>
             )
