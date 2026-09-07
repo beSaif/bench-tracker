@@ -35,47 +35,13 @@ import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
-import MuscleBalance from "@/components/MuscleBalance"
+import BalancedHome from "@/components/balanced/BalancedHome"
 import LayoffBanner from "@/components/LayoffBanner"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
+import { suggestNextDay } from "@/lib/balance"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
-/** Balanced-mode home shows this many recent sessions before a "show more" button. */
-const RECENT_PAGE_SIZE = 10
-
-function suggestNextDay(confirmedSessions: Session[], trainingDays: TrainingDay[]): TrainingDay | null {
-  const sortedDays = [...trainingDays].sort((a, b) => a.order - b.order)
-  if (sortedDays.length === 0) return null
-
-  // Deterministic: find last confirmed session with an explicit training day id
-  const lastWithDay = [...confirmedSessions]
-    .filter((s) => s.confirmed && s.date && s.selectedTrainingDayId)
-    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
-
-  if (lastWithDay?.selectedTrainingDayId) {
-    const idx = sortedDays.findIndex((d) => d.id === lastWithDay.selectedTrainingDayId)
-    if (idx !== -1) return sortedDays[(idx + 1) % sortedDays.length]
-  }
-
-  // Fallback: match last session's extraWorkouts muscles to closest day, then rotate
-  const lastWithWorkouts = [...confirmedSessions]
-    .filter((s) => s.confirmed && s.date && s.extraWorkouts?.length)
-    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())[0]
-
-  if (lastWithWorkouts) {
-    const lastMuscles = lastWithWorkouts.extraWorkouts!.map((w) => w.muscle)
-    let bestIdx = 0
-    let bestScore = -1
-    sortedDays.forEach((day, i) => {
-      const score = day.muscleGroupIds.filter((m) => lastMuscles.includes(m)).length
-      if (score > bestScore) { bestScore = score; bestIdx = i }
-    })
-    return sortedDays[(bestIdx + 1) % sortedDays.length]
-  }
-
-  return sortedDays[0]
-}
 
 function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
   return blocks.find((b) => b.status === "active")
@@ -90,7 +56,7 @@ function createUpcomingSession(
   trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS
 ): Session {
   const maxIdAll = sessions.length > 0 ? Math.max(...sessions.map((s) => s.id)) : 0
-  const nextDayAll = suggestNextDay(sessions.filter((s) => s.confirmed), trainingDays)
+  const nextDayAll = suggestNextDay(sessions, trainingDays, config)?.day
 
   // Balanced mode: no main lift, no block. The upcoming card is just the next training day.
   if (!isLiftFocused(profile)) {
@@ -137,8 +103,7 @@ function createUpcomingSession(
   const blockLength = activeBlock ? getBlockLength(activeBlock) : BLOCK_LENGTHS.accumulation
   const coachNote = `[${PHASE_LABEL[phase]} ${sessionIndex + 1}/${blockLength}] ${prescription.weight}kg × ${prescription.reps} × ${prescription.sets}. Stay tight, drive the bar.`
 
-  const confirmedSessions = sessions.filter((s) => s.confirmed)
-  const nextDay = suggestNextDay(confirmedSessions, trainingDays)
+  const nextDay = suggestNextDay(sessions, trainingDays, config)?.day
 
   return {
     id: maxId + 1,
@@ -167,8 +132,7 @@ function upcomingMatchesMode(upcoming: Session | undefined, profile: UserProfile
 function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[], trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS): Session[] {
   const upcoming = sessions.find((s) => !s.confirmed)
   if (!upcoming || upcoming.selectedMuscleGroups !== undefined) return sessions
-  const confirmed = sessions.filter((s) => s.confirmed)
-  const nextDay = suggestNextDay(confirmed, trainingDays)
+  const nextDay = suggestNextDay(sessions, trainingDays, config)?.day
   return sessions.map((s) =>
     s.id === upcoming.id
       ? { ...s, selectedTrainingDayId: nextDay?.id, selectedMuscleGroups: nextDay?.muscleGroupIds ?? [] }
@@ -220,7 +184,6 @@ export default function Page() {
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const installGuide = useInstallGuide()
   const whatsNew = useWhatsNew()
-  const [recentLimit, setRecentLimit] = useState(RECENT_PAGE_SIZE)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const sessionsRef = useRef<Session[]>([])
@@ -788,7 +751,7 @@ export default function Page() {
 
   const confirmed = sessions.filter((s) => s.confirmed)
   const upcoming = sessions.find((s) => !s.confirmed)
-  const recommendedDay = suggestNextDay(confirmed, trainingDays)
+  const recommendedDay = suggestNextDay(sessions, trainingDays, exerciseConfig)
   const confirmedSorted = [...confirmed].sort(
     (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
   )
@@ -829,7 +792,6 @@ export default function Page() {
   const liftLabel = getMainLiftLabel(profile)
   const liftFocused = isLiftFocused(profile)
   const firstName = profile.name.split(" ")[0]
-  const recentSessions = confirmedSorted.slice(0, recentLimit)
 
   return (
     <>
@@ -924,45 +886,22 @@ export default function Page() {
           />
         )}
 
-        {/* Balanced mode: how balanced the training is, the next session, recent ones */}
+        {/* Balanced mode: momentum, how balanced the training is, the next session, recent ones */}
         {!liftFocused && (
-          <div className="mb-4">
-            <MuscleBalance sessions={confirmed} exerciseConfig={exerciseConfig} />
-            {upcoming && (
-              <SessionCard
-                session={upcoming}
-                onStartLogging={handleStartLogging}
-                onUpdateMuscleGroups={handleUpdateMuscleGroups}
-                exerciseConfig={exerciseConfig}
-                trainingDays={trainingDays}
-                recommendedDayId={recommendedDay?.id}
-              />
-            )}
-            {confirmed.length > 0 && (
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3 mt-6">
-                Recent sessions
-              </p>
-            )}
-            {recentSessions.map((s) => (
-              <SessionCard
-                key={s.id}
-                session={s}
-                onEdit={handleEditSession}
-                onUnlog={handleUnlogSession}
-                onShare={setShareSession}
-                exerciseConfig={exerciseConfig}
-                trainingDays={trainingDays}
-              />
-            ))}
-            {confirmedSorted.length > recentLimit && (
-              <button
-                onClick={() => setRecentLimit((n) => n + RECENT_PAGE_SIZE)}
-                className="w-full text-xs font-semibold text-[#777777] bg-[#f5f5f5] rounded-xl px-4 py-2.5 hover:text-[#1e3a5f] active:opacity-70 transition-colors"
-              >
-                Show {Math.min(RECENT_PAGE_SIZE, confirmedSorted.length - recentLimit)} more
-              </button>
-            )}
-          </div>
+          <BalancedHome
+            confirmedSorted={confirmedSorted}
+            upcoming={upcoming}
+            exerciseConfig={exerciseConfig}
+            trainingDays={trainingDays}
+            recommendedDayId={recommendedDay?.day.id}
+            recommendedReason={recommendedDay?.reason}
+            mainLiftLabel={liftLabel}
+            onStartLogging={handleStartLogging}
+            onUpdateMuscleGroups={handleUpdateMuscleGroups}
+            onEdit={handleEditSession}
+            onUnlog={handleUnlogSession}
+            onShare={setShareSession}
+          />
         )}
 
         {/* Lift-focused mode: target progress, stats, program timeline and the block view */}
@@ -1077,7 +1016,7 @@ export default function Page() {
                   onUpdateMuscleGroups={handleUpdateMuscleGroups}
                   exerciseConfig={exerciseConfig}
                   trainingDays={trainingDays}
-                  recommendedDayId={recommendedDay?.id}
+                  recommendedDayId={recommendedDay?.day.id}
                 />
               )}
               {activeBlockSessions.map((s) => (
