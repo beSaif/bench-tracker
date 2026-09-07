@@ -1,7 +1,7 @@
 "use client"
 
 import { Session } from "@/lib/types"
-import { formatVolume, momentum } from "@/lib/balance"
+import { momentum } from "@/lib/balance"
 
 interface Props {
   /** Confirmed sessions, newest first. */
@@ -64,8 +64,6 @@ export default function MomentumStrip({ sessions }: Props) {
           sets
         </span>
         <span className="ml-auto text-[11px] text-[#777777] tabular-nums">
-          {formatVolume(m.current.volume)}
-          {" · "}
           {m.current.sessions} session{m.current.sessions === 1 ? "" : "s"}
         </span>
       </div>
@@ -80,7 +78,7 @@ export default function MomentumStrip({ sessions }: Props) {
             <div
               key={b.weeksAgo}
               className="relative flex-1 h-full rounded-[3px] bg-[#f5f5f5] overflow-hidden"
-              title={`${b.sets} sets, ${formatVolume(b.volume)}`}
+              title={`${b.sets} sets`}
             >
               <div
                 className={`absolute inset-x-0 bottom-0 rounded-[3px] transition-all duration-500 ${
