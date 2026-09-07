@@ -6,13 +6,13 @@ import {
   MainLiftSet,
   MuscleGroup,
   ExtraWorkout,
-  ExtraSet,
   MAIN_LIFT_LABEL,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups, getDefaultSets } from "@/lib/exerciseConfig"
+import { getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
 import {
   DndContext,
   closestCenter,
@@ -285,37 +285,6 @@ function initExtraWorkoutState(
     }
   }
   return state
-}
-
-function getLastSetsForExercise(
-  exerciseName: string,
-  previousSessions: Session[]
-): Array<{ kg: number; reps: number }> | null {
-  for (const session of previousSessions) {
-    for (const workout of session.extraWorkouts ?? []) {
-      for (const exercise of workout.exercises) {
-        if (exercise.name === exerciseName && exercise.sets.length > 0) {
-          return exercise.sets.map((s) => ({ kg: s.kg, reps: s.reps }))
-        }
-      }
-    }
-  }
-  return null
-}
-
-function getTopSet(exerciseName: string, sessions: Session[]): ExtraSet | null {
-  for (const session of sessions) {
-    for (const workout of session.extraWorkouts ?? []) {
-      for (const exercise of workout.exercises) {
-        if (exercise.name === exerciseName && exercise.sets.length > 0) {
-          return exercise.sets.reduce((best, set) =>
-            set.kg > best.kg || (set.kg === best.kg && set.reps > best.reps) ? set : best
-          )
-        }
-      }
-    }
-  }
-  return null
 }
 
 function getItemKey(item: CarouselItem): string {
