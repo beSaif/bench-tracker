@@ -408,12 +408,6 @@ export function planSession(
   return { muscles, plannedSets, exerciseCount, estimatedVolume: Math.round(estimatedVolume) }
 }
 
-/** Matches the app's existing tonnage idiom: "12,450kg", or an em dash for nothing. */
-export function formatVolume(kg: number): string {
-  if (kg <= 0) return "—"
-  return `${Math.round(kg).toLocaleString("en-GB")}kg`
-}
-
 /** The right-hand column of a recovery row. */
 export function formatDays(days: number | null): string {
   if (days === null) return "never"

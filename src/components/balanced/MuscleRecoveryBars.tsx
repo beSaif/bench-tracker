@@ -86,17 +86,25 @@ export default function MuscleRecoveryBars({ sessions, exerciseConfig, trainingD
           </span>
         </div>
 
-        {/* Collapsed: one segment per group, stalest first, so the amount of red
-            reads at a glance without costing a screen of height. */}
+        {/* Collapsed: one labelled segment per group, stalest first, so which groups
+            are neglected reads at a glance without costing a screen of height.
+            Names truncate on narrow columns; the title carries the full text. */}
         {!open && (
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             {rows.map((r) => (
               <div
                 key={r.id}
                 title={`${r.label} · ${formatDays(r.days)}`}
-                className="flex-1 h-1.5 rounded-full"
-                style={{ backgroundColor: STATE_COLOR[r.state] }}
-              />
+                className="flex-1 min-w-0"
+              >
+                <div
+                  className="h-1.5 rounded-full mb-1"
+                  style={{ backgroundColor: STATE_COLOR[r.state] }}
+                />
+                <p className="text-[9px] font-medium text-[#777777] leading-tight truncate">
+                  {r.label}
+                </p>
+              </div>
             ))}
           </div>
         )}

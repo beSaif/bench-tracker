@@ -6,7 +6,6 @@ import { Session, TrainingDay } from "@/lib/types"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 import { getSessionLabel } from "@/lib/trainingMode"
 import { sessionWork } from "@/lib/stats"
-import { formatVolume } from "@/lib/balance"
 import { relativeDate } from "@/lib/time"
 
 interface Props {
@@ -15,8 +14,6 @@ interface Props {
   trainingDays: TrainingDay[]
   /** Labels the top set of sessions carried over from lift-focused mode. */
   mainLiftLabel: string
-  /** Largest recent session volume, for the comparison hairline. 0 hides it. */
-  peakVolume: number
   onEdit: (session: Session) => void
   onUnlog: (session: Session) => void
   onShare: (session: Session) => void
@@ -34,7 +31,6 @@ export default function BalancedSessionRow({
   exerciseConfig,
   trainingDays,
   mainLiftLabel,
-  peakVolume,
   onEdit,
   onUnlog,
   onShare,
@@ -66,8 +62,6 @@ export default function BalancedSessionRow({
               <span className="text-[#e0e0e0]">·</span>
               <span className="font-semibold">{work.exercises}</span>
               <span className="text-[#aaaaaa]">{work.exercises === 1 ? "exercise" : "exercises"}</span>
-              <span className="text-[#e0e0e0]">·</span>
-              <span className="font-semibold">{formatVolume(work.volume)}</span>
             </div>
           ) : (
             <p className="mt-1 text-[12px] text-[#aaaaaa]">No sets logged</p>
@@ -83,16 +77,6 @@ export default function BalancedSessionRow({
             <p className="mt-0.5 text-[11px] text-[#aaaaaa] truncate">
               {work.muscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" · ")}
             </p>
-          )}
-
-          {peakVolume > 0 && logged && (
-            <div className="mt-2 h-[2px] rounded-full bg-[#f0f0f0] overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#16a34a]/40 transition-all duration-500"
-                // Inline width: Tailwind cannot generate classes from runtime values.
-                style={{ width: `${Math.min(100, (work.volume / peakVolume) * 100)}%` }}
-              />
-            </div>
           )}
         </Link>
 

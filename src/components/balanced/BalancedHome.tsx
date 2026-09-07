@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { MuscleGroup, Session, TrainingDay } from "@/lib/types"
 import { MuscleGroupConfig } from "@/lib/exerciseConfig"
-import { sessionWork } from "@/lib/stats"
 import MomentumStrip from "./MomentumStrip"
 import MuscleRecoveryBars from "./MuscleRecoveryBars"
 import UpNextCard from "./UpNextCard"
@@ -28,8 +27,6 @@ interface Props {
 
 /** Recent sessions shown before a "show more" button. */
 const RECENT_PAGE_SIZE = 10
-/** Sessions the volume hairline scales against — a year-old best shouldn't flatten it. */
-const PEAK_WINDOW = 30
 
 /**
  * The Balanced home screen: how the training is going, whether it's balanced, what
@@ -54,10 +51,6 @@ export default function BalancedHome({
 
   const recent = confirmedSorted.slice(0, recentLimit)
   const remaining = confirmedSorted.length - recentLimit
-  const peakVolume = Math.max(
-    0,
-    ...confirmedSorted.slice(0, PEAK_WINDOW).map((s) => sessionWork(s).volume)
-  )
 
   return (
     <div className="mb-4">
@@ -95,7 +88,6 @@ export default function BalancedHome({
           exerciseConfig={exerciseConfig}
           trainingDays={trainingDays}
           mainLiftLabel={mainLiftLabel}
-          peakVolume={peakVolume}
           onEdit={onEdit}
           onUnlog={onUnlog}
           onShare={onShare}
