@@ -1,5 +1,5 @@
 import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "./exerciseConfig"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, withBenchPressFirst } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
 
@@ -25,12 +25,19 @@ export function loadBlocksLocal(): TrainingBlock[] {
   }
 }
 
+/**
+ * Stored config always comes back with bench press opening the chest group: configs
+ * saved before it was a chest exercise would otherwise leave chest day without the
+ * one lift that is not optional here.
+ */
 export function loadExerciseConfigLocal(): MuscleGroupConfig[] {
   try {
     const raw = localStorage.getItem(EXERCISES_KEY)
     if (!raw) return DEFAULT_MUSCLE_GROUPS
     const parsed = JSON.parse(raw) as MuscleGroupConfig[]
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_MUSCLE_GROUPS
+    return Array.isArray(parsed) && parsed.length > 0
+      ? withBenchPressFirst(parsed)
+      : DEFAULT_MUSCLE_GROUPS
   } catch {
     return DEFAULT_MUSCLE_GROUPS
   }
@@ -201,8 +208,12 @@ export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
     if (res.ok) {
       const data = await res.json()
       if (Array.isArray(data) && data.length > 0) {
-        saveExerciseConfigLocal(data)
-        return data
+        const config = withBenchPressFirst(data as MuscleGroupConfig[])
+        // A changed reference means bench press was just put back; write it through so
+        // the migration sticks instead of being redone on every device, every load.
+        if (config !== data) saveExerciseConfig(config)
+        else saveExerciseConfigLocal(config)
+        return config
       }
     }
   } catch {

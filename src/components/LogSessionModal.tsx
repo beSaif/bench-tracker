@@ -11,7 +11,7 @@ import {
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups, getDefaultSets } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, sortedMuscleGroups, getDefaultSets, withBenchPressGroupFirst } from "@/lib/exerciseConfig"
 import { getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
 import {
   DndContext,
@@ -87,7 +87,8 @@ function groupId(g: ExerciseGroup): string {
 function buildDefaultOrder(session: Session, exerciseConfig: MuscleGroupConfig[]): ExerciseGroup[] {
   // A Free (Balanced-mode) session carries no main-lift sets, so it gets no main group.
   const order: ExerciseGroup[] = session.sets.length > 0 ? [{ kind: "main" }] : []
-  for (const muscle of session.selectedMuscleGroups ?? []) {
+  // Bench press opens the session — the group carrying it leads, matching planSession.
+  for (const muscle of withBenchPressGroupFirst(exerciseConfig, session.selectedMuscleGroups ?? [])) {
     for (const exercise of getExercisesForMuscle(exerciseConfig, muscle)) {
       order.push({ kind: "extra", muscle, exercise })
     }

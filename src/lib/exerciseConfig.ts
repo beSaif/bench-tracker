@@ -40,8 +40,9 @@ export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
     name: "Chest",
     order: 2,
     exercises: [
-      { id: "dumbbell-incline-press", name: "Dumbbell Incline Press", order: 0 },
-      { id: "machine-seated-chest-press", name: "Machine Seated Chest Press", order: 1 },
+      { id: "bench-press", name: "Bench Press", order: 0, defaultSets: 3 },
+      { id: "dumbbell-incline-press", name: "Dumbbell Incline Press", order: 1, defaultSets: 3 },
+      { id: "machine-seated-chest-press", name: "Machine Seated Chest Press", order: 2 },
     ],
   },
   {
@@ -94,6 +95,71 @@ export function getExercisesForMuscle(config: MuscleGroupConfig[], id: string): 
   const group = config.find((g) => g.id === id)
   if (!group) return []
   return [...group.exercises].sort((a, b) => a.order - b.order).map((e) => e.name)
+}
+
+export const BENCH_PRESS_ID = "bench-press"
+export const BENCH_PRESS_NAME = "Bench Press"
+const CHEST_GROUP_ID = "chest"
+
+/**
+ * Any bench press the user has named for themselves — "Barbell Bench", "Flat Bench
+ * Press". "Bench Dip" is not one, so a bench in the name is not enough on its own.
+ */
+export function isBenchPress(name: string): boolean {
+  const n = normalize(name)
+  if (!n.includes("bench")) return false
+  return n.includes("press") || n.endsWith("bench")
+}
+
+function findChestGroup(config: MuscleGroupConfig[]): MuscleGroupConfig | undefined {
+  return (
+    config.find((g) => g.id === CHEST_GROUP_ID) ??
+    config.find((g) => normalize(g.name) === CHEST_GROUP_ID)
+  )
+}
+
+/**
+ * Bench press opens every chest day — that is the whole point of this tracker, so a
+ * stored config is not allowed to be missing it.
+ *
+ * Configs written before bench press was a chest exercise get it inserted at the top;
+ * a config that already has it under some other name just has it moved to the front.
+ * Displaced exercises keep the set count they had, because `getDefaultSets` infers 3
+ * sets for whatever sits at order 0 and 2 for the rest — without pinning, adding bench
+ * would quietly cut a set from the exercise it pushed down.
+ */
+export function withBenchPressFirst(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
+  const chest = findChestGroup(config)
+  if (!chest) return config
+
+  const sorted = [...chest.exercises].sort((a, b) => a.order - b.order)
+  const bench = sorted.find((e) => isBenchPress(e.name))
+  if (bench && sorted[0] === bench) return config
+
+  const rest = sorted.filter((e) => e !== bench)
+  const exercises = [
+    bench ?? { id: BENCH_PRESS_ID, name: BENCH_PRESS_NAME, order: 0, defaultSets: 3 },
+    ...rest,
+  ].map((e, i) => ({ ...e, order: i, defaultSets: e.defaultSets ?? getDefaultSets(e) }))
+
+  return config.map((g) => (g === chest ? { ...g, exercises } : g))
+}
+
+/**
+ * Selected muscle groups with the bench press group first, so bench opens the session
+ * whatever order the training day lists its groups in. Order inside the logger is still
+ * the user's to drag around once the session is open.
+ */
+export function withBenchPressGroupFirst(
+  config: MuscleGroupConfig[],
+  muscleIds: string[]
+): string[] {
+  const index = muscleIds.findIndex((id) => {
+    const group = config.find((g) => g.id === id)
+    return !!group && group.exercises.some((e) => isBenchPress(e.name))
+  })
+  if (index <= 0) return muscleIds
+  return [muscleIds[index], ...muscleIds.filter((_, i) => i !== index)]
 }
 
 export const DEFAULT_TRAINING_DAYS: TrainingDay[] = [

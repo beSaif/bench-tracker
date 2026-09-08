@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 2,
+    items: [
+      {
+        title: "Bench press opens chest day",
+        body: "Balanced mode now suggests Bench Press first on any day that trains chest, and it is added to your Chest group if it was missing. Everything else on the day keeps the sets it had.",
+      },
+    ],
+  },
+  {
     version: 1,
     items: [
       {
