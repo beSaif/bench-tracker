@@ -1,11 +1,5 @@
 import { MuscleGroup, Session, TrainingDay } from "./types"
-import {
-  MuscleGroupConfig,
-  getDefaultSets,
-  getExercisesForMuscle,
-  getMuscleLabel,
-  withBenchPressGroupFirst,
-} from "./exerciseConfig"
+import { MuscleGroupConfig, getDefaultSets, getExercisesForMuscle, getMuscleLabel } from "./exerciseConfig"
 import { daysSinceDate } from "./layoff"
 import { findLastSessionWithExercise } from "./exerciseHistory"
 import { sessionWork } from "./stats"
@@ -377,11 +371,7 @@ export function planSession(
   const { now = new Date(), dayMuscleIds, recovery } = opts
   const byId = new Map((recovery ?? []).map((r) => [r.id, r]))
 
-  // Bench press opens the session, so the group carrying it leads the plan whatever
-  // order the training day lists its groups in.
-  const selected = withBenchPressGroupFirst(exerciseConfig, session.selectedMuscleGroups ?? [])
-
-  const muscles: MusclePlan[] = selected.map((id) => {
+  const muscles: MusclePlan[] = (session.selectedMuscleGroups ?? []).map((id) => {
     const group = exerciseConfig.find((g) => g.id === id)
     const state = byId.get(id)
     const exercises: ExercisePreview[] = getExercisesForMuscle(exerciseConfig, id).map((name) => {

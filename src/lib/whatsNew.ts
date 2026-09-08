@@ -20,8 +20,8 @@ export const WHATS_NEW: WhatsNewRelease[] = [
     version: 2,
     items: [
       {
-        title: "Bench press opens chest day",
-        body: "Balanced mode now suggests Bench Press first on any day that trains chest, and it is added to your Chest group if it was missing. Everything else on the day keeps the sets it had.",
+        title: "Bench Press is in the Chest group",
+        body: "Chest now starts with Bench Press, so any day that trains chest suggests it like any other exercise. It is added once if your Chest group was missing it — reorder, rename or remove it from Exercise Selection and that sticks.",
       },
     ],
   },

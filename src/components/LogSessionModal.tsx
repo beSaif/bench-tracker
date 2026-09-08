@@ -11,7 +11,7 @@ import {
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, getSessionExercisesForMuscle, isBenchPress, sortedMuscleGroups, getDefaultSets, withBenchPressGroupFirst } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, getSessionExercisesForMuscle, sortedMuscleGroups, getDefaultSets } from "@/lib/exerciseConfig"
 import { getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
 import {
   DndContext,
@@ -87,14 +87,12 @@ function groupId(g: ExerciseGroup): string {
 function buildDefaultOrder(
   session: Session,
   exerciseConfig: MuscleGroupConfig[],
-  benchPressIsMainLift = false
+  exclude?: string
 ): ExerciseGroup[] {
   // A Free (Balanced-mode) session carries no main-lift sets, so it gets no main group.
   const order: ExerciseGroup[] = session.sets.length > 0 ? [{ kind: "main" }] : []
-  // Bench press opens the session — the group carrying it leads, matching planSession.
-  const opts = { benchPressIsMainLift }
-  for (const muscle of withBenchPressGroupFirst(exerciseConfig, session.selectedMuscleGroups ?? [], opts)) {
-    for (const exercise of getSessionExercisesForMuscle(exerciseConfig, muscle, opts)) {
+  for (const muscle of session.selectedMuscleGroups ?? []) {
+    for (const exercise of getSessionExercisesForMuscle(exerciseConfig, muscle, { exclude })) {
       order.push({ kind: "extra", muscle, exercise })
     }
   }
@@ -102,15 +100,18 @@ function buildDefaultOrder(
 }
 
 /**
- * True when the session's own main lift is the bench press, so the chest group's bench
- * press would be a second copy of it. A session that already carries logged bench-press
- * accessory sets is left alone — hiding them would hide work the user did.
+ * The exercise a muscle group should not repeat, because the session already opens with
+ * it as its own main lift. Undefined for a Balanced session, which has no main lift.
+ *
+ * A session that already carries it as a logged accessory keeps it — dropping it there
+ * would hide work the user did.
  */
-function benchPressOpensSession(session: Session, mainLiftLabel: string): boolean {
-  if (session.sets.length === 0 || mainLiftLabel !== MAIN_LIFT_LABEL.bench) return false
-  return !(session.extraWorkouts ?? []).some((w) =>
-    w.exercises.some((e) => isBenchPress(e.name))
+function mainLiftDuplicate(session: Session, mainLiftLabel: string): string | undefined {
+  if (session.sets.length === 0) return undefined
+  const logged = (session.extraWorkouts ?? []).some((w) =>
+    w.exercises.some((e) => e.name === mainLiftLabel)
   )
+  return logged ? undefined : mainLiftLabel
 }
 
 function buildCarouselItems(
@@ -265,7 +266,7 @@ function initExtraWorkoutState(
   session: Session,
   exerciseConfig: MuscleGroupConfig[],
   previousSessions: Session[] = [],
-  benchPressIsMainLift = false
+  exclude?: string
 ): ExtraWorkoutState {
   const groups = session.selectedMuscleGroups ?? []
   if (groups.length === 0) return {}
@@ -288,7 +289,7 @@ function initExtraWorkoutState(
   for (const muscle of groups) {
     state[muscle] = {}
     const muscleGroup = exerciseConfig.find((g) => g.id === muscle)
-    for (const exerciseName of getSessionExercisesForMuscle(exerciseConfig, muscle, { benchPressIsMainLift })) {
+    for (const exerciseName of getSessionExercisesForMuscle(exerciseConfig, muscle, { exclude })) {
       const exConfig = muscleGroup?.exercises.find((e) => e.name === exerciseName)
       const numSets = exConfig ? getDefaultSets(exConfig) : 3
       const lastSets = getLastSetsForExercise(exerciseName, previousSessions)
@@ -323,7 +324,7 @@ export default function LogSessionModal({
   mainLiftLabel,
 }: LogSessionModalProps) {
   // Fixed for the life of the modal: the session's main lift does not change mid-log.
-  const benchOpensSession = benchPressOpensSession(session, mainLiftLabel)
+  const duplicateOfMainLift = mainLiftDuplicate(session, mainLiftLabel)
 
   const [sets, setSets] = useState<EditableSet[]>(
     () => initialDraft?.sets ?? session.sets.map(toEditable)
@@ -344,13 +345,13 @@ export default function LogSessionModal({
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
     () =>
       initialDraft?.extraState ??
-      initExtraWorkoutState(session, exerciseConfig, previousSessions, benchOpensSession)
+      initExtraWorkoutState(session, exerciseConfig, previousSessions, duplicateOfMainLift)
   )
   const [currentSetIndex, setCurrentSetIndex] = useState(
     initialDraft?.currentSetIndex ?? 0
   )
   const [exerciseOrder, setExerciseOrder] = useState<ExerciseGroup[]>(
-    () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig, benchOpensSession)
+    () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig, duplicateOfMainLift)
   )
   const [showExercisesSheet, setShowExercisesSheet] = useState(false)
   const [exercisesSheetTab, setExercisesSheetTab] = useState<"current" | "add">("current")
@@ -758,10 +759,10 @@ export default function LogSessionModal({
 
   function addMuscleGroup(muscleId: string) {
     // Same list a fresh session would open the group with, so "Add all" on Chest does
-    // not hand back the bench press the main lift already covers. Adding that one
+    // not hand back the main lift the session already covers. Adding that one
     // deliberately from the row below still works.
     for (const name of getSessionExercisesForMuscle(exerciseConfig, muscleId, {
-      benchPressIsMainLift: benchOpensSession,
+      exclude: duplicateOfMainLift,
     })) {
       addExerciseToMuscle(muscleId, name)
     }
@@ -1050,7 +1051,7 @@ export default function LogSessionModal({
               const present = extraState[g.id] ?? {}
               const allExercises = getExercisesForMuscle(exerciseConfig, g.id)
               const addable = getSessionExercisesForMuscle(exerciseConfig, g.id, {
-                benchPressIsMainLift: benchOpensSession,
+                exclude: duplicateOfMainLift,
               })
               const allAdded = addable.length > 0 && addable.every((name) => present[name])
               return (
