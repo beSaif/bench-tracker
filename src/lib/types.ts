@@ -95,6 +95,7 @@ export const PRESENCES_KEY = "lift-tracker-presences"
 export const FRIENDS_KEY = "lift-tracker-friends"
 export const LAYOFF_DISMISS_KEY = "lift-tracker-layoff-dismissed"
 export const WHATS_NEW_SEEN_KEY = "lift-tracker-whats-new-seen"
+export const EXERCISES_MIGRATION_KEY = "lift-tracker-exercises-migration"
 
 export interface SessionDraft {
   sessionId: number

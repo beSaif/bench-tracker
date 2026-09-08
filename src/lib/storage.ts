@@ -1,5 +1,5 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "./exerciseConfig"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
 
@@ -25,12 +25,38 @@ export function loadBlocksLocal(): TrainingBlock[] {
   }
 }
 
+/** Whether the one-time repairs in `migrateExerciseConfig` still need to run here. */
+function exerciseMigrationPending(): boolean {
+  try {
+    const raw = localStorage.getItem(EXERCISES_MIGRATION_KEY)
+    const n = raw ? parseInt(raw, 10) : 0
+    return !(Number.isFinite(n) && n >= EXERCISE_CONFIG_MIGRATION)
+  } catch {
+    return true
+  }
+}
+
+function markExerciseMigrationDone(): void {
+  try {
+    localStorage.setItem(EXERCISES_MIGRATION_KEY, String(EXERCISE_CONFIG_MIGRATION))
+  } catch {
+    // Private mode / quota — the migration just no-ops next load, since by then the
+    // config it repaired already carries the exercise it would add.
+  }
+}
+
+/**
+ * The config on this device. Pending migrations are applied in memory so the first
+ * paint matches what `loadExerciseConfig` is about to persist; nothing is written here,
+ * because this runs inside render.
+ */
 export function loadExerciseConfigLocal(): MuscleGroupConfig[] {
   try {
     const raw = localStorage.getItem(EXERCISES_KEY)
     if (!raw) return DEFAULT_MUSCLE_GROUPS
     const parsed = JSON.parse(raw) as MuscleGroupConfig[]
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_MUSCLE_GROUPS
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_MUSCLE_GROUPS
+    return exerciseMigrationPending() ? migrateExerciseConfig(parsed) : parsed
   } catch {
     return DEFAULT_MUSCLE_GROUPS
   }
@@ -196,19 +222,25 @@ export async function loadAll(): Promise<StoredData> {
 
 /** Load exercise config from KV, falling back to localStorage. */
 export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
+  let stored: MuscleGroupConfig[] | null = null
   try {
     const res = await fetch("/api/exercises")
     if (res.ok) {
       const data = await res.json()
-      if (Array.isArray(data) && data.length > 0) {
-        saveExerciseConfigLocal(data)
-        return data
-      }
+      if (Array.isArray(data) && data.length > 0) stored = data as MuscleGroupConfig[]
     }
   } catch {
     // fall through
   }
-  return loadExerciseConfigLocal()
+  if (!stored) return loadExerciseConfigLocal()
+
+  const config = exerciseMigrationPending() ? migrateExerciseConfig(stored) : stored
+  // A changed reference means the migration had something to add; write it through so
+  // it is not redone. Either way it is now spent — from here the config is the user's.
+  if (config !== stored) saveExerciseConfig(config)
+  else saveExerciseConfigLocal(config)
+  markExerciseMigrationDone()
+  return config
 }
 
 /** Save exercise config to localStorage (sync) and KV (async, best-effort). */

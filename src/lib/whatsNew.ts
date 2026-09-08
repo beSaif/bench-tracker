@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 2,
+    items: [
+      {
+        title: "Bench Press is in the Chest group",
+        body: "Chest now starts with Bench Press, so any day that trains chest suggests it like any other exercise. It is added once if your Chest group was missing it — reorder, rename or remove it from Exercise Selection and that sticks.",
+      },
+    ],
+  },
+  {
     version: 1,
     items: [
       {

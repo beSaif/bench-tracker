@@ -40,8 +40,9 @@ export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
     name: "Chest",
     order: 2,
     exercises: [
-      { id: "dumbbell-incline-press", name: "Dumbbell Incline Press", order: 0 },
-      { id: "machine-seated-chest-press", name: "Machine Seated Chest Press", order: 1 },
+      { id: "bench-press", name: "Bench Press", order: 0, defaultSets: 3 },
+      { id: "dumbbell-incline-press", name: "Dumbbell Incline Press", order: 1, defaultSets: 3 },
+      { id: "machine-seated-chest-press", name: "Machine Seated Chest Press", order: 2 },
     ],
   },
   {
@@ -94,6 +95,77 @@ export function getExercisesForMuscle(config: MuscleGroupConfig[], id: string): 
   const group = config.find((g) => g.id === id)
   if (!group) return []
   return [...group.exercises].sort((a, b) => a.order - b.order).map((e) => e.name)
+}
+
+const BENCH_PRESS_ID = "bench-press"
+const BENCH_PRESS_NAME = "Bench Press"
+const CHEST_GROUP_ID = "chest"
+
+/** Bump when a new one-time repair is added to `migrateExerciseConfig`. */
+export const EXERCISE_CONFIG_MIGRATION = 1
+
+/**
+ * Any bench press, however the user named it — "Barbell Bench", "Flat Bench Press".
+ * "Bench Dip" is not one, so a bench in the name is not enough on its own.
+ */
+function isBenchPress(name: string): boolean {
+  const n = normalize(name)
+  if (!n.includes("bench")) return false
+  return n.includes("press") || n.endsWith("bench")
+}
+
+function findChestGroup(config: MuscleGroupConfig[]): MuscleGroupConfig | undefined {
+  return (
+    config.find((g) => g.id === CHEST_GROUP_ID) ??
+    config.find((g) => normalize(g.name) === CHEST_GROUP_ID)
+  )
+}
+
+/**
+ * One-time repairs to a config that was saved before the defaults changed.
+ *
+ * Bench press joined the default Chest group late, and the defaults only ever reach an
+ * account that has never saved a config of its own — so an account that edited its
+ * exercises even once would never see it. This puts it where the default has it, first
+ * in Chest, and runs once: from then on bench press is an ordinary exercise, and
+ * reordering, renaming or deleting it sticks. A config that already has one under any
+ * name is left exactly as it is.
+ *
+ * Displaced exercises get their set count pinned, because `getDefaultSets` infers 3
+ * sets for whatever sits at order 0 and 2 for the rest — without pinning, inserting
+ * bench would quietly cut a set from the exercise it pushed down.
+ *
+ * Returns the same array when there is nothing to do, so callers can tell whether the
+ * config is worth writing back.
+ */
+export function migrateExerciseConfig(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
+  const chest = findChestGroup(config)
+  if (!chest || chest.exercises.some((e) => isBenchPress(e.name))) return config
+
+  const exercises = [
+    { id: BENCH_PRESS_ID, name: BENCH_PRESS_NAME, order: 0, defaultSets: 3 },
+    ...[...chest.exercises].sort((a, b) => a.order - b.order),
+  ].map((e, i) => ({ ...e, order: i, defaultSets: e.defaultSets ?? getDefaultSets(e) }))
+
+  return config.map((g) => (g === chest ? { ...g, exercises } : g))
+}
+
+/**
+ * Exercise names a session opens a muscle group with, in the group's own order.
+ *
+ * `exclude` drops one exercise by name: lift-focused mode opens every session with the
+ * main lift on its own, so the same lift sitting in a muscle group would be a second
+ * copy of it on the screen. Matching is on the name alone, so "Dumbbell Bench Press"
+ * survives a "Bench Press" main lift — it is a different exercise.
+ */
+export function getSessionExercisesForMuscle(
+  config: MuscleGroupConfig[],
+  id: string,
+  opts: { exclude?: string } = {}
+): string[] {
+  const names = getExercisesForMuscle(config, id)
+  const skip = opts.exclude ? normalize(opts.exclude) : null
+  return skip ? names.filter((n) => normalize(n) !== skip) : names
 }
 
 export const DEFAULT_TRAINING_DAYS: TrainingDay[] = [
