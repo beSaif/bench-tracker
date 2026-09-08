@@ -8,7 +8,11 @@ export interface MainLiftSet {
   isWarmup: boolean
 }
 
-/** "Free" is a Balanced-mode session: accessories only, no main lift, no block. */
+/**
+ * "Free" is an accessories-only session: no main lift, no block. Every Balanced-mode
+ * session is one, and so is a lift-focused session whose main lift was skipped
+ * (those carry `skippedMainLift`, which is what tells the two apart).
+ */
 export type SessionType = "Volume" | "Intensity" | "Peak" | "Deload" | "Free"
 
 export interface Session {
@@ -23,6 +27,12 @@ export interface Session {
   selectedTrainingDayId?: string
   extraWorkouts?: ExtraWorkout[]
   blockId?: number
+  /**
+   * Lift-focused only: the user chose to train this day without their main lift.
+   * Such a session is stored as "Free" and stays outside the block (no blockId, never
+   * added to sessionIds), so the load it was going to carry is served again next time.
+   */
+  skippedMainLift?: boolean
 }
 
 export type BlockPhase = "accumulation" | "transmutation" | "realization" | "deload" | "reacclimation"

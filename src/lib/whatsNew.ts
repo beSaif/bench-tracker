@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 3,
+    items: [
+      {
+        title: "Skip your main lift for a day",
+        body: "Training legs and shoulders and don't want to bench? Hit Skip Bench on the up-next card. The session logs as accessories only and your prescribed load isn't spent — it opens your next session instead, so the block never loses a step.",
+      },
+    ],
+  },
+  {
     version: 2,
     items: [
       {

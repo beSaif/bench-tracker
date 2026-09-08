@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Session, MainLiftSet, TrainingDay, UserProfile } from "@/lib/types"
-import { getMainLiftLabel, getSessionLabel } from "@/lib/trainingMode"
+import { getMainLiftLabel, getMainLiftShortLabel, getSessionLabel } from "@/lib/trainingMode"
 import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
 import { MuscleGroupConfig, DEFAULT_TRAINING_DAYS, getMuscleLabel } from "@/lib/exerciseConfig"
 
@@ -119,6 +119,11 @@ export default function SessionDetailPage() {
               Session {String(session.id).padStart(2, "0")}
               <span className="text-[#aaaaaa] font-normal"> · {getSessionLabel(session, trainingDays)}</span>
             </h1>
+            {session.skippedMainLift && (
+              <span className="inline-block mt-1 text-[9px] font-bold uppercase tracking-wide bg-[#f0f0f0] text-[#888888] rounded-full px-2 py-0.5">
+                No {getMainLiftShortLabel(profile)}
+              </span>
+            )}
             {session.date && (
               <p className="text-sm text-[#777777] mt-0.5">{formatDate(session.date)}</p>
             )}

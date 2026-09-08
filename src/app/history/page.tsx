@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Session, TrainingBlock, BlockPhase, UserProfile, TrainingDay } from "@/lib/types"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
+import { currentStretchSkips, getMainLiftShortLabel } from "@/lib/trainingMode"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import ShareImageModal from "@/components/ShareImageModal"
@@ -63,8 +64,18 @@ export default function HistoryPage() {
       .flatMap((b) => b.sessionIds)
   )
 
+  // Sessions logged without the main lift hold no blockId, so the block filters above
+  // can't recognise the current ones. Home still shows those; only older ones archive here.
+  const currentSkipIds = new Set(currentStretchSkips(sessions, blocks).map((s) => s.id))
+
   const archiveSessions = sessions
-    .filter((s) => s.confirmed && !activeBlockIds.has(s.id) && !cycleSessionIds.has(s.id))
+    .filter(
+      (s) =>
+        s.confirmed &&
+        !activeBlockIds.has(s.id) &&
+        !cycleSessionIds.has(s.id) &&
+        !currentSkipIds.has(s.id)
+    )
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
 
   return (
@@ -95,6 +106,7 @@ export default function HistoryPage() {
             onShare={profile ? setShareSession : undefined}
             exerciseConfig={exerciseConfig}
             trainingDays={trainingDays}
+            mainLiftShortLabel={getMainLiftShortLabel(profile)}
           />
         ))
       )}
