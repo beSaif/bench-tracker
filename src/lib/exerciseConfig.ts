@@ -146,14 +146,36 @@ export function withBenchPressFirst(config: MuscleGroupConfig[]): MuscleGroupCon
 }
 
 /**
+ * The exercises a session opens a muscle group with.
+ *
+ * Bench press is dropped when the session already prescribes it as its main lift:
+ * lift-focused mode opens every session with the main lift on its own, so listing the
+ * chest group's bench press as well would put the same lift on the screen twice.
+ * Balanced mode has no main lift, so nothing is dropped there.
+ */
+export function getSessionExercisesForMuscle(
+  config: MuscleGroupConfig[],
+  id: string,
+  opts: { benchPressIsMainLift?: boolean } = {}
+): string[] {
+  const names = getExercisesForMuscle(config, id)
+  return opts.benchPressIsMainLift ? names.filter((n) => !isBenchPress(n)) : names
+}
+
+/**
  * Selected muscle groups with the bench press group first, so bench opens the session
  * whatever order the training day lists its groups in. Order inside the logger is still
  * the user's to drag around once the session is open.
+ *
+ * A session that prescribes bench as its main lift already opens on it, so its groups
+ * are left in the day's own order.
  */
 export function withBenchPressGroupFirst(
   config: MuscleGroupConfig[],
-  muscleIds: string[]
+  muscleIds: string[],
+  opts: { benchPressIsMainLift?: boolean } = {}
 ): string[] {
+  if (opts.benchPressIsMainLift) return muscleIds
   const index = muscleIds.findIndex((id) => {
     const group = config.find((g) => g.id === id)
     return !!group && group.exercises.some((e) => isBenchPress(e.name))
