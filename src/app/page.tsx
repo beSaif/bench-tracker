@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, UserPresence, GymbroMessage, WeightEntry } from "@/lib/types"
-import { isLiftFocused, getMainLiftLabel } from "@/lib/trainingMode"
+import { isLiftFocused, getMainLiftLabel, getMainLiftShortLabel, countConsecutiveSkips, currentStretchSkips } from "@/lib/trainingMode"
 import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadLayoffDismissLocal, saveLayoffDismissLocal, loadWeights, loadWeightsLocal, saveWeights, loadWeighInSkipLocal, saveWeighInSkipLocal } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
@@ -127,10 +127,21 @@ function createUpcomingSession(
  * The upcoming card must match the current training mode: a Free card in Balanced mode,
  * a prescribed one in lift-focused mode. A mismatch means the user switched modes since
  * the card was generated, so it needs regenerating.
+ *
+ * A lift-focused card whose main lift was skipped is stored as Free too, but that is a
+ * deliberate choice for today rather than a stale card — it stays as it is.
  */
 function upcomingMatchesMode(upcoming: Session | undefined, profile: UserProfile): boolean {
   if (!upcoming) return false
-  return isLiftFocused(profile) ? upcoming.type !== "Free" : upcoming.type === "Free"
+  if (isLiftFocused(profile)) return upcoming.skippedMainLift === true || upcoming.type !== "Free"
+  return upcoming.type === "Free"
+}
+
+/** The prescribed opener of an upcoming session, e.g. "62.5kg × 6 × 4". */
+function describePrescription(session: Session): string | null {
+  const working = session.sets.filter((s) => !s.isWarmup)
+  const top = working[0]
+  return top ? `${top.kg}kg × ${top.reps} × ${working.length}` : null
 }
 
 function backfillMuscles(sessions: Session[], config: MuscleGroupConfig[], trainingDays: TrainingDay[] = DEFAULT_TRAINING_DAYS): Session[] {
@@ -600,8 +611,11 @@ export default function Page() {
     )
     const confirmedSessions = updatedSessions.filter((s) => s.confirmed)
 
-    // Balanced mode never advances a block; whatever blocks exist stay parked for a later switch back.
-    const activeBlock = isLiftFocused(profile) ? getActiveBlock(currentBlocks) : undefined
+    // Balanced mode never advances a block; whatever blocks exist stay parked for a later
+    // switch back. A session that skipped the main lift doesn't advance one either — the
+    // block stays where it is so the load it was carrying is prescribed again next time.
+    const advancesBlock = isLiftFocused(profile) && !updatedSession.skippedMainLift
+    const activeBlock = advancesBlock ? getActiveBlock(currentBlocks) : undefined
     let finalBlocks = currentBlocks
 
     if (activeBlock) {
@@ -658,6 +672,66 @@ export default function Page() {
     signalPresence(false)
     setLastConfirmed(updatedSession)
     setShowHypePanel(true)
+  }
+
+  /** A skip or restore invalidates any draft still holding the old exercise list. */
+  function dropStaleDraft(sessionId: number) {
+    const draft = loadDraft()
+    if (draft?.sessionId === sessionId) {
+      clearDraft()
+      clearMiniPlayer()
+    }
+  }
+
+  /**
+   * Train today without the main lift. The session drops to accessories only and stays
+   * outside the block, so the load it was going to carry opens the next session instead.
+   */
+  function handleSkipMainLift(session: Session) {
+    const liftShort = getMainLiftShortLabel(profile)
+    const held = describePrescription(session)
+    const ask = held
+      ? `Skip ${liftShort} today? ${held} stays on deck — it opens your next session.`
+      : `Skip ${liftShort} today? Its prescribed load moves to your next session.`
+    if (!window.confirm(ask)) return
+
+    const skipped: Session = {
+      ...session,
+      type: "Free",
+      sets: [],
+      blockId: undefined,
+      skippedMainLift: true,
+      coachNote: held
+        ? `${liftShort} sat out today — ${held} moves to the next session. Everything else, full effort.`
+        : `${liftShort} sat out today — its load moves to the next session.`,
+    }
+
+    dropStaleDraft(session.id)
+    setSessions((prev) => {
+      const updated = prev.map((s) => (s.id === session.id ? skipped : s))
+      saveAll(updated, blocks)
+      return updated
+    })
+  }
+
+  /** Put the main lift back on the upcoming card, keeping the training day already chosen. */
+  function handleRestoreMainLift(session: Session) {
+    if (!profile) return
+    const confirmedSessions = sessions.filter((s) => s.confirmed)
+    const regenerated = createUpcomingSession(confirmedSessions, blocks, exerciseConfig, profile, trainingDays)
+    const restored: Session = {
+      ...regenerated,
+      id: session.id,
+      selectedTrainingDayId: session.selectedTrainingDayId,
+      selectedMuscleGroups: session.selectedMuscleGroups,
+    }
+
+    dropStaleDraft(session.id)
+    setSessions((prev) => {
+      const updated = prev.map((s) => (s.id === session.id ? restored : s))
+      saveAll(updated, blocks)
+      return updated
+    })
   }
 
   function handleAvatarClick(p: UserPresence) {
@@ -841,7 +915,26 @@ export default function Page() {
   const latestBW = getLatestBW(sessions)
 
   const liftLabel = getMainLiftLabel(profile)
+  const liftShort = getMainLiftShortLabel(profile)
   const liftFocused = isLiftFocused(profile)
+
+  // Sessions logged without the main lift carry no blockId, so block membership can't
+  // place them — they'd drop off home the moment they were logged. Show them next to the
+  // block's own sessions, and keep the block's untouched prescription visible.
+  const stretchSkips = liftFocused ? currentStretchSkips(confirmed, blocks) : []
+  const activeStretchSessions = [...activeBlockSessions, ...stretchSkips].sort(
+    (a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime()
+  )
+  const consecutiveSkips = liftFocused ? countConsecutiveSkips(confirmed) : 0
+  const skipNudge =
+    consecutiveSkips >= 2
+      ? `${liftShort} skipped ${consecutiveSkips} sessions running — it's first up today.`
+      : undefined
+  const heldPrescription = (() => {
+    if (!liftFocused || !activeBlock) return undefined
+    const p = prescribeForBlock(activeBlock, activeBlock.sessionIds.length)
+    return `${p.weight}kg × ${p.reps} × ${p.sets}`
+  })()
   const firstName = profile.name.split(" ")[0]
 
   // Anything already covering the screen. The weight sheets queue behind all of it —
@@ -1117,12 +1210,17 @@ export default function Page() {
                   blockIndex={blockIndexMap.get(upcoming.id)}
                   onStartLogging={handleStartLogging}
                   onUpdateMuscleGroups={handleUpdateMuscleGroups}
+                  onSkipMainLift={handleSkipMainLift}
+                  onRestoreMainLift={handleRestoreMainLift}
                   exerciseConfig={exerciseConfig}
                   trainingDays={trainingDays}
                   recommendedDayId={recommendedDay?.day.id}
+                  mainLiftShortLabel={liftShort}
+                  heldPrescription={heldPrescription}
+                  skipNudge={skipNudge}
                 />
               )}
-              {activeBlockSessions.map((s) => (
+              {activeStretchSessions.map((s) => (
                 <SessionCard
                   key={s.id}
                   session={s}
@@ -1132,11 +1230,13 @@ export default function Page() {
                   onShare={setShareSession}
                   exerciseConfig={exerciseConfig}
                   trainingDays={trainingDays}
+                  mainLiftShortLabel={liftShort}
                 />
               ))}
               {/* Previews for sessions not yet generated */}
               {activeBlock && (() => {
-                const shownSessions = activeBlockSessions.length + (upcoming ? 1 : 0)
+                const shownSessions =
+                  activeBlockSessions.length + (upcoming && !upcoming.skippedMainLift ? 1 : 0)
                 const remaining = getBlockLength(activeBlock) - shownSessions
                 if (remaining <= 0) return null
                 return Array.from({ length: remaining }, (_, i) => {
@@ -1168,6 +1268,7 @@ export default function Page() {
               onShare={setShareSession}
               exerciseConfig={exerciseConfig}
               trainingDays={trainingDays}
+              mainLiftShortLabel={liftShort}
             />
           ))}
         </div>

@@ -13,9 +13,19 @@ interface SessionCardProps {
   onUnlog?: (session: Session) => void
   onShare?: (session: Session) => void
   onUpdateMuscleGroups?: (session: Session, muscles: MuscleGroup[], dayId?: string) => void
+  /** Drop the main lift from this upcoming session. Absent in Balanced mode, which has none. */
+  onSkipMainLift?: (session: Session) => void
+  /** Put the main lift back on an upcoming session that skipped it. */
+  onRestoreMainLift?: (session: Session) => void
   exerciseConfig: MuscleGroupConfig[]
   trainingDays?: TrainingDay[]
   recommendedDayId?: string
+  /** Short main-lift label ("Bench") for the skip control and the skipped tag. */
+  mainLiftShortLabel?: string
+  /** The load being held for the next session, e.g. "62.5kg × 6 × 4". */
+  heldPrescription?: string
+  /** Coach nudge shown on the upcoming card after repeated skips. */
+  skipNudge?: string
 }
 
 function formatDate(iso: string): string {
@@ -34,11 +44,18 @@ export default function SessionCard({
   onUnlog,
   onShare,
   onUpdateMuscleGroups,
+  onSkipMainLift,
+  onRestoreMainLift,
   exerciseConfig,
   trainingDays,
   recommendedDayId,
+  mainLiftShortLabel,
+  heldPrescription,
+  skipNudge,
 }: SessionCardProps) {
   const isUpcoming = !session.confirmed
+  const mainLiftSkipped = session.skippedMainLift === true
+  const liftShort = mainLiftShortLabel ?? "Main lift"
 
   const sortedDays = trainingDays ? [...trainingDays].sort((a, b) => a.order - b.order) : []
   const hasDays = sortedDays.length > 0
@@ -141,6 +158,27 @@ export default function SessionCard({
         </div>
       )}
 
+      {/* Main lift sat out: say where its load went, so the block still reads as on track */}
+      {mainLiftSkipped && (
+        <div className="rounded-lg border border-dashed border-[#bfdbfe] bg-white/70 px-3 py-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#1e3a5f]">
+            {liftShort} skipped today
+          </p>
+          <p className="text-[11px] font-medium text-[#777777] leading-snug mt-0.5">
+            {heldPrescription
+              ? `${heldPrescription} stays on deck — it opens your next session.`
+              : "Its prescribed load moves to your next session."}
+          </p>
+        </div>
+      )}
+
+      {/* Repeated skips: the main lift is meant to open every session */}
+      {!mainLiftSkipped && skipNudge && (
+        <div className="mt-3 rounded-lg bg-[#fdf3e7] px-3 py-2">
+          <p className="text-[11px] font-semibold text-[#8a4d14] leading-snug">{skipNudge}</p>
+        </div>
+      )}
+
       {hasDays && selectedDay && (
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1.5">
@@ -237,9 +275,14 @@ export default function SessionCard({
   const confirmedBody = (
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] font-semibold text-[#777777]">
+        <span className="text-[11px] font-semibold text-[#777777] flex items-center gap-1.5">
           Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
           {session.bw ? ` · ${session.bw}kg BW` : ""}
+          {mainLiftSkipped && (
+            <span className="text-[9px] font-bold uppercase tracking-wide bg-[#f0f0f0] text-[#888888] rounded-full px-2 py-0.5">
+              No {liftShort}
+            </span>
+          )}
         </span>
         {session.date && (
           <span className="text-[11px] text-[#aaaaaa]">{formatDate(session.date)}</span>
@@ -387,6 +430,22 @@ export default function SessionCard({
                   : extraMuscles.length > 0
                   ? `${extraMuscles.length} extra${extraMuscles.length > 1 ? "s" : ""}`
                   : "+ Extras"}
+              </button>
+            )}
+            {mainLiftSkipped && onRestoreMainLift && (
+              <button
+                onClick={() => onRestoreMainLift(session)}
+                className="text-xs font-semibold text-[#777777] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
+              >
+                Undo skip
+              </button>
+            )}
+            {!mainLiftSkipped && onSkipMainLift && (
+              <button
+                onClick={() => onSkipMainLift(session)}
+                className="text-xs font-semibold text-[#777777] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
+              >
+                Skip {liftShort}
               </button>
             )}
             {onStartLogging && (
