@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
-import { wipeLocalUserData } from "@/lib/storage"
+import { loadProfile, wipeLocalUserData } from "@/lib/storage"
 
 interface NavDrawerProps {
   open: boolean
@@ -14,11 +14,20 @@ interface NavDrawerProps {
 export default function NavDrawer({ open, onClose }: NavDrawerProps) {
   const pathname = usePathname()
   const [pendingCount, setPendingCount] = useState(0)
+  // Someone who declined daily check-ins should see no trace of the feature, this
+  // nav entry included. Read asynchronously rather than during render: the drawer is
+  // on every page, and reading localStorage in a state initialiser would make the
+  // server and client markup disagree.
+  const [weighInDaily, setWeighInDaily] = useState(false)
 
   useEffect(() => {
     fetch("/api/friends/requests")
       .then((r) => r.ok ? r.json() : { count: 0 })
       .then((d) => { if (typeof d.count === "number") setPendingCount(d.count) })
+      .catch(() => {})
+
+    loadProfile()
+      .then((p) => { if (p?.weighInDaily) setWeighInDaily(true) })
       .catch(() => {})
   }, [])
 
@@ -97,6 +106,24 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
               </svg>
               History
             </Link>
+
+            {weighInDaily && (
+              <Link
+                href="/weight"
+                onClick={onClose}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  pathname === "/weight"
+                    ? "bg-[#eff6ff] text-[#1e3a5f]"
+                    : "text-[#333333] hover:bg-[#f5f5f5]"
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="1.5,11 5.5,6.5 8.5,9 14.5,3" />
+                  <polyline points="11,3 14.5,3 14.5,6.5" />
+                </svg>
+                Weight
+              </Link>
+            )}
 
             <Link
               href="/gymbros"

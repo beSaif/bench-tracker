@@ -32,6 +32,7 @@ export default function ProfilePage() {
   const [name, setName] = useState("")
   const [bw, setBw] = useState("")
   const [target, setTarget] = useState("")
+  const [weighInDaily, setWeighInDaily] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -45,6 +46,8 @@ export default function ProfilePage() {
     setName(p.name)
     setBw(String(p.bw))
     setTarget(p.target != null ? String(p.target) : "")
+    // Never asked reads as off here; the home screen is what does the asking.
+    setWeighInDaily(p.weighInDaily === true)
   }
 
   useEffect(() => {
@@ -90,7 +93,10 @@ export default function ProfilePage() {
     targetOk
   const changed =
     profile != null &&
-    (trimmedName !== profile.name || bwVal !== profile.bw || (liftFocused && targetVal !== profile.target))
+    (trimmedName !== profile.name ||
+      bwVal !== profile.bw ||
+      (liftFocused && targetVal !== profile.target) ||
+      weighInDaily !== (profile.weighInDaily === true))
 
   async function handleSave() {
     if (!profile || !valid || saving) return
@@ -103,6 +109,8 @@ export default function ProfilePage() {
       mainLift: profile.mainLift,
       anchor: profile.anchor,
       target: liftFocused ? targetVal : profile.target,
+      weighInDaily,
+      goalBw: profile.goalBw,
     })
     setSaving(false)
     if (!updated) {
@@ -221,6 +229,46 @@ export default function ProfilePage() {
           </span>
         </div>
         </>
+        )}
+      </section>
+
+      {/* Weight check-in */}
+      <section className="mb-4 px-4 py-4 rounded-xl bg-[#f5f5f5] border border-[#e8e8e8]">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-4">
+          Weight check-in
+        </p>
+
+        <div className="flex items-center justify-between">
+          <div className="flex-1 pr-3">
+            <p className="text-sm text-[#111111]">Daily check-in</p>
+            <p className="text-xs text-[#999999] mt-0.5">
+              one number when you open the app. turning this off keeps your history.
+            </p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={weighInDaily}
+            aria-label="Daily weight check-in"
+            onClick={() => setWeighInDaily((v) => !v)}
+            className={`relative w-11 h-6 shrink-0 rounded-full transition-colors ${
+              weighInDaily ? "bg-[#1e3a5f]" : "bg-[#d8d8d8]"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                weighInDaily ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        {profile.weighInDaily && (
+          <Link
+            href="/weight"
+            className="block mt-4 text-sm font-semibold text-[#1e3a5f] hover:underline"
+          >
+            View weight trend →
+          </Link>
         )}
       </section>
 

@@ -20,6 +20,10 @@ export function trainingDaysKey(email: string): string {
   return `user:${normalize(email)}:training-days`
 }
 
+export function weightsKey(email: string): string {
+  return `user:${normalize(email)}:weights`
+}
+
 export function reactionsKey(ownerEmail: string, sessionId: number): string {
   return `session:${normalize(ownerEmail)}:${sessionId}:reactions`
 }

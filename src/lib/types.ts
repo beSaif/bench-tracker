@@ -83,7 +83,26 @@ export interface UserProfile {
   mainLift?: MainLift
   anchor?: number
   target?: number
+  /**
+   * Daily bodyweight check-ins. Absent means the user has never been asked — which is
+   * what makes the one-time opt-in prompt fire — so this stays tri-state on purpose.
+   */
+  weighInDaily?: boolean
+  /** Goal bodyweight in kg. Only drives the goal line and projection on /weight. */
+  goalBw?: number
   createdAt: string
+}
+
+/**
+ * One bodyweight reading. At most one per calendar date — a second check-in on the
+ * same day replaces the first rather than stacking.
+ */
+export interface WeightEntry {
+  /** The user's LOCAL calendar date, "YYYY-MM-DD". This is the entry's identity. */
+  date: string
+  kg: number
+  /** When it was recorded or last edited, ISO. */
+  loggedAt: string
 }
 
 export const STORAGE_KEY = "lift-tracker-sessions"
@@ -96,6 +115,9 @@ export const FRIENDS_KEY = "lift-tracker-friends"
 export const LAYOFF_DISMISS_KEY = "lift-tracker-layoff-dismissed"
 export const WHATS_NEW_SEEN_KEY = "lift-tracker-whats-new-seen"
 export const EXERCISES_MIGRATION_KEY = "lift-tracker-exercises-migration"
+export const WEIGHTS_KEY = "lift-tracker-weights"
+/** The day the check-in prompt was last dismissed on this device, "YYYY-MM-DD". */
+export const WEIGH_IN_SKIP_KEY = "lift-tracker-weigh-in-skipped"
 
 export interface SessionDraft {
   sessionId: number

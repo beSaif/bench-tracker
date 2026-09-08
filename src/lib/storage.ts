@@ -1,4 +1,4 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, UserProfile, UserPresence, TrainingDay } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig } from "./exerciseConfig"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -161,6 +161,97 @@ export function saveTrainingDays(days: TrainingDay[]): void {
   }).catch(() => {})
 }
 
+export function loadWeightsLocal(): WeightEntry[] {
+  try {
+    const raw = localStorage.getItem(WEIGHTS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as WeightEntry[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveWeightsLocal(entries: WeightEntry[]): void {
+  localStorage.setItem(WEIGHTS_KEY, JSON.stringify(entries))
+}
+
+/**
+ * Load the weight log from KV, falling back to localStorage.
+ *
+ * Unlike `loadTrainingDays` above, an empty array from the server is accepted rather
+ * than treated as "nothing there": deleting your last weigh-in on another device is a
+ * legitimate state that has to propagate. The route sends `null`, not `[]`, when the
+ * key has never been written, which is what the fallback below keys off.
+ */
+export async function loadWeights(): Promise<WeightEntry[]> {
+  try {
+    const res = await fetch("/api/weights")
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        saveWeightsLocal(data)
+        return data
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return loadWeightsLocal()
+}
+
+/**
+ * "skip today" on the check-in prompt, so it stops nagging for the rest of the day
+ * without switching the feature off. Date-keyed, so it expires by itself at midnight —
+ * the same trick `loadLayoffDismissLocal` uses to make a dismissal stick but not stick
+ * forever. Device-local on purpose: skipping on your phone shouldn't skip on your laptop.
+ */
+export function loadWeighInSkipLocal(): string | null {
+  try {
+    return localStorage.getItem(WEIGH_IN_SKIP_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function saveWeighInSkipLocal(day: string): void {
+  try {
+    localStorage.setItem(WEIGH_IN_SKIP_KEY, day)
+  } catch {
+    // Private mode / quota — the prompt just reappears on the next load.
+  }
+}
+
+/**
+ * Save the weight log to localStorage (sync) and KV (async, best-effort) — the same
+ * guarantee `saveAll` gives sessions, so a check-in in a basement gym still sticks.
+ *
+ * The server pins `profile.bw` to the newest reading; mirror that into the cached
+ * profile here so /profile and the share card show the new number straight away
+ * instead of waiting for the next KV round trip.
+ */
+export function saveWeights(entries: WeightEntry[]): void {
+  saveWeightsLocal(entries)
+
+  const newest = entries[entries.length - 1]
+  if (newest) {
+    const profile = loadProfileLocal()
+    if (profile && profile.bw !== newest.kg) {
+      try {
+        saveProfileLocal({ ...profile, bw: newest.kg })
+      } catch {
+        // Private mode / quota — KV still has it, and the next load re-syncs.
+      }
+    }
+  }
+
+  fetch("/api/weights", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entries),
+  }).catch(() => {})
+}
+
 /** Wipe all per-user local data — call on sign out. */
 export function wipeLocalUserData(): void {
   localStorage.removeItem(STORAGE_KEY)
@@ -170,6 +261,8 @@ export function wipeLocalUserData(): void {
   localStorage.removeItem(DRAFT_KEY)
   localStorage.removeItem(TRAINING_DAYS_KEY)
   localStorage.removeItem(LAYOFF_DISMISS_KEY)
+  localStorage.removeItem(WEIGHTS_KEY)
+  localStorage.removeItem(WEIGH_IN_SKIP_KEY)
 }
 
 /**

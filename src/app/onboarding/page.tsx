@@ -27,6 +27,8 @@ interface PendingOnboarding {
   lift: MainLift | null
   anchor: string
   target: string
+  /** Absent on payloads written before daily check-ins shipped — see autoFinish. */
+  weighInDaily?: boolean
 }
 
 function roundTo2p5(kg: number): number {
@@ -43,6 +45,9 @@ export default function OnboardingPage() {
 
   const [name, setName] = useState("")
   const [bw, setBw] = useState("")
+  // Opted in by default: it rides along with a weight they are already typing, and the
+  // home screen's toggle and /profile both make it one tap to turn off.
+  const [weighInDaily, setWeighInDaily] = useState(true)
   const [mode, setMode] = useState<TrainingMode | null>(null)
   const [lift, setLift] = useState<MainLift | null>(null)
   const [anchor, setAnchor] = useState("")
@@ -92,6 +97,10 @@ export default function OnboardingPage() {
       ...(liftFocused && d.lift
         ? { mainLift: d.lift, anchor: parseFloat(d.anchor), target: parseFloat(d.target) }
         : {}),
+      // A payload stashed before this shipped has no answer. Leave the field absent
+      // rather than defaulting to false, so those users get asked on the home screen
+      // instead of being silently opted out of something they never saw.
+      ...(typeof d.weighInDaily === "boolean" ? { weighInDaily: d.weighInDaily } : {}),
     })
     setSubmitting(false)
     if (result) {
@@ -121,7 +130,7 @@ export default function OnboardingPage() {
   }
 
   async function handleGoogleSignIn() {
-    const pending: PendingOnboarding = { name, bw, mode: mode ?? "lift-focused", lift, anchor, target }
+    const pending: PendingOnboarding = { name, bw, mode: mode ?? "lift-focused", lift, anchor, target, weighInDaily }
     localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
     await signIn("google", { callbackUrl: "/onboarding?auth=1" })
   }
@@ -215,6 +224,34 @@ export default function OnboardingPage() {
                 />
                 <span className="text-base text-[#aaaaaa]">kg</span>
               </div>
+
+              {/* The opt-in rides on this step rather than getting one of its own: the
+                  weight is already on screen, so there is nothing to ask twice. Step 1
+                  is in both ALL_STEPS and BALANCED_STEPS, so both modes get it. */}
+              <button
+                type="button"
+                onClick={() => setWeighInDaily((v) => !v)}
+                className="w-full mt-8 flex items-center gap-3 text-left"
+              >
+                <span
+                  className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors ${
+                    weighInDaily ? "bg-[#1e3a5f] border-[#1e3a5f]" : "border-[#d8d8d8]"
+                  }`}
+                >
+                  {weighInDaily && (
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3,8.5 6.5,12 13,4" />
+                    </svg>
+                  )}
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm text-[#111111]">check in daily</span>
+                  <span className="block text-xs text-[#999999] mt-0.5">
+                    we&apos;ll ask for this number once a day and chart the trend. change it
+                    anytime.
+                  </span>
+                </span>
+              </button>
             </Question>
           )}
 

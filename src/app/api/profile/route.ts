@@ -6,6 +6,7 @@ import {
   profileKey,
   sessionsKey,
   exercisesKey,
+  weightsKey,
   isLegacyOwner,
   LEGACY_SESSIONS_KEY,
   LEGACY_EXERCISES_KEY,
@@ -93,6 +94,7 @@ export async function DELETE() {
       kv.del(profileKey(email)),
       kv.del(sessionsKey(email)),
       kv.del(exercisesKey(email)),
+      kv.del(weightsKey(email)),
     ])
     return NextResponse.json({ ok: true })
   } catch {
@@ -137,6 +139,18 @@ export async function POST(request: Request) {
   }
 
   const existing = await kv.get<UserProfile>(profileKey(email))
+
+  // This handler rebuilds the profile from scratch, so any field it doesn't name is
+  // dropped. The three callers of saveProfile all send the whole profile as they knew
+  // it, and none of them know about the weight fields — without this merge, editing
+  // your name on /profile would silently switch check-ins back off. A missing value
+  // here means "unchanged", deliberately unlike `trainingMode` above, which defaults.
+  const weighInDaily =
+    typeof body.weighInDaily === "boolean" ? body.weighInDaily : existing?.weighInDaily
+  const goalBwRaw = Number(body.goalBw)
+  const goalBw =
+    Number.isFinite(goalBwRaw) && goalBwRaw > 0 ? goalBwRaw : existing?.goalBw
+
   const profile: UserProfile = {
     email,
     name,
@@ -145,6 +159,9 @@ export async function POST(request: Request) {
     ...(liftValid ? { mainLift } : {}),
     ...(anchorValid ? { anchor } : {}),
     ...(targetValid ? { target } : {}),
+    // Left absent while the user has never been asked, which is what fires the prompt.
+    ...(weighInDaily !== undefined ? { weighInDaily } : {}),
+    ...(goalBw !== undefined ? { goalBw } : {}),
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   }
 
