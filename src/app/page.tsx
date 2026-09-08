@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, UserPresence, GymbroMessage } from "@/lib/types"
+import { Session, TrainingBlock, BlockPhase, MuscleGroup, UserProfile, UserPresence, GymbroMessage, WeightEntry } from "@/lib/types"
 import { isLiftFocused, getMainLiftLabel } from "@/lib/trainingMode"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadLayoffDismissLocal, saveLayoffDismissLocal } from "@/lib/storage"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfigLocal, loadTrainingDaysLocal, loadAll, loadExerciseConfig, loadTrainingDays, saveAll, loadDraft, clearDraft, loadProfile, loadProfileLocal, loadPresencesLocal, savePresencesLocal, loadFriendEmailsLocal, saveFriendEmailsLocal, loadFriendLastActiveLocal, saveFriendLastActiveLocal, clearMiniPlayer, loadLayoffDismissLocal, saveLayoffDismissLocal, loadWeights, loadWeightsLocal, saveWeights, loadWeighInSkipLocal, saveWeighInSkipLocal } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import {
   prescribeBlockSession,
@@ -37,6 +37,10 @@ import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
 import BalancedHome from "@/components/balanced/BalancedHome"
 import LayoffBanner from "@/components/LayoffBanner"
+import WeightCard from "@/components/WeightCard"
+import WeightCheckInSheet from "@/components/WeightCheckInSheet"
+import WeightOptInSheet, { useWeightOptIn } from "@/components/WeightOptInSheet"
+import { bwForSession, dateKey, todaysEntry, upsertEntry } from "@/lib/weight"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { suggestNextDay } from "@/lib/balance"
 import { relativeTime } from "@/lib/time"
@@ -182,8 +186,12 @@ export default function Page() {
   const presenceInitialisedRef = useRef(false)
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
+  const [weights, setWeights] = useState<WeightEntry[]>([])
+  /** The day the check-in sheet is logging, or null when it is closed. */
+  const [checkInDay, setCheckInDay] = useState<string | null>(null)
   const installGuide = useInstallGuide()
   const whatsNew = useWhatsNew()
+  const weightOptIn = useWeightOptIn(setProfile)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const sessionsRef = useRef<Session[]>([])
@@ -240,6 +248,17 @@ export default function Page() {
       setProfile(p)
       installGuide.trigger()
       whatsNew.trigger()
+      weightOptIn.trigger(p)
+
+      // Prompt for today's weight off the local log so someone who already weighed in
+      // never sees a flash of the sheet while KV catches up. "skip today" is honoured
+      // for the rest of the day, otherwise navigating home → history → home re-asks.
+      if (p.weighInDaily) {
+        const local = loadWeightsLocal()
+        setWeights(local)
+        const today = dateKey()
+        if (!todaysEntry(local) && loadWeighInSkipLocal() !== today) setCheckInDay(today)
+      }
 
       if (cachedProfile) {
         // Already mounted from cache — just kick off the background KV sync
@@ -255,6 +274,10 @@ export default function Page() {
         setTrainingDays(localDays)
         setMounted(true)
       }
+
+      loadWeights().then((data) => {
+        if (!cancelled) setWeights(data)
+      })
 
       // Async load from KV
       Promise.all([loadAll(), loadExerciseConfig(), loadTrainingDays()]).then(
@@ -538,8 +561,36 @@ export default function Page() {
     setAnchorPrompt(false)
   }
 
-  function handleConfirmSession(updatedSession: Session) {
+  function handleSaveWeight(day: string, kg: number) {
+    const next = upsertEntry(weights, day, kg)
+    setWeights(next)
+    // Local-first: this cannot fail, so an offline weigh-in still counts. saveWeights
+    // also pins profile.bw to the newest reading, both locally and in KV.
+    saveWeights(next)
+    setCheckInDay(null)
+    setProfile((p) => {
+      const newest = next[next.length - 1]
+      return p && newest && p.bw !== newest.kg ? { ...p, bw: newest.kg } : p
+    })
+  }
+
+  function handleSkipWeighIn() {
+    saveWeighInSkipLocal(dateKey())
+    setCheckInDay(null)
+  }
+
+  function handleConfirmSession(incoming: Session) {
     if (!profile) return
+
+    // Fill in the bodyweight this session was trained at, from that day's check-in.
+    // The field has always existed and is already rendered by SessionCard, the session
+    // detail page and the share card — until now nothing ever wrote it. An existing
+    // value is left alone, so re-confirming never overwrites.
+    const updatedSession: Session =
+      incoming.bw != null || !profile.weighInDaily
+        ? incoming
+        : { ...incoming, bw: bwForSession(weights, incoming.date) }
+
     const prevBestE1RM = getBestE1RM(sessions.filter((s) => s.confirmed))
     const currentSessions = sessions
     const currentBlocks = blocks
@@ -793,6 +844,25 @@ export default function Page() {
   const liftFocused = isLiftFocused(profile)
   const firstName = profile.name.split(" ")[0]
 
+  // Anything already covering the screen. The weight sheets queue behind all of it —
+  // slamming a weigh-in prompt over a session the user is mid-way through logging
+  // would be worse than asking a minute later.
+  const overlayOpen =
+    loggingSession != null ||
+    editingSession != null ||
+    draftPrompt != null ||
+    anchorPrompt ||
+    showHypePanel ||
+    shareSession != null ||
+    msgPopupFriend != null
+
+  // Strict priority: install guide → what's new → opt-in → daily check-in. Each waits
+  // on every higher-priority sheet, extending the `!installGuide.show` guard already
+  // used for What's New rather than inventing a second mechanism.
+  const showWeightOptIn = weightOptIn.show && !installGuide.show && !whatsNew.show && !overlayOpen
+  const showCheckIn =
+    checkInDay != null && !installGuide.show && !whatsNew.show && !weightOptIn.show && !overlayOpen
+
   return (
     <>
       <NavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
@@ -804,6 +874,33 @@ export default function Page() {
       {/* What's new since the last version this device saw; waits behind the install guide */}
       {whatsNew.show && !installGuide.show && (
         <WhatsNewModal releases={whatsNew.releases} onDismiss={whatsNew.dismiss} />
+      )}
+
+      {/* One-time ask for users who predate daily check-ins. New users answer it in onboarding. */}
+      {showWeightOptIn && (
+        <WeightOptInSheet
+          saving={weightOptIn.saving}
+          error={weightOptIn.error}
+          // Saying yes leads straight into the first weigh-in rather than dropping the
+          // user on an empty card — that first entry is what makes everything else work.
+          onAccept={() => {
+            weightOptIn.answer(profile, true).then((p) => {
+              if (p) setCheckInDay(dateKey())
+            })
+          }}
+          onDecline={() => weightOptIn.answer(profile, false)}
+        />
+      )}
+
+      {showCheckIn && checkInDay && (
+        <WeightCheckInSheet
+          entries={weights}
+          date={checkInDay}
+          fallbackKg={weights[weights.length - 1]?.kg ?? profile.bw}
+          onSave={handleSaveWeight}
+          onClose={handleSkipWeighIn}
+          skippable
+        />
       )}
 
       <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]">
@@ -884,6 +981,12 @@ export default function Page() {
             onRestart={handleRestartBlock}
             onDismiss={dismissLayoffBanner}
           />
+        )}
+
+        {/* Bodyweight trend. Above the mode split so one insertion serves both modes —
+            bodyweight is not a lift-focused or Balanced concern, it's just yours. */}
+        {profile.weighInDaily && (
+          <WeightCard entries={weights} onCheckIn={() => setCheckInDay(dateKey())} />
         )}
 
         {/* Balanced mode: momentum, how balanced the training is, the next session, recent ones */}
