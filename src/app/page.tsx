@@ -18,7 +18,7 @@ import {
 } from "@/lib/prescription"
 import { generateWarmups } from "@/lib/warmup"
 import { getLayoffState, restartActiveBlock } from "@/lib/layoff"
-import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder, scheduleInactivityReminder } from "@/lib/swNotify"
+import { scheduleIncompleteSessionReminder, cancelIncompleteSessionReminder } from "@/lib/swNotify"
 import { calcE1RM, roundToPlate } from "@/lib/e1rm"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
@@ -473,10 +473,13 @@ export default function Page() {
         })
       )
       .then((sub) => {
+        // The daily reminder job runs server-side in UTC; the zone rides along with the
+        // subscription so it can work out which local day it is asking about.
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
         fetch("/api/push/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(sub.toJSON()),
+          body: JSON.stringify({ subscription: sub.toJSON(), tz }),
         }).catch(() => {})
       })
       .catch(() => {})
@@ -668,7 +671,6 @@ export default function Page() {
     setActiveDraft(null)
 
     cancelIncompleteSessionReminder()
-    scheduleInactivityReminder()
     signalPresence(false)
     setLastConfirmed(updatedSession)
     setShowHypePanel(true)
