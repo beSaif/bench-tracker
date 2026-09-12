@@ -36,6 +36,17 @@ export function pushSubKey(email: string): string {
   return `user:${normalize(email)}:push-sub`
 }
 
+/** Bookkeeping for the daily reminder job: the user's zone and when each nudge last went out. */
+export function reminderStateKey(email: string): string {
+  return `user:${normalize(email)}:reminder-state`
+}
+
+/** The email a `pushSubKey` belongs to. Emails cannot contain ":", so this is unambiguous. */
+export function emailFromPushSubKey(key: string): string | null {
+  const match = /^user:(.+):push-sub$/.exec(key)
+  return match ? match[1] : null
+}
+
 export function friendsKey(email: string): string {
   return `user:${normalize(email)}:friends`
 }
