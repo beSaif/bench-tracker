@@ -45,6 +45,7 @@ export default function GymBrosPage() {
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState<string>("")
   const [removingEmail, setRemovingEmail] = useState<string | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<Gymbro | null>(null)
   const [messages, setMessages] = useState<GymbroMessage[]>([])
   const addInputRef = useRef<HTMLInputElement>(null)
 
@@ -144,6 +145,7 @@ export default function GymBrosPage() {
   }
 
   async function handleRemoveFriend(friendEmail: string) {
+    setPendingRemove(null)
     setRemovingEmail(friendEmail)
     await fetch("/api/friends", {
       method: "DELETE",
@@ -348,7 +350,7 @@ export default function GymBrosPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <LiftBadge profile={bro} />
                     <button
-                      onClick={() => handleRemoveFriend(bro.email)}
+                      onClick={() => setPendingRemove(bro)}
                       disabled={isRemoving}
                       className="text-[#cccccc] hover:text-red-400 transition-colors p-0.5"
                       aria-label={`Remove ${bro.name}`}
@@ -390,6 +392,39 @@ export default function GymBrosPage() {
             )
           })}
         </ul>
+      )}
+
+      {/* Remove gymbro confirmation */}
+      {pendingRemove && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+          onClick={() => setPendingRemove(null)}
+        >
+          <div
+            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold text-[#111111] mb-1">
+              Remove {pendingRemove.name}?
+            </p>
+            <p className="text-sm text-[#777777] mb-6">
+              You&apos;ll both stop seeing each other&apos;s sessions. You can add them back by email
+              any time.
+            </p>
+            <button
+              onClick={() => handleRemoveFriend(pendingRemove.email)}
+              className="w-full bg-red-500 text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-red-600 active:bg-red-700 transition-colors mb-3"
+            >
+              Remove gymbro
+            </button>
+            <button
+              onClick={() => setPendingRemove(null)}
+              className="w-full border border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#111111] hover:bg-[#fafafa] active:bg-[#f5f5f5] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </main>
   )
