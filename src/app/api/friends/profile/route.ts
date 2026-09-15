@@ -9,8 +9,9 @@ import {
   DEFAULT_TRAINING_DAYS,
   getMuscleLabel,
 } from "@/lib/exerciseConfig"
-import { getSessionLabel, getMainLiftLabel } from "@/lib/trainingMode"
+import { getSessionLabel, getMainLiftLabel, isLiftFocused } from "@/lib/trainingMode"
 import { sessionWork } from "@/lib/stats"
+import { buildFriendCard } from "@/lib/friendCard"
 
 interface SessionsData {
   sessions: Session[]
@@ -38,16 +39,14 @@ export async function GET(request: Request) {
 
   if (!profile) return NextResponse.json({ error: "not found" }, { status: 404 })
 
-  let lastSession: Session | null = null
-  if (sessionsRaw) {
-    const sessions: Session[] = Array.isArray(sessionsRaw)
-      ? sessionsRaw
-      : sessionsRaw.sessions ?? []
-    const confirmed = sessions
-      .filter((s) => s.confirmed && s.date)
-      .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
-    lastSession = confirmed[0] ?? null
-  }
+  const allSessions: Session[] = Array.isArray(sessionsRaw)
+    ? sessionsRaw
+    : sessionsRaw?.sessions ?? []
+
+  const confirmed = allSessions
+    .filter((s) => s.confirmed && s.date)
+    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
+  const lastSession: Session | null = confirmed[0] ?? null
 
   let lastSessionSummary: FriendSessionSummary | null = null
   if (lastSession) {
@@ -64,5 +63,14 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ profile, lastSession, lastSessionSummary })
+  // Aggregated here on purpose: the viewer gets streaks and records, never the
+  // friend's raw session list.
+  const card = buildFriendCard(allSessions, {
+    mainLiftLabel: getMainLiftLabel(profile),
+    anchor: profile.anchor ?? null,
+    target: profile.target ?? null,
+    liftFocused: isLiftFocused(profile),
+  })
+
+  return NextResponse.json({ profile, lastSession, lastSessionSummary, card })
 }
