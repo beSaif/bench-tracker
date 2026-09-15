@@ -29,6 +29,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { DrumRollPicker } from "@/components/DrumRollPicker"
+import SessionProgressDashes, { type ProgressDash } from "@/components/SessionProgressDashes"
 
 const REST_DURATION = 180 // seconds
 
@@ -425,6 +426,32 @@ export default function LogSessionModal({
   ).length
   const allDone = carouselItems.length === 0 || completedCount === carouselItems.length
 
+  // One dash per set, clustered by exercise, for the progress row in the header.
+  const progressDashes: ProgressDash[] = (() => {
+    let groupKey = ""
+    let setNo = 0
+    return carouselItems.map((item) => {
+      const key = getItemKey(item)
+      const group = item.type === "main" ? "main" : `extra-${item.muscle}-${item.exercise}`
+      if (group !== groupKey) {
+        groupKey = group
+        setNo = 0
+      }
+      setNo++
+      const name =
+        item.type === "main"
+          ? `${mainLiftLabel}${item.set.isWarmup ? " warm-up" : ""}`
+          : item.exercise
+      const done = completedSets.has(key)
+      return {
+        key,
+        groupKey: group,
+        done,
+        label: `${name} · set ${setNo}${done ? " (done)" : ""}`,
+      }
+    })
+  })()
+
   const totalVolume = carouselItems.reduce((sum, item) => {
     if (!completedSets.has(getItemKey(item))) return sum
     if (item.type === "main") return sum + item.set.kg * item.set.reps
@@ -439,9 +466,6 @@ export default function LogSessionModal({
   const notifIdRef = useRef<string | null>(null)
   const hasAdvancedForRestRef = useRef(false)
   const timerTriggerIndexRef = useRef<number>(0)
-  const scrubberRef = useRef<HTMLDivElement>(null)
-  const isDraggingScrubber = useRef(false)
-  const lastScrubIndex = useRef<number | null>(null)
 
   function handleMinimize() {
     saveDraft({
@@ -597,38 +621,6 @@ export default function LogSessionModal({
   function navigateNext() {
     setCurrentSetIndex((p) => Math.min(p + 1, carouselItems.length - 1))
     navigator.vibrate?.([8])
-  }
-
-  function getScrubIndex(clientX: number): number {
-    const el = scrubberRef.current
-    if (!el || carouselItems.length <= 1) return 0
-    const rect = el.getBoundingClientRect()
-    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return Math.round(fraction * (carouselItems.length - 1))
-  }
-
-  function handleScrubStart(e: React.PointerEvent<HTMLDivElement>) {
-    isDraggingScrubber.current = true
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    const idx = getScrubIndex(e.clientX)
-    lastScrubIndex.current = idx
-    setCurrentSetIndex(idx)
-    navigator.vibrate?.([8])
-  }
-
-  function handleScrubMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!isDraggingScrubber.current) return
-    const idx = getScrubIndex(e.clientX)
-    if (idx !== lastScrubIndex.current) {
-      lastScrubIndex.current = idx
-      setCurrentSetIndex(idx)
-      navigator.vibrate?.([8])
-    }
-  }
-
-  function handleScrubEnd() {
-    isDraggingScrubber.current = false
-    lastScrubIndex.current = null
   }
 
   function updateSet(index: number, field: "kg" | "reps" | "rpe", raw: string) {
@@ -1497,43 +1489,21 @@ export default function LogSessionModal({
             </button>
           </div>
 
-          {mode === "log" && carouselItems.length > 0 && (() => {
-            const thumbPct = carouselItems.length > 1
-              ? (currentSetIndex / (carouselItems.length - 1)) * 100
-              : 0
-            const completedPct = (completedCount / carouselItems.length) * 100
-            return (
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] text-[#aaaaaa] uppercase tracking-widest">Progress</span>
-                  <span className="text-[10px] text-[#aaaaaa] tabular-nums">
-                    {completedCount} / {carouselItems.length}
-                  </span>
-                </div>
-                <div
-                  ref={scrubberRef}
-                  className="relative h-5 flex items-center cursor-pointer touch-none"
-                  onPointerDown={handleScrubStart}
-                  onPointerMove={handleScrubMove}
-                  onPointerUp={handleScrubEnd}
-                  onPointerCancel={handleScrubEnd}
-                >
-                  {/* Track */}
-                  <div className="absolute h-1 w-full bg-[#e8e8e8] rounded-full" />
-                  {/* Completed fill */}
-                  <div
-                    className="absolute h-1 bg-[#1e3a5f] rounded-full transition-all duration-500"
-                    style={{ width: `${completedPct}%` }}
-                  />
-                  {/* Thumb */}
-                  <div
-                    className="absolute h-3 w-3 bg-accent rounded-full shadow-sm transition-[left] duration-150"
-                    style={{ left: `calc(${thumbPct}% - 6px)` }}
-                  />
-                </div>
+          {mode === "log" && carouselItems.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-[#aaaaaa] uppercase tracking-widest">Progress</span>
+                <span className="text-[10px] text-[#aaaaaa] tabular-nums">
+                  {completedCount} / {carouselItems.length}
+                </span>
               </div>
-            )
-          })()}
+              <SessionProgressDashes
+                dashes={progressDashes}
+                currentIndex={currentSetIndex}
+                onSelect={setCurrentSetIndex}
+              />
+            </div>
+          )}
         </div>
 
         {/* Centered content area */}
