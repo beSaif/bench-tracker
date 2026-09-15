@@ -44,7 +44,8 @@ function AttackRow({
 }: {
   pr: FriendPR
   energy: { pip: string; colour: string }
-  onReact: () => void
+  /** Omitted on your own card: there is nobody to hype but yourself. */
+  onReact?: () => void
   reacted: boolean
 }) {
   // Reps become the energy cost, capped so a 15-rep set doesn't overrun the row.
@@ -53,8 +54,10 @@ function AttackRow({
   return (
     <button
       onClick={onReact}
-      disabled={reacted}
-      className="w-full flex items-start gap-2.5 py-2.5 px-1 text-left rounded-lg transition-colors hover:bg-black/[0.03] active:bg-black/[0.06] disabled:hover:bg-transparent"
+      disabled={reacted || !onReact}
+      className={`w-full flex items-start gap-2.5 py-2.5 px-1 text-left rounded-lg transition-colors disabled:hover:bg-transparent ${
+        onReact ? "hover:bg-black/[0.03] active:bg-black/[0.06]" : "cursor-default"
+      }`}
     >
       <span className="flex shrink-0 gap-0.5 pt-0.5" aria-hidden="true">
         {Array.from({ length: pips }).map((_, i) => (
@@ -119,8 +122,9 @@ interface Props {
   lastSessionSummary: FriendSessionSummary | null
   isLive: boolean
   /** Keys (see `prKey`) of records this viewer has already hyped. */
-  reactedPRs: string[]
-  onReactPR: (pr: FriendPR) => void
+  reactedPRs?: string[]
+  /** Left out on your own card, which renders the same layout without reactions. */
+  onReactPR?: (pr: FriendPR) => void
 }
 
 /**
@@ -132,7 +136,7 @@ export default function GymbroCard({
   card,
   lastSessionSummary,
   isLive,
-  reactedPRs,
+  reactedPRs = [],
   onReactPR,
 }: Props) {
   const liftFocused = isLiftFocused(profile)
@@ -233,7 +237,7 @@ export default function GymbroCard({
                 pr={pr}
                 energy={energy}
                 reacted={reactedPRs.includes(prKey(pr))}
-                onReact={() => onReactPR(pr)}
+                onReact={onReactPR ? () => onReactPR(pr) : undefined}
               />
             ))
           ) : (

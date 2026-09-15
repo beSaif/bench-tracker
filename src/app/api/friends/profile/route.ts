@@ -24,11 +24,15 @@ export async function GET(request: Request) {
   if (!myEmail) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const targetEmail = searchParams.get("email")?.trim().toLowerCase()
-  if (!targetEmail) return NextResponse.json({ error: "email required" }, { status: 400 })
+  // No email means "my own card": /me reads the card it would show a gymbro, of
+  // the viewer. Everything below is already computed from one user's own data.
+  const myEmailLower = myEmail.trim().toLowerCase()
+  const targetEmail = searchParams.get("email")?.trim().toLowerCase() || myEmailLower
 
-  const isFriend = await kv.sismember(friendsKey(myEmail), targetEmail)
-  if (!isFriend) return NextResponse.json({ error: "not a friend" }, { status: 403 })
+  if (targetEmail !== myEmailLower) {
+    const isFriend = await kv.sismember(friendsKey(myEmail), targetEmail)
+    if (!isFriend) return NextResponse.json({ error: "not a friend" }, { status: 403 })
+  }
 
   const [profile, sessionsRaw, trainingDaysRaw, exercisesRaw] = await Promise.all([
     kv.get<UserProfile>(profileKey(targetEmail)),

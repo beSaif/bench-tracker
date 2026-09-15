@@ -206,10 +206,12 @@ export default function GymbrosTimeline({
           const style = { left: `${e.posPct}%`, transform: "translateX(-50%)", transition: "left 0.6s cubic-bezier(0.32, 0.72, 0, 1)" }
 
           if (e.isMe) {
+            // Your own avatar opens your card, not a friend page: the friend route
+            // is keyed by a gymbro you have, and you are not your own gymbro.
             return (
-              <div key={e.key} className={wrapperClass} style={style}>
+              <Link key={e.key} href="/me" className={wrapperClass} style={style}>
                 {inner}
-              </div>
+              </Link>
             )
           }
 
