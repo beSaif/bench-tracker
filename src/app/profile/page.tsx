@@ -164,6 +164,20 @@ export default function ProfilePage() {
         <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">Profile</h1>
       </header>
 
+      {/* My card */}
+      <Link
+        href="/me"
+        className="flex items-center justify-between mb-4 px-4 py-4 rounded-xl bg-[#f5f5f5] border border-[#e8e8e8] active:opacity-70 transition-opacity"
+      >
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1">
+            My card
+          </p>
+          <p className="text-sm text-[#111111]">See yourself the way your gymbros do</p>
+        </div>
+        <span className="text-[#1e3a5f] text-sm font-semibold shrink-0 ml-3">View →</span>
+      </Link>
+
       {/* Personal */}
       <section className="mb-4 px-4 py-4 rounded-xl bg-[#f5f5f5] border border-[#e8e8e8]">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-4">

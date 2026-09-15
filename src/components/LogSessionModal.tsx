@@ -68,6 +68,12 @@ interface EditableSet extends MainLiftSet {
 interface EditableExtraSet {
   kgStr: string
   repsStr: string
+  /**
+   * Seeded, never touched by the user. A pristine set follows the set above it as
+   * that one is dialled in, so a brand-new exercise only has to be typed once.
+   * Anything the user edits — or adds by hand — stops following.
+   */
+  pristine?: boolean
 }
 
 type ExtraWorkoutState = Record<string, Record<string, EditableExtraSet[]>>
@@ -258,8 +264,40 @@ function toEditable(set: MainLiftSet): EditableSet {
   }
 }
 
+/**
+ * What an exercise with no history opens at. Deliberately a real starting point
+ * rather than 0 × 0: every set of a fresh exercise mirrors this one until it is
+ * edited, so correcting the first set corrects them all.
+ */
 function defaultExtraSet(): EditableExtraSet {
-  return { kgStr: "0", repsStr: "10" }
+  return { kgStr: "10", repsStr: "10", pristine: true }
+}
+
+/** A copy of a set, as the next set: same load, same reps, and no longer following. */
+function copyExtraSet(set: EditableExtraSet): EditableExtraSet {
+  return { kgStr: set.kgStr, repsStr: set.repsStr }
+}
+
+/**
+ * The sets an exercise opens with: last session's, extended by repeating its final
+ * set when the exercise is prescribed more sets than were logged last time. With no
+ * history at all, every set mirrors the neutral default until one is edited.
+ */
+function seedExerciseSets(
+  exerciseName: string,
+  numSets: number,
+  previousSessions: Session[]
+): EditableExtraSet[] {
+  const lastSets = getLastSetsForExercise(exerciseName, previousSessions)
+  if (!lastSets || lastSets.length === 0) {
+    return Array.from({ length: numSets }, () => defaultExtraSet())
+  }
+  return Array.from({ length: numSets }, (_, i) => {
+    const source = lastSets[Math.min(i, lastSets.length - 1)]
+    const set: EditableExtraSet = { kgStr: String(source.kg), repsStr: String(source.reps) }
+    // Only the repeats follow; a set that came from history is already its own.
+    return i < lastSets.length ? set : { ...set, pristine: true }
+  })
 }
 
 function initExtraWorkoutState(
@@ -292,16 +330,7 @@ function initExtraWorkoutState(
     for (const exerciseName of getSessionExercisesForMuscle(exerciseConfig, muscle, { exclude })) {
       const exConfig = muscleGroup?.exercises.find((e) => e.name === exerciseName)
       const numSets = exConfig ? getDefaultSets(exConfig) : 3
-      const lastSets = getLastSetsForExercise(exerciseName, previousSessions)
-      if (lastSets && lastSets.length > 0) {
-        state[muscle][exerciseName] = Array.from({ length: numSets }, (_, i) =>
-          i < lastSets.length
-            ? { kgStr: String(lastSets[i].kg), repsStr: String(lastSets[i].reps) }
-            : defaultExtraSet()
-        )
-      } else {
-        state[muscle][exerciseName] = Array.from({ length: numSets }, () => defaultExtraSet())
-      }
+      state[muscle][exerciseName] = seedExerciseSets(exerciseName, numSets, previousSessions)
     }
   }
   return state
@@ -641,9 +670,23 @@ export default function LogSessionModal({
     setExtraState((prev) => {
       const next = { ...prev }
       next[muscle] = { ...next[muscle] }
-      next[muscle][exercise] = next[muscle][exercise].map((s, i) => {
-        if (i !== setIndex) return s
-        return field === "kg" ? { ...s, kgStr: raw } : { ...s, repsStr: raw }
+      const arr = next[muscle][exercise]
+      const edited: EditableExtraSet =
+        field === "kg"
+          ? { ...arr[setIndex], kgStr: raw, pristine: false }
+          : { ...arr[setIndex], repsStr: raw, pristine: false }
+
+      // Sets below that are still untouched trail the one being dialled in, so
+      // typing set 1 of a new exercise fills the rest of it.
+      let trailing = true
+      next[muscle][exercise] = arr.map((s, i) => {
+        if (i === setIndex) return edited
+        if (i < setIndex) return s
+        if (!trailing || !s.pristine) {
+          trailing = false
+          return s
+        }
+        return { ...s, kgStr: edited.kgStr, repsStr: edited.repsStr }
       })
       return next
     })
@@ -689,7 +732,7 @@ export default function LogSessionModal({
       const next = { ...prev }
       next[muscle] = { ...next[muscle] }
       const arr = [...next[muscle][exercise]]
-      arr.splice(setIndex + 1, 0, defaultExtraSet())
+      arr.splice(setIndex + 1, 0, copyExtraSet(arr[setIndex]))
       next[muscle][exercise] = arr
       return next
     })
@@ -746,7 +789,7 @@ export default function LogSessionModal({
         ...prev,
         [muscleId]: {
           ...muscleExercises,
-          [exerciseName]: Array.from({ length: count }, () => defaultExtraSet()),
+          [exerciseName]: seedExerciseSets(exerciseName, count, previousSessions),
         },
       }
     })
