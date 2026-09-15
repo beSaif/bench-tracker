@@ -27,6 +27,28 @@ export function prKey(pr: FriendPR): string {
 }
 
 /**
+ * The hype affordance. Drawn rather than set in emoji so it sits on the app's own
+ * stroke weight, and so "already hyped" can be the same flame filled in.
+ */
+function FlameIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill={filled ? "#b06a1e" : "none"}
+      stroke={filled ? "#b06a1e" : "#bbbbbb"}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  )
+}
+
+/**
  * One personal record. Tappable on a gymbro's card to hype it, which is what the
  * flame on the right is for — the row read as static text without it.
  */
@@ -69,33 +91,37 @@ function RecordRow({
         <span className="text-[11px] text-[#aaaaaa]">kg</span>
       </span>
 
+      {/* The row itself is the button, so this is a styled span rather than a
+          nested one — it exists to make the tap target look like what it is. */}
       {onReact && (
         <span
-          className={`shrink-0 text-sm leading-none transition-opacity ${
-            reacted ? "opacity-100" : "opacity-25"
+          className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center border transition-colors ${
+            reacted ? "bg-[#fdf3e7] border-transparent" : "bg-white border-[#e8e8e8]"
           }`}
-          aria-hidden="true"
         >
-          🔥
+          <FlameIcon filled={reacted} />
         </span>
       )}
     </button>
   )
 }
 
-/** The consistency strip: one pip per day in week-columns, most recent on the right. */
+/**
+ * The consistency grid: one pip per day, a week to a row, most recent last. Four
+ * rows of seven reads as a month at a glance, the way a calendar does.
+ */
 function StreakGrid({ dots }: { dots: boolean[] }) {
   const weeks: boolean[][] = []
   for (let i = 0; i < dots.length; i += 7) weeks.push(dots.slice(i, i + 7))
 
   return (
-    <div className="flex gap-[3px]" aria-hidden="true">
+    <div className="flex flex-col gap-[3px]" aria-hidden="true">
       {weeks.map((week, wi) => (
-        <div key={wi} className="flex flex-col gap-[3px]">
+        <div key={wi} className="flex gap-[3px]">
           {week.map((trained, di) => (
             <span
               key={di}
-              className="w-[7px] h-[7px] rounded-[2px]"
+              className="w-[10px] h-[10px] rounded-[2px]"
               style={{ backgroundColor: trained ? "#1e3a5f" : "#eeeeee" }}
             />
           ))}
