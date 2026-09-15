@@ -73,7 +73,7 @@ export default function MyCardPage() {
     return (
       <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         {backButton}
-        <div className="rounded-[18px] bg-[#eeeeee] animate-pulse" style={{ aspectRatio: "63/88" }} />
+        <div className="rounded-2xl bg-[#f5f5f5] animate-pulse h-[520px]" />
       </main>
     )
   }
@@ -82,9 +82,7 @@ export default function MyCardPage() {
     return (
       <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         {backButton}
-        <p className="font-pixel text-[10px] leading-[1.8] text-[#aaaaaa] text-center mt-20">
-          NO CARD FOUND
-        </p>
+        <p className="text-sm text-[#aaaaaa] text-center mt-20">No card found</p>
       </main>
     )
   }

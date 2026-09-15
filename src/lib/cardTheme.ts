@@ -3,99 +3,66 @@ import { RarityTier } from "./friendCard"
 
 /**
  * The card's look-up tables. Colour lives here rather than in the page so the
- * frame, the sprite and the energy pips can't drift apart.
+ * sprite, the rarity pill and the progress bar can't drift apart.
  */
 
 export interface RarityStyle {
   label: string
-  /** Stars printed next to the stage line. */
-  stars: string
-  frame: string
-  /** Inner mat the artwork and attacks sit on. */
-  mat: string
+  /** Tint behind the sprite. */
+  bg: string
+  /** Progress fill, and the colour the sprite itself is drawn in. */
+  bar: string
+  /** Type colour on the rarity pill. */
   ink: string
-  /** Only holo cards get the moving foil sheen. */
+  /** Only the top tier gets the foil sheen, and only inside the sprite tile. */
   holo: boolean
 }
 
+/**
+ * Shaped like BlockHeader's PHASE_STYLE — a tint, a bar and an ink — so a tier
+ * reads as a category of the same kind a training phase does. The card frame
+ * itself stays the app's plain white surface; rarity is an accent, not a frame.
+ */
 export const RARITY: Record<RarityTier, RarityStyle> = {
   common: {
-    label: "COMMON",
-    stars: "●",
-    frame: "linear-gradient(160deg, #d8d8d8 0%, #f2f2f2 45%, #c9c9c9 100%)",
-    mat: "#f6f6f4",
-    ink: "#3f3f3f",
+    label: "Common",
+    bg: "#f5f5f5",
+    bar: "#888888",
+    ink: "#555555",
     holo: false,
   },
   uncommon: {
-    label: "UNCOMMON",
-    stars: "◆",
-    frame: "linear-gradient(160deg, #bfe3c4 0%, #eefaef 45%, #9fd3a9 100%)",
-    mat: "#f3faf4",
-    ink: "#1e5c1a",
+    label: "Uncommon",
+    bg: "#f0f7f0",
+    bar: "#2d6a2d",
+    ink: "#2d6a2d",
     holo: false,
   },
   rare: {
-    label: "RARE",
-    stars: "★",
-    frame: "linear-gradient(160deg, #ffd88a 0%, #fff6de 42%, #e8b45c 100%)",
-    mat: "#fffaf0",
-    ink: "#7a4a05",
+    label: "Rare",
+    bg: "#fdf3e7",
+    bar: "#b06a1e",
+    ink: "#8a4d14",
     holo: false,
   },
   holo: {
-    label: "HOLO RARE",
-    stars: "★★★",
-    frame:
-      "linear-gradient(135deg, #ff9ad5 0%, #ffe68a 22%, #8affc9 44%, #8ad2ff 66%, #c79aff 85%, #ff9ad5 100%)",
-    mat: "#fdf7ff",
-    ink: "#5b2a7a",
+    label: "Holo rare",
+    bg: "#f5f0ff",
+    bar: "#5a2d8a",
+    ink: "#5a2d8a",
     holo: true,
   },
 }
 
-/** Energy type, borrowed from the friend's main lift. */
-export interface LiftEnergy {
-  /** Single glyph used as the energy pip on attacks and in the type line. */
-  pip: string
-  name: string
-  colour: string
-  bg: string
-}
-
-export const LIFT_ENERGY: Record<MainLift, LiftEnergy> = {
-  bench: { pip: "▲", name: "BENCH", colour: "#1e3a5f", bg: "#eff6ff" },
-  squat: { pip: "◆", name: "SQUAT", colour: "#1e3a7a", bg: "#f0f5ff" },
-  deadlift: { pip: "■", name: "DEADLIFT", colour: "#1e5c1a", bg: "#f2fdf0" },
-}
-
-/** Balanced-mode gymbros train no single lift, so they get a neutral energy. */
-export const BALANCED_ENERGY: LiftEnergy = {
-  pip: "✦",
-  name: "BALANCED",
-  colour: "#555555",
-  bg: "#f5f5f5",
-}
-
 /**
- * Evolution stage from how many sessions are on the board. It is pure flavour, but
- * it gives a new gymbro somewhere to climb from.
+ * The main-lift pill. Same tints the gymbros list badges with, so the row you
+ * tapped and the card it opens agree on what a bench gymbro looks like.
  */
-export function stageFor(level: number): string {
-  if (level >= 60) return "STAGE 2"
-  if (level >= 20) return "STAGE 1"
-  return "BASIC"
+export const LIFT_PILL: Record<MainLift, string> = {
+  bench: "bg-[#eff6ff] text-[#1e3a5f]",
+  squat: "bg-[#f0f5ff] text-[#1e3a7a]",
+  deadlift: "bg-[#f2fdf0] text-[#1e5c1a]",
 }
 
-/**
- * The card's "weakness" — the thing actually eating their progress. Reading it off
- * the layoff is what makes the joke land: a gymbro who trains has no weakness.
- */
-export function weaknessFor(daysSinceLast: number | null): { label: string; pip: string } {
-  if (daysSinceLast == null) return { label: "UNPROVEN", pip: "?" }
-  if (daysSinceLast >= 14) return { label: "THE COUCH", pip: "☾" }
-  if (daysSinceLast >= 7) return { label: "REST DAYS", pip: "☾" }
-  if (daysSinceLast >= 4) return { label: "SNOOZE", pip: "☾" }
-  // No pip when there is nothing to call out — "— none" read like a missing value.
-  return { label: "NONE", pip: "" }
-}
+/** A Balanced gymbro trains no single lift, so their pill is neutral. */
+export const BALANCED_PILL = "bg-[#f5f5f5] text-[#555555]"

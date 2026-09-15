@@ -9,8 +9,11 @@ import { Session } from "./types"
  * still giving the card something to say.
  */
 
-/** How many days of history the consistency modules look at. */
-export const CARD_WINDOW_DAYS = 56
+/**
+ * How many days of history the consistency modules look at — four weeks, so the
+ * grid reads as "this month" and the average it sits beside covers the same span.
+ */
+export const CARD_WINDOW_DAYS = 28
 
 /**
  * How recently a record must have been set to still be badged "new". Deliberately

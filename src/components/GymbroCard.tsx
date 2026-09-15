@@ -1,27 +1,21 @@
 "use client"
 
-import { UserProfile, MainLift, FriendSessionSummary } from "@/lib/types"
+import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, FriendSessionSummary } from "@/lib/types"
 import { isLiftFocused } from "@/lib/trainingMode"
 import { FriendCardStats, FriendPR, CARD_WINDOW_DAYS } from "@/lib/friendCard"
-import { RARITY, LIFT_ENERGY, BALANCED_ENERGY, stageFor, weaknessFor } from "@/lib/cardTheme"
+import { RARITY, LIFT_PILL, BALANCED_PILL } from "@/lib/cardTheme"
 import PixelAvatar from "@/components/PixelAvatar"
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-/** The pixel-type heading face, wrapped so every use picks up the same fallback stack. */
-function Pixel({
-  children,
-  className,
-  style,
-}: {
-  children: React.ReactNode
-  className?: string
-  style?: React.CSSProperties
-}) {
+/** The app's micro-label: the same 10px uppercase run used across every screen. */
+function Label({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={`font-pixel ${className ?? ""}`} style={style}>
+    <span
+      className={`text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] ${className ?? ""}`}
+    >
       {children}
     </span>
   )
@@ -33,81 +27,102 @@ export function prKey(pr: FriendPR): string {
 }
 
 /**
- * An attack row: one personal record, dressed as a move. The energy pips are the
- * rep count, the damage is the weight.
+ * The hype affordance. Drawn rather than set in emoji so it sits on the app's own
+ * stroke weight, and so "already hyped" can be the same flame filled in.
  */
-function AttackRow({
+function FlameIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill={filled ? "#b06a1e" : "none"}
+      stroke={filled ? "#b06a1e" : "#bbbbbb"}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  )
+}
+
+/**
+ * One personal record. Tappable on a gymbro's card to hype it, which is what the
+ * flame on the right is for — the row read as static text without it.
+ */
+function RecordRow({
   pr,
-  energy,
   onReact,
   reacted,
 }: {
   pr: FriendPR
-  energy: { pip: string; colour: string }
   /** Omitted on your own card: there is nobody to hype but yourself. */
   onReact?: () => void
   reacted: boolean
 }) {
-  // Reps become the energy cost, capped so a 15-rep set doesn't overrun the row.
-  const pips = Math.min(4, Math.max(1, Math.round(pr.reps / 3)))
-
   return (
     <button
       onClick={onReact}
       disabled={reacted || !onReact}
-      className={`w-full flex items-start gap-2.5 py-2.5 px-1 text-left rounded-lg transition-colors disabled:hover:bg-transparent ${
-        onReact ? "hover:bg-black/[0.03] active:bg-black/[0.06]" : "cursor-default"
+      className={`w-full flex items-center gap-3 py-3 text-left transition-colors ${
+        onReact && !reacted ? "active:bg-black/[0.03]" : "cursor-default"
       }`}
     >
-      <span className="flex shrink-0 gap-0.5 pt-0.5" aria-hidden="true">
-        {Array.from({ length: pips }).map((_, i) => (
-          <span
-            key={i}
-            className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] leading-none"
-            style={{ backgroundColor: `${energy.colour}1a`, color: energy.colour }}
-          >
-            {energy.pip}
-          </span>
-        ))}
-      </span>
-
       <span className="flex-1 min-w-0">
-        <span className="flex items-baseline justify-between gap-2">
-          <Pixel className="text-[8px] leading-[1.5] text-[#111111] truncate">
-            {pr.exercise.toUpperCase()}
-          </Pixel>
-          <Pixel className="text-[11px] leading-none text-[#111111] shrink-0">{pr.kg}</Pixel>
-        </span>
-        <span className="flex items-center gap-1.5 mt-1">
-          <span className="text-[10px] text-[#888888]">
+        <span className="block text-sm font-semibold text-[#111111]">{pr.exercise}</span>
+        {/* The badge rides the meta line rather than the title: a long exercise name
+            wraps, and a badge beside it ends up floating against the wrapped block. */}
+        <span className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-[#aaaaaa]">
             {pr.reps} rep{pr.reps === 1 ? "" : "s"} · {formatDate(pr.date)}
           </span>
           {pr.isFresh && (
-            <span className="text-[8px] font-semibold uppercase tracking-wider px-1 py-px rounded bg-[#fff3cd] text-[#7a4a05]">
-              new
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-[#fdf3e7] text-[#8a4d14]">
+              New
             </span>
           )}
-          {reacted && <span className="text-[10px]">🔥 sent</span>}
         </span>
       </span>
+
+      <span className="flex items-baseline gap-0.5 shrink-0">
+        <span className="text-lg font-semibold text-[#111111] tabular-nums">{pr.kg}</span>
+        <span className="text-[11px] text-[#aaaaaa]">kg</span>
+      </span>
+
+      {/* The row itself is the button, so this is a styled span rather than a
+          nested one — it exists to make the tap target look like what it is. */}
+      {onReact && (
+        <span
+          className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center border transition-colors ${
+            reacted ? "bg-[#fdf3e7] border-transparent" : "bg-white border-[#e8e8e8]"
+          }`}
+        >
+          <FlameIcon filled={reacted} />
+        </span>
+      )}
     </button>
   )
 }
 
-/** The consistency strip: one pip per day in week-columns, most recent on the right. */
+/**
+ * The consistency grid: one pip per day, a week to a row, most recent last. Four
+ * rows of seven reads as a month at a glance, the way a calendar does.
+ */
 function StreakGrid({ dots }: { dots: boolean[] }) {
   const weeks: boolean[][] = []
   for (let i = 0; i < dots.length; i += 7) weeks.push(dots.slice(i, i + 7))
 
   return (
-    <div className="flex gap-[3px]" aria-hidden="true">
+    <div className="flex flex-col gap-[3px]" aria-hidden="true">
       {weeks.map((week, wi) => (
-        <div key={wi} className="flex flex-col gap-[3px]">
+        <div key={wi} className="flex gap-[3px]">
           {week.map((trained, di) => (
             <span
               key={di}
-              className="w-[7px] h-[7px] rounded-[1px]"
-              style={{ backgroundColor: trained ? "#111111" : "#dcdcdc" }}
+              className="w-[10px] h-[10px] rounded-[2px]"
+              style={{ backgroundColor: trained ? "#1e3a5f" : "#eeeeee" }}
             />
           ))}
         </div>
@@ -128,8 +143,12 @@ interface Props {
 }
 
 /**
- * A gymbro as a trading card. Presentational only — the page owns fetching and
- * messaging, which is what lets this render standalone with mock data.
+ * A gymbro at a glance. Presentational only — the page owns fetching and messaging,
+ * which is what lets this render standalone with mock data.
+ *
+ * The collectible reading survives in the data (rarity, a sprite, progress to
+ * target) but not in the chrome: this is the same white card, Inter type and navy
+ * accent every other screen is built from.
  */
 export default function GymbroCard({
   profile,
@@ -140,122 +159,120 @@ export default function GymbroCard({
   onReactPR,
 }: Props) {
   const liftFocused = isLiftFocused(profile)
-  const friendLift: MainLift | undefined = liftFocused ? profile.mainLift : undefined
-  const energy = friendLift ? LIFT_ENERGY[friendLift] : BALANCED_ENERGY
+  const lift: MainLift | undefined = liftFocused ? profile.mainLift : undefined
   const rarity = RARITY[card.rarity]
-  const weakness = weaknessFor(card.daysSinceLast)
 
   const anchor = profile.anchor ?? 0
   const target = profile.target ?? 0
-  const hasHp = liftFocused && target > 0 && anchor > 0
+  const hasProgress = liftFocused && target > 0 && anchor > 0
 
   return (
-    <div
-      className="relative rounded-[18px] p-[10px] shadow-[0_18px_40px_-16px_rgba(0,0,0,0.45)] animate-card-enter overflow-hidden"
-      style={{ background: rarity.frame }}
-    >
-      {rarity.holo && (
-        <span
-          className="pointer-events-none absolute -inset-y-12 -left-1/3 w-1/3 animate-holo-sweep"
-          style={{
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent)",
-          }}
-          aria-hidden="true"
-        />
-      )}
-
+    <div className="rounded-2xl border border-[#eeeeee] bg-white shadow-sm overflow-hidden animate-fade-up">
+      {/* Artwork */}
       <div
-        className="relative rounded-[11px] px-3.5 pt-3 pb-3.5 border border-black/10"
-        style={{ backgroundColor: rarity.mat }}
+        className="relative flex items-center justify-center py-7 overflow-hidden"
+        style={{ backgroundColor: rarity.bg }}
       >
-        {/* Stage + HP */}
-        <div className="flex items-start justify-between gap-2 mb-2.5">
-          <span className="flex items-center gap-1.5 min-w-0">
-            <Pixel className="text-[7px] leading-none text-[#777777]">{stageFor(card.level)}</Pixel>
-            <span className="text-[8px] leading-none" style={{ color: rarity.ink }}>
-              {rarity.stars}
-            </span>
-          </span>
-
-          {hasHp ? (
-            <span className="flex items-baseline gap-1 shrink-0">
-              <Pixel className="text-[7px] leading-none text-[#c23b3b]">HP</Pixel>
-              <Pixel className="text-[13px] leading-none text-[#111111]">{anchor}</Pixel>
-              <span className="text-[9px] text-[#999999]">/{target}</span>
-            </span>
-          ) : (
-            <Pixel className="text-[7px] leading-none text-[#999999] shrink-0">
-              {card.level} SESSIONS
-            </Pixel>
-          )}
-        </div>
-
-        {/* Artwork */}
-        <div
-          className="relative rounded-[6px] border-2 overflow-hidden mb-2"
-          style={{
-            borderColor: energy.colour,
-            background: `linear-gradient(170deg, ${energy.bg} 0%, #ffffff 70%)`,
-          }}
-        >
-          <div className="flex items-center justify-center py-5">
-            <PixelAvatar seed={profile.email} colour={energy.colour} className="w-24 h-24" />
-          </div>
-
-          {isLive && (
-            <span className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-1 rounded bg-[#111111]/85">
-              <span className="w-1.5 h-1.5 rounded-[1px] bg-green-400 animate-pixel-blink" />
-              <Pixel className="text-[6px] leading-none text-white">IN SESSION</Pixel>
-            </span>
-          )}
-
-          <span className="absolute bottom-1.5 right-1.5">
-            <Pixel className="text-[6px] leading-none text-[#999999]">LV.{card.level}</Pixel>
-          </span>
-        </div>
-
-        {/* Name + energy type */}
-        <div className="flex items-center justify-between gap-2 mb-2.5">
-          <Pixel className="text-[11px] leading-[1.4] text-[#111111] truncate">
-            {profile.name.toUpperCase()}
-          </Pixel>
+        {rarity.holo && (
           <span
-            className="flex items-center gap-1 shrink-0 px-1.5 py-1 rounded"
-            style={{ backgroundColor: energy.bg, color: energy.colour }}
+            className="pointer-events-none absolute -inset-y-12 -left-1/3 w-1/3 animate-holo-sweep"
+            style={{
+              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent)",
+            }}
+            aria-hidden="true"
+          />
+        )}
+
+        <PixelAvatar seed={profile.email} colour={rarity.bar} className="w-24 h-24" />
+
+        {isLive && (
+          <span className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/90">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#555555]">
+              In session
+            </span>
+          </span>
+        )}
+
+        <span
+          className="absolute bottom-3 right-3 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/90"
+          style={{ color: rarity.ink }}
+        >
+          {rarity.label}
+        </span>
+      </div>
+
+      <div className="px-4 pt-4 pb-4">
+        {/* Name + main lift */}
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <h2 className="text-2xl font-semibold text-[#111111] tracking-tight truncate">
+            {profile.name}
+          </h2>
+          <span
+            className={`shrink-0 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${
+              lift ? LIFT_PILL[lift] : BALANCED_PILL
+            }`}
           >
-            <span className="text-[8px] leading-none">{energy.pip}</span>
-            <Pixel className="text-[6px] leading-none">{energy.name}</Pixel>
+            {lift ? MAIN_LIFT_LABEL[lift] : TRAINING_MODE_LABEL.balanced}
           </span>
         </div>
 
-        {/* Attacks — their records */}
-        <div className="border-t border-b border-black/10 py-1 mb-2.5">
+        {/* Progress to target */}
+        {hasProgress && (
+          <div className="mb-4">
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <Label>Current best</Label>
+              {card.progressPct != null && (
+                <span className="text-xs font-medium text-[#1e3a5f]">{card.progressPct}%</span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1.5 mb-2">
+              <span className="text-2xl font-semibold text-[#111111] tabular-nums leading-none">
+                {anchor}
+              </span>
+              <span className="text-sm text-[#aaaaaa]">/ {target}kg</span>
+            </div>
+            <div className="h-1 rounded-full bg-[#f5f5f5] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${card.progressPct ?? 0}%`,
+                  backgroundColor: rarity.bar,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Records */}
+        <div className="border-t border-[#f5f5f5]">
           {card.records.length > 0 ? (
             card.records.map((pr) => (
-              <AttackRow
+              <RecordRow
                 key={prKey(pr)}
                 pr={pr}
-                energy={energy}
                 reacted={reactedPRs.includes(prKey(pr))}
                 onReact={onReactPR ? () => onReactPR(pr) : undefined}
               />
             ))
           ) : (
-            <p className="py-4 text-center text-[11px] text-[#aaaaaa]">No moves learned yet.</p>
+            <p className="py-6 text-center text-sm text-[#aaaaaa]">No records yet</p>
           )}
         </div>
 
         {/* Consistency */}
-        <div className="flex items-end justify-between gap-3 mb-2.5">
+        <div className="flex items-end justify-between gap-3 pt-4 mt-1 border-t border-[#f5f5f5]">
           <div>
-            <Pixel className="text-[6px] leading-none text-[#999999]">STREAK</Pixel>
-            <div className="flex items-baseline gap-1 mt-1.5">
-              <Pixel className="text-[13px] leading-none text-[#111111]">{card.weekStreak}</Pixel>
-              <span className="text-[9px] text-[#888888]">
+            <Label>Streak</Label>
+            <div className="flex items-baseline gap-1.5 mt-1.5">
+              <span className="text-2xl font-semibold text-[#111111] tabular-nums leading-none">
+                {card.weekStreak}
+              </span>
+              <span className="text-sm text-[#777777]">
                 week{card.weekStreak === 1 ? "" : "s"}
               </span>
             </div>
-            <p className="text-[9px] text-[#999999] mt-1">
+            <p className="text-[11px] text-[#aaaaaa] mt-1">
               {card.avgPerWeek}×/wk over {CARD_WINDOW_DAYS / 7}w
             </p>
           </div>
@@ -264,10 +281,10 @@ export default function GymbroCard({
 
         {/* Last session */}
         {lastSessionSummary && (
-          <div className="rounded-md bg-black/[0.03] px-2.5 py-2 mb-2.5">
+          <div className="rounded-xl bg-[#f5f5f5] px-4 py-3 mt-4">
             <div className="flex items-center justify-between gap-2">
-              <Pixel className="text-[6px] leading-none text-[#999999]">LAST SEEN</Pixel>
-              <span className="text-[9px] text-[#888888]">
+              <Label>Last seen</Label>
+              <span className="text-[11px] text-[#999999]">
                 {card.daysSinceLast === 0
                   ? "today"
                   : card.daysSinceLast === 1
@@ -275,13 +292,13 @@ export default function GymbroCard({
                     : `${card.daysSinceLast}d ago`}
               </span>
             </div>
-            <p className="text-[11px] text-[#333333] mt-1.5 truncate">
+            <p className="text-sm font-medium text-[#333333] mt-1.5 truncate">
               {lastSessionSummary.label}
               {lastSessionSummary.muscles.length > 0 &&
                 ` · ${lastSessionSummary.muscles.join(" + ")}`}
             </p>
             {lastSessionSummary.sets > 0 && (
-              <p className="text-[10px] text-[#999999] mt-0.5">
+              <p className="text-[11px] text-[#999999] mt-0.5">
                 {lastSessionSummary.exercises} ex · {lastSessionSummary.sets} sets ·{" "}
                 {lastSessionSummary.volume.toLocaleString("en-GB")} kg
               </p>
@@ -289,44 +306,13 @@ export default function GymbroCard({
           </div>
         )}
 
-        {/* Footer: weakness, rarity */}
-        <div className="flex items-center justify-between gap-2 pt-0.5">
-          <span className="flex items-center gap-1.5 min-w-0">
-            <Pixel className="text-[6px] leading-none text-[#999999]">WEAKNESS</Pixel>
-            <span className="text-[9px] text-[#555555] truncate">
-              {/* One text node, always: a conditional empty string here renders an
-                  empty node on the client that the server never emitted. */}
-              {[weakness.pip, weakness.label.toLowerCase()].filter(Boolean).join(" ")}
-            </span>
-          </span>
-          <Pixel className="text-[6px] leading-none shrink-0" style={{ color: rarity.ink }}>
-            {rarity.label}
-          </Pixel>
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-[#f5f5f5]">
+          <Label>
+            {card.level} session{card.level === 1 ? "" : "s"}
+          </Label>
+          <Label>{card.sessionsThisWeek} this week</Label>
         </div>
-
-        {/* Progress to target reads as the card's XP bar. */}
-        {card.progressPct != null && (
-          <div className="mt-2">
-            <div className="h-[6px] bg-black/10 rounded-[2px] overflow-hidden flex gap-[2px] p-[1px]">
-              {Array.from({ length: 20 }).map((_, i) => (
-                <span
-                  key={i}
-                  className="flex-1 rounded-[1px]"
-                  style={{
-                    backgroundColor:
-                      i < Math.round(card.progressPct! / 5) ? energy.colour : "transparent",
-                  }}
-                />
-              ))}
-            </div>
-            <div className="flex justify-between mt-1">
-              <Pixel className="text-[6px] leading-none text-[#999999]">
-                {card.progressPct}% TO GOAL
-              </Pixel>
-              <Pixel className="text-[6px] leading-none text-[#999999]">{target}KG</Pixel>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
