@@ -94,7 +94,7 @@ export default function FriendProfilePage() {
     return (
       <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         {backButton}
-        <div className="rounded-[18px] bg-[#eeeeee] animate-pulse" style={{ aspectRatio: "63/88" }} />
+        <div className="rounded-2xl bg-[#f5f5f5] animate-pulse h-[520px]" />
       </main>
     )
   }
@@ -103,8 +103,8 @@ export default function FriendProfilePage() {
     return (
       <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         {backButton}
-        <p className="font-pixel text-[10px] leading-[1.8] text-[#aaaaaa] text-center mt-20">
-          {error === "forbidden" ? "NOT YOUR GYMBRO" : "NO CARD FOUND"}
+        <p className="text-sm text-[#aaaaaa] text-center mt-20">
+          {error === "forbidden" ? "Not your gymbro" : "No card found"}
         </p>
       </main>
     )
@@ -137,14 +137,14 @@ export default function FriendProfilePage() {
       />
 
       <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
-        tap a move to hype it · {profile.email}
+        tap a record to hype it · {profile.email}
       </p>
 
       {/* Sticky jab bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
         {jabSent ? (
           <div className="h-11 flex items-center justify-center rounded-xl bg-[#111111] animate-fade-in">
-            <span className="font-pixel text-[8px] leading-none text-white">SENT ✓</span>
+            <span className="text-[11px] font-medium text-white">Sent ✓</span>
           </div>
         ) : (
           <div className="flex gap-2">

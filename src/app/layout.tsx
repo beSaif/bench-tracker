@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next"
 import "@fontsource-variable/inter"
-// Latin subset only: the pixel face is used for headings on the gymbro card.
-import "@fontsource/press-start-2p/latin-400.css"
 import "./globals.css"
 import SwRegistrar from "@/components/SwRegistrar"
 import MiniPlayerBar from "@/components/MiniPlayerBar"
