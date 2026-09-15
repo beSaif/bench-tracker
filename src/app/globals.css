@@ -87,10 +87,35 @@ body {
 .animate-holo-sweep { animation: holo-sweep 3.6s ease-in-out infinite; }
 .animate-pixel-blink { animation: pixel-blink 1.6s steps(1, end) infinite; }
 
+/* ---- Session progress dashes -------------------------------------------- */
+
+/* A set joining or leaving the plan should read as the row making room for it,
+   not as a redraw. flex-grow is what is animated, so every other dash reflows
+   on the same curve instead of snapping to its new width. */
+@keyframes dash-in {
+  from { flex-grow: 0; opacity: 0; margin-left: 0; margin-right: 0; transform: scaleY(0.25); }
+  to   { flex-grow: 1; opacity: 1; margin-left: var(--dash-ml); margin-right: var(--dash-mr); transform: scaleY(1); }
+}
+
+@keyframes dash-out {
+  from { flex-grow: 1; opacity: 1; margin-left: var(--dash-ml); margin-right: var(--dash-mr); transform: scaleY(1); }
+  to   { flex-grow: 0; opacity: 0; margin-left: 0; margin-right: 0; transform: scaleY(0.25); }
+}
+
+.animate-dash-in  { animation: dash-in 340ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.animate-dash-out { animation: dash-out 240ms cubic-bezier(0.55, 0, 1, 0.45) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .animate-card-enter,
   .animate-holo-sweep,
   .animate-pixel-blink {
     animation: none;
+  }
+
+  /* Kept as a 1ms animation rather than none: the dash row relies on
+     animationend to drop a dash that has left the plan. */
+  .animate-dash-in,
+  .animate-dash-out {
+    animation-duration: 1ms;
   }
 }
