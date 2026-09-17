@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation"
 import PublishRoutineModal from "@/components/PublishRoutineModal"
 import { UserProfile } from "@/lib/types"
 import {
+  RoutineBundle,
   RoutineDetail,
   RoutineMeta,
   buildRoutineBundle,
   routineFingerprint,
+  summarizeRoutine,
 } from "@/lib/routines"
 import {
   applyRoutineBundle,
@@ -33,14 +35,15 @@ export default function RoutineDetailPage({
   const [routine, setRoutine] = useState<RoutineDetail | null>(null)
 
   /**
-   * The fingerprint of the split currently on this device, for the drift badge.
-   * Seeded from localStorage so the badge is right on the first paint; the KV read
-   * below replaces it. Nothing renders it directly, so there is no hydration risk.
+   * The split currently on this device: what the author's drift notice compares
+   * against, and what the adopt confirmation tells the reader they are giving up.
+   * Seeded from localStorage so both are right on the first paint; the KV read in
+   * the effect below replaces it.
    */
-  const [liveFingerprint, setLiveFingerprint] = useState<string | null>(() =>
+  const [liveBundle, setLiveBundle] = useState<RoutineBundle | null>(() =>
     typeof window === "undefined"
       ? null
-      : routineFingerprint(buildRoutineBundle(loadExerciseConfigLocal(), loadTrainingDaysLocal()))
+      : buildRoutineBundle(loadExerciseConfigLocal(), loadTrainingDaysLocal())
   )
 
   const [confirmingAdopt, setConfirmingAdopt] = useState(false)
@@ -73,7 +76,7 @@ export default function RoutineDetailPage({
 
     Promise.all([loadExerciseConfig(), loadTrainingDays()])
       .then(([config, days]) => {
-        if (!cancelled) setLiveFingerprint(routineFingerprint(buildRoutineBundle(config, days)))
+        if (!cancelled) setLiveBundle(buildRoutineBundle(config, days))
       })
       .catch(() => {})
 
@@ -95,6 +98,17 @@ export default function RoutineDetailPage({
     [id]
   )
 
+  const liveFingerprint = useMemo(
+    () => (liveBundle ? routineFingerprint(liveBundle) : null),
+    [liveBundle]
+  )
+
+  /** What the reader has now, so the confirmation can spell out the trade concretely. */
+  const liveSummary = useMemo(
+    () => (liveBundle ? summarizeRoutine(liveBundle) : null),
+    [liveBundle]
+  )
+
   const drifted =
     routine !== null && liveFingerprint !== null && liveFingerprint !== routine.fingerprint
 
@@ -111,7 +125,7 @@ export default function RoutineDetailPage({
       const fresh = (await res.json()) as RoutineDetail
       applyRoutineBundle(fresh.bundle)
       setRoutine(fresh)
-      setLiveFingerprint(fresh.fingerprint)
+      setLiveBundle(fresh.bundle)
       setAdopted(true)
       setConfirmingAdopt(false)
     } catch {
@@ -268,31 +282,86 @@ export default function RoutineDetailPage({
       ) : !routine.mine ? (
         <div className="mb-6">
           {confirmingAdopt ? (
-            <div className="border border-[#e8e8e8] rounded-xl px-4 py-4 bg-white">
-              <p className="text-sm font-semibold text-[#111111] mb-2">
-                Use this routine?
+            <div className="border border-[#f5c86b] bg-[#fffbeb] rounded-xl px-4 py-4">
+              <div className="flex items-start gap-2 mb-3">
+                <svg
+                  width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#b45309"
+                  strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                  className="shrink-0 mt-0.5" aria-hidden="true"
+                >
+                  <path d="M8 1.8L15 14H1L8 1.8z" />
+                  <line x1="8" y1="6" x2="8" y2="9.5" />
+                  <line x1="8" y1="11.5" x2="8" y2="11.6" />
+                </svg>
+                <p className="text-sm font-semibold text-[#92400e]">
+                  This overwrites your current setup
+                </p>
+              </div>
+
+              {/* What they have now, against what they would have instead. Concrete
+                  beats abstract here — "Day A, Day B, Day C" lands where "your
+                  training days" does not. */}
+              {liveBundle && liveSummary && (
+                <div className="bg-white/70 border border-[#f5e0b0] rounded-lg divide-y divide-[#f5e0b0] mb-3.5">
+                  <div className="px-3 py-2.5">
+                    <p className="text-[9px] font-semibold uppercase tracking-widest text-[#b45309] mb-1">
+                      You lose
+                    </p>
+                    <p className="text-xs font-semibold text-[#111111] leading-snug">
+                      {liveSummary.dayCount === 0
+                        ? "No training days"
+                        : liveBundle.trainingDays.map((d) => d.name).join(", ")}
+                    </p>
+                    <p className="text-[11px] text-[#777777] mt-0.5">
+                      {liveSummary.groupCount} muscle group
+                      {liveSummary.groupCount !== 1 ? "s" : ""} ·{" "}
+                      {liveSummary.exerciseCount} exercise
+                      {liveSummary.exerciseCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="px-3 py-2.5">
+                    <p className="text-[9px] font-semibold uppercase tracking-widest text-[#1e3a5f] mb-1">
+                      You get
+                    </p>
+                    <p className="text-xs font-semibold text-[#111111] leading-snug">
+                      {bundle.trainingDays.map((d) => d.name).join(", ")}
+                    </p>
+                    <p className="text-[11px] text-[#777777] mt-0.5">
+                      {summary.groupCount} muscle group
+                      {summary.groupCount !== 1 ? "s" : ""} ·{" "}
+                      {summary.exerciseCount} exercise
+                      {summary.exerciseCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-[#92400e] leading-relaxed mb-2">
+                Every muscle group, exercise, set count and day you set up yourself is
+                replaced. There is no undo — if you want your split back you rebuild it
+                by hand, so publish it first if it took you a while.
               </p>
-              <ul className="text-xs text-[#777777] space-y-1 mb-4 list-disc pl-4">
-                <li>Your muscle groups and training days are replaced by the ones below.</li>
-                <li>Every session you have logged stays exactly as it is.</li>
-                <li>Your training focus, main lift and target are not touched.</li>
-                <li>You can edit any of it afterwards — it becomes your own copy.</li>
-              </ul>
-              {adoptError && <p className="text-xs text-red-500 mb-3">{adoptError}</p>}
+              <p className="text-xs text-[#555555] leading-relaxed mb-4">
+                Safe either way: every session you have logged, your training focus,
+                main lift, target and weight log are untouched. Old sessions keep their
+                muscle names. Once you switch, the routine is yours to edit.
+              </p>
+
+              {adoptError && <p className="text-xs text-red-600 mb-3">{adoptError}</p>}
               <div className="flex gap-3">
                 <button
                   onClick={adopt}
                   disabled={adopting}
-                  className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-2 hover:bg-[#16304f] transition-colors disabled:opacity-40"
+                  className="text-xs font-semibold text-white bg-red-500 rounded-lg px-4 py-2 hover:bg-red-600 transition-colors disabled:opacity-40"
                 >
-                  {adopting ? "Switching…" : "Use this routine"}
+                  {adopting ? "Switching…" : "Overwrite my setup"}
                 </button>
                 <button
                   onClick={() => setConfirmingAdopt(false)}
                   disabled={adopting}
                   className="text-xs font-semibold text-[#777777] hover:text-[#333333] transition-colors disabled:opacity-40"
                 >
-                  Cancel
+                  Keep mine
                 </button>
               </div>
             </div>
