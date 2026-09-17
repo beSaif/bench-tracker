@@ -63,6 +63,32 @@ export function messageInboxKey(email: string): string {
   return `user:${normalize(email)}:messages`
 }
 
+/** A published routine, bundle and all. The id doubles as the share code. */
+export function routineKey(id: string): string {
+  return `routine:${id}`
+}
+
+/** Set of emails that have adopted a routine — the dedupe behind the adoption count. */
+export function routineAdoptersKey(id: string): string {
+  return `routine:${id}:adopters`
+}
+
+/**
+ * The adoption count, kept as its own integer so the directory can read every
+ * routine's count in a single `mget` instead of one `scard` per routine.
+ */
+export function routineAdoptionsKey(id: string): string {
+  return `routine:${id}:adoptions`
+}
+
+/** Routine ids a user has published, listed or not. */
+export function authoredRoutinesKey(email: string): string {
+  return `user:${normalize(email)}:routines`
+}
+
+/** Ids of every routine that opted into the public directory. */
+export const ROUTINES_INDEX_KEY = "routines:index"
+
 export const LEGACY_SESSIONS_KEY = "bench-tracker-sessions"
 export const LEGACY_EXERCISES_KEY = "bench-tracker-exercises"
 

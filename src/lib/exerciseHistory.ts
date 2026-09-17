@@ -9,15 +9,41 @@ import { ExtraSet, Session } from "./types"
  * unsorted array silently returns the wrong "last time".
  */
 
-/** The most recent session that logged this exercise, with the sets it logged. */
+/**
+ * Case, spacing and punctuation folded away, so "Lat Pull-Down" and "lat pulldown"
+ * are the same lift. Only ever used as a fallback after an exact match fails, and
+ * only equality — never fuzzy distance — so it cannot confuse "Dumbbell Curl" with
+ * "Dumbbell Curls".
+ */
+function normalize(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+/**
+ * The most recent session that logged this exercise, with the sets it logged.
+ *
+ * An exact name match wins outright. Failing that, the scan runs again against
+ * normalized names: adopting someone else's split renames the same lift as often as
+ * it replaces it, and a lift that came back as "Lat Pull Down" should still prefill
+ * from the "Lat Pulldown" you have been logging for months.
+ */
 export function findLastSessionWithExercise(
   exerciseName: string,
   history: Session[]
 ): { session: Session; sets: ExtraSet[] } | null {
+  return matchExercise(exerciseName, history, (a, b) => a === b)
+    ?? matchExercise(exerciseName, history, (a, b) => normalize(a) === normalize(b))
+}
+
+function matchExercise(
+  exerciseName: string,
+  history: Session[],
+  matches: (candidate: string, target: string) => boolean
+): { session: Session; sets: ExtraSet[] } | null {
   for (const session of history) {
     for (const workout of session.extraWorkouts ?? []) {
       for (const exercise of workout.exercises) {
-        if (exercise.name === exerciseName && exercise.sets.length > 0) {
+        if (matches(exercise.name, exerciseName) && exercise.sets.length > 0) {
           return { session, sets: exercise.sets }
         }
       }

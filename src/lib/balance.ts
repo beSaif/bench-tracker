@@ -125,7 +125,12 @@ export function muscleRecovery(
   const order = new Map<MuscleGroup, number>()
   exerciseConfig.forEach((g) => order.set(g.id, g.order))
 
-  const ids = new Set<MuscleGroup>([...exerciseConfig.map((g) => g.id), ...seen])
+  // Retired groups are not part of the split any more, so they earn a recovery row
+  // only when history actually has work under them — which is what `seen` carries.
+  const ids = new Set<MuscleGroup>([
+    ...exerciseConfig.filter((g) => !g.retired).map((g) => g.id),
+    ...seen,
+  ])
 
   return [...ids]
     .map((id): MuscleRecovery => {

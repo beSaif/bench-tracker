@@ -12,6 +12,15 @@ export interface MuscleGroupConfig {
   name: string
   exercises: ExerciseConfig[]
   order: number
+  /**
+   * A group that is no longer part of the user's split but is kept so sessions that
+   * logged it still resolve its name. Retired groups carry no exercises and are
+   * hidden everywhere a group can be chosen — `sortedMuscleGroups` filters them,
+   * which is what every picker in the app builds from. Only `getMuscleLabel` looks
+   * at them, which is the whole point: deleting a group, or replacing your split
+   * with someone else's, must not turn last month's history into raw slugs.
+   */
+  retired?: boolean
 }
 
 export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
@@ -81,14 +90,64 @@ export function getDefaultSets(ex: ExerciseConfig): number {
   return ex.defaultSets ?? (ex.order === 0 ? 3 : 2)
 }
 
+/** The groups the user actually trains, in order. Retired groups are never included. */
 export function sortedMuscleGroups(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
-  return [...config].sort((a, b) => a.order - b.order)
+  return config.filter((g) => !g.retired).sort((a, b) => a.order - b.order)
 }
 
+/**
+ * Retire the groups the incoming config drops, so their names survive in history.
+ *
+ * Used when a published routine replaces the user's split: any group the new config
+ * has no entry for is appended as a name-only tombstone. Tombstones already present
+ * in `outgoing` are carried forward, oldest dropped first past `RETIRED_GROUP_LIMIT`
+ * so switching splits repeatedly cannot grow the config without bound.
+ */
+export const RETIRED_GROUP_LIMIT = 60
+
+export function retireReplacedGroups(
+  incoming: MuscleGroupConfig[],
+  outgoing: MuscleGroupConfig[]
+): MuscleGroupConfig[] {
+  const liveIds = new Set(incoming.map((g) => g.id))
+  const tombstones: MuscleGroupConfig[] = []
+
+  for (const group of outgoing) {
+    if (liveIds.has(group.id)) continue
+    liveIds.add(group.id)
+    tombstones.push({
+      id: group.id,
+      name: group.name,
+      order: incoming.length + tombstones.length,
+      exercises: [],
+      retired: true,
+    })
+  }
+
+  return [...incoming, ...tombstones.slice(-RETIRED_GROUP_LIMIT)]
+}
+
+/**
+ * The display name for a muscle group id, including retired ones.
+ *
+ * A group deleted before tombstones existed leaves nothing to look up, so the
+ * fallback reads the name back out of the id instead: `generateId` builds ids as
+ * `<slug>-<base36 timestamp>`, so dropping that suffix and title-casing the slug
+ * recovers "Lower Back" from "lower-back-m1k2j3" rather than showing the slug.
+ */
 export function getMuscleLabel(config: MuscleGroupConfig[], id: string): string {
   const found = config.find((g) => g.id === id)
   if (found) return found.name
-  return id.charAt(0).toUpperCase() + id.slice(1)
+  return labelFromId(id)
+}
+
+function labelFromId(id: string): string {
+  const slug = id.replace(/-[0-9a-z]{6,}$/, "") || id
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
 }
 
 export function getExercisesForMuscle(config: MuscleGroupConfig[], id: string): string[] {
@@ -115,9 +174,10 @@ function isBenchPress(name: string): boolean {
 }
 
 function findChestGroup(config: MuscleGroupConfig[]): MuscleGroupConfig | undefined {
+  const live = config.filter((g) => !g.retired)
   return (
-    config.find((g) => g.id === CHEST_GROUP_ID) ??
-    config.find((g) => normalize(g.name) === CHEST_GROUP_ID)
+    live.find((g) => g.id === CHEST_GROUP_ID) ??
+    live.find((g) => normalize(g.name) === CHEST_GROUP_ID)
   )
 }
 
@@ -217,7 +277,7 @@ export function findSimilarExercises(name: string, config: MuscleGroupConfig[]):
   const na = normalize(name)
   if (na.length < 3) return []
   const similar: string[] = []
-  for (const group of config) {
+  for (const group of config.filter((g) => !g.retired)) {
     for (const ex of group.exercises) {
       const nb = normalize(ex.name)
       if (nb === na) { similar.push(ex.name); continue }

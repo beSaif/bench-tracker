@@ -92,6 +92,24 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
             </Link>
 
             <Link
+              href="/routines"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                pathname.startsWith("/routines")
+                  ? "bg-[#eff6ff] text-[#1e3a5f]"
+                  : "text-[#333333] hover:bg-[#f5f5f5]"
+              }`}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 2.5h7.5L13 5v8.5a1 1 0 01-1 1H4a1 1 0 01-1-1v-10a1 1 0 011-1z" />
+                <path d="M10 2.5V5h3" />
+                <line x1="5.5" y1="8" x2="10.5" y2="8" />
+                <line x1="5.5" y1="10.5" x2="9" y2="10.5" />
+              </svg>
+              Routines
+            </Link>
+
+            <Link
               href="/history"
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
