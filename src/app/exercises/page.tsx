@@ -7,9 +7,11 @@ import {
   DEFAULT_MUSCLE_GROUPS,
   DEFAULT_TRAINING_DAYS,
   generateId,
+  retireReplacedGroups,
 } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
 import TrainingModeSelector from "@/components/TrainingModeSelector"
+import RoutineShareSection from "@/components/RoutineShareSection"
 import {
   loadExerciseConfigLocal,
   loadExerciseConfig,
@@ -99,7 +101,10 @@ export default function ExercisesPage() {
         ? `Delete "${group.name}" and its ${exCount} exercise${exCount !== 1 ? "s" : ""}? History is kept.`
         : `Delete "${group.name}"?`
     if (!window.confirm(msg)) return
-    persistConfig(config.filter((g) => g.id !== group.id))
+    // Retired, not dropped: the confirmation above promises history is kept, and
+    // sessions that logged this group resolve its name through the tombstone.
+    const live = config.filter((g) => g.id !== group.id && !g.retired)
+    persistConfig(retireReplacedGroups(live, config))
     // Remove from any training day
     persistDays(trainingDays.map((d) => ({
       ...d,
@@ -195,7 +200,7 @@ export default function ExercisesPage() {
     )
   }
 
-  const sortedGroups = [...config].sort((a, b) => a.name.localeCompare(b.name))
+  const sortedGroups = config.filter((g) => !g.retired).sort((a, b) => a.name.localeCompare(b.name))
   const sortedDays = [...trainingDays].sort((a, b) => a.order - b.order)
 
   // Which muscles are already assigned to some day
@@ -219,6 +224,9 @@ export default function ExercisesPage() {
 
       {/* ─── Training Focus ─── */}
       <TrainingModeSelector />
+
+      {/* ─── Routines ─── */}
+      <RoutineShareSection config={config} trainingDays={trainingDays} />
 
       {/* ─── Training Days ─── */}
       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">

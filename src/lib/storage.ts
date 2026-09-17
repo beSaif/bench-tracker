@@ -1,5 +1,6 @@
 import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig } from "./exerciseConfig"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig, retireReplacedGroups } from "./exerciseConfig"
+import { RoutineBundle } from "./routines"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
 
@@ -334,6 +335,32 @@ export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
   else saveExerciseConfigLocal(config)
   markExerciseMigrationDone()
   return config
+}
+
+/**
+ * Switch this account over to an adopted routine.
+ *
+ * The routine's groups and days replace what was there — that is the whole point of
+ * adopting one, and the screen that calls this confirms it first. What does NOT
+ * happen is losing the names behind past sessions: every group the routine drops is
+ * carried over as a retired entry, so a session logged under "Lower Back" still says
+ * "Lower Back" in History after the swap.
+ *
+ * Nothing about the user's training mode, main lift, anchor, target or bodyweight is
+ * touched, and no logged session is rewritten. In lift-focused mode the main lift is
+ * prescribed from the profile rather than from the muscle groups, so adopting a
+ * routine cannot displace it from the front of a session.
+ *
+ * Returns what was written, so the caller can update its own state without a reload.
+ */
+export function applyRoutineBundle(bundle: RoutineBundle): {
+  config: MuscleGroupConfig[]
+  trainingDays: TrainingDay[]
+} {
+  const config = retireReplacedGroups(bundle.muscleGroups, loadExerciseConfigLocal())
+  saveExerciseConfig(config)
+  saveTrainingDays(bundle.trainingDays)
+  return { config, trainingDays: bundle.trainingDays }
 }
 
 /** Save exercise config to localStorage (sync) and KV (async, best-effort). */
