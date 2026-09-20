@@ -1,16 +1,7 @@
 "use client"
 
 import { useState } from "react"
-
-const PRESETS = [
-  "skipping again? 🐔",
-  "seen your last set lol 😂",
-  "my grandma moves more weight bro",
-  "GET IN THE GYM 🔱",
-  "actually showed up today?? 👀",
-  "still waiting on that 100kg... 😴",
-  "LET'S GO 🔥",
-]
+import { ROAST_PRESETS } from "@/lib/messages"
 
 interface Props {
   recipientLabel: string
@@ -74,7 +65,7 @@ export default function MessageComposer({ recipientLabel, toEmail, onSent, onClo
 
       {/* Preset buttons */}
       <div className="flex flex-col gap-2">
-        {PRESETS.map((p, i) => (
+        {ROAST_PRESETS.map((p, i) => (
           <button
             key={p}
             onClick={() => send(p)}
