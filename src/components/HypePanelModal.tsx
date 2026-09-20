@@ -3,16 +3,7 @@
 import { useState } from "react"
 import { UserProfile, TRAINING_MODE_LABEL } from "@/lib/types"
 import { isLiftFocused } from "@/lib/trainingMode"
-
-const PRESETS = [
-  "skipping again? 🐔",
-  "seen your last set lol 😂",
-  "my grandma moves more weight bro",
-  "GET IN THE GYM 🔱",
-  "actually showed up today?? 👀",
-  "still waiting on that 100kg... 😴",
-  "LET'S GO 🔥",
-]
+import { ROAST_PRESETS } from "@/lib/messages"
 
 function initials(name: string) {
   return name
@@ -211,7 +202,7 @@ export default function HypePanelModal({ friends, onClose, onShareWorkout }: Pro
         {/* Composer */}
         {inComposer && (
           <div className="flex flex-col gap-2.5">
-            {PRESETS.map((p, i) => (
+            {ROAST_PRESETS.map((p, i) => (
               <button
                 key={p}
                 onClick={() => send(p)}
