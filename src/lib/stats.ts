@@ -1,4 +1,4 @@
-import { MuscleGroup, Session } from "@/lib/types"
+import { MuscleGroup, Session, isCardioSet } from "@/lib/types"
 
 export function getBestE1RM(sessions: Session[]): number | null {
   const validSets = sessions
@@ -51,10 +51,12 @@ export interface WorkSummary {
   exercises: number
   /** Working sets across the main lift and every accessory. */
   sets: number
-  /** Total tonnage (kg × reps) across those sets. */
+  /** Total tonnage (kg × reps) across those sets. Cardio adds nothing to it. */
   volume: number
   /** Heaviest single set of the session, whatever exercise it came from. */
   topSet: { kg: number; reps: number; exercise: string } | null
+  /** Minutes of cardio logged, across every timed exercise. 0 when there was none. */
+  cardioMinutes: number
 }
 
 /**
@@ -74,12 +76,20 @@ export function sessionWork(session: Session, mainLiftLabel = "Main Lift"): Work
       : null
   let topSetLabel = mainLiftLabel
 
+  let cardioMinutes = 0
+
   for (const workout of extras) {
     for (const exercise of workout.exercises) {
       if (exercise.sets.length === 0) continue
       exercises += 1
       sets += exercise.sets.length
       for (const set of exercise.sets) {
+        // A cardio bout carries time, not load: it counts as work done, but it can
+        // neither add tonnage nor become the session's top set at 0kg.
+        if (isCardioSet(set)) {
+          cardioMinutes += set.minutes ?? 0
+          continue
+        }
         volume += set.kg * set.reps
         if (topSet == null || set.kg > topSet.kg) {
           topSet = set
@@ -100,5 +110,6 @@ export function sessionWork(session: Session, mainLiftLabel = "Main Lift"): Work
     sets,
     volume: Math.round(volume),
     topSet: topSet ? { kg: topSet.kg, reps: topSet.reps, exercise: topSetLabel } : null,
+    cardioMinutes: Math.round(cardioMinutes),
   }
 }

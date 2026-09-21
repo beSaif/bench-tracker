@@ -21,6 +21,36 @@ export interface MuscleGroupConfig {
    * with someone else's, must not turn last month's history into raw slugs.
    */
   retired?: boolean
+  /**
+   * A library of timed work rather than a muscle group: its exercises are logged in
+   * minutes, not kg x reps. It is deliberately outside the split — never offered as a
+   * training day's muscle, never published in a routine, never given a recovery bar —
+   * so the coach keeps prescribing the same sessions and cardio stays something you
+   * reach for yourself, from the Add tab of the exercises sheet.
+   */
+  cardio?: boolean
+}
+
+export const CARDIO_GROUP_ID = "cardio"
+
+/**
+ * The cardio library every account gets. One bout each by default — "10 minutes of
+ * treadmill" is one entry, not three sets of it.
+ */
+export const DEFAULT_CARDIO_GROUP: MuscleGroupConfig = {
+  id: CARDIO_GROUP_ID,
+  name: "Cardio",
+  order: 6,
+  cardio: true,
+  exercises: [
+    { id: "treadmill", name: "Treadmill", order: 0, defaultSets: 1 },
+    { id: "incline-walk", name: "Incline Walk", order: 1, defaultSets: 1 },
+    { id: "stationary-bike", name: "Stationary Bike", order: 2, defaultSets: 1 },
+    { id: "rowing-machine", name: "Rowing Machine", order: 3, defaultSets: 1 },
+    { id: "elliptical", name: "Elliptical", order: 4, defaultSets: 1 },
+    { id: "stair-climber", name: "Stair Climber", order: 5, defaultSets: 1 },
+    { id: "jump-rope", name: "Jump Rope", order: 6, defaultSets: 1 },
+  ],
 }
 
 export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
@@ -84,15 +114,42 @@ export const DEFAULT_MUSCLE_GROUPS: MuscleGroupConfig[] = [
       { id: "leg-press", name: "Leg Press", order: 2 },
     ],
   },
+  DEFAULT_CARDIO_GROUP,
 ]
+
+/** What a cardio bout opens at when there is nothing to copy from. */
+export const DEFAULT_CARDIO_MINUTES = 10
+
+export function isCardioGroup(group: MuscleGroupConfig): boolean {
+  return group.cardio === true
+}
+
+/** Whether a muscle id names a cardio library, so its sets are logged as minutes. */
+export function isCardioMuscle(config: MuscleGroupConfig[], id: string): boolean {
+  const group = config.find((g) => g.id === id)
+  return group ? isCardioGroup(group) : false
+}
+
+/** The cardio libraries the user can add from, in order. */
+export function sortedCardioGroups(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
+  return config.filter((g) => !g.retired && isCardioGroup(g)).sort((a, b) => a.order - b.order)
+}
 
 export function getDefaultSets(ex: ExerciseConfig): number {
   return ex.defaultSets ?? (ex.order === 0 ? 3 : 2)
 }
 
-/** The groups the user actually trains, in order. Retired groups are never included. */
+/**
+ * The muscle groups the user's split is built from, in order.
+ *
+ * Retired groups are never included, and neither are cardio libraries: this is the
+ * list every picker that asks "which muscle?" builds from — training days, group
+ * swaps, published routines — and cardio belongs to none of them. Use
+ * `sortedCardioGroups` for those, or both together where the question is simply
+ * "what can I add?".
+ */
 export function sortedMuscleGroups(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
-  return config.filter((g) => !g.retired).sort((a, b) => a.order - b.order)
+  return config.filter((g) => !g.retired && !isCardioGroup(g)).sort((a, b) => a.order - b.order)
 }
 
 /**
@@ -110,21 +167,31 @@ export function retireReplacedGroups(
   outgoing: MuscleGroupConfig[]
 ): MuscleGroupConfig[] {
   const liveIds = new Set(incoming.map((g) => g.id))
+  const carried: MuscleGroupConfig[] = []
   const tombstones: MuscleGroupConfig[] = []
 
   for (const group of outgoing) {
     if (liveIds.has(group.id)) continue
     liveIds.add(group.id)
+    // A cardio library is not part of the split, so a split that replaces this one has
+    // nothing to say about it: it survives intact, exercises and all. Retiring it would
+    // cost the user their cardio list every time they adopted someone else's routine.
+    if (isCardioGroup(group) && !group.retired) {
+      carried.push(group)
+      continue
+    }
     tombstones.push({
       id: group.id,
       name: group.name,
-      order: incoming.length + tombstones.length,
+      order: 0,
       exercises: [],
       retired: true,
     })
   }
 
-  return [...incoming, ...tombstones.slice(-RETIRED_GROUP_LIMIT)]
+  return [...incoming, ...carried, ...tombstones.slice(-RETIRED_GROUP_LIMIT)].map((g, i) =>
+    i < incoming.length ? g : { ...g, order: i }
+  )
 }
 
 /**
@@ -161,7 +228,7 @@ const BENCH_PRESS_NAME = "Bench Press"
 const CHEST_GROUP_ID = "chest"
 
 /** Bump when a new one-time repair is added to `migrateExerciseConfig`. */
-export const EXERCISE_CONFIG_MIGRATION = 1
+export const EXERCISE_CONFIG_MIGRATION = 2
 
 /**
  * Any bench press, however the user named it — "Barbell Bench", "Flat Bench Press".
@@ -199,6 +266,10 @@ function findChestGroup(config: MuscleGroupConfig[]): MuscleGroupConfig | undefi
  * config is worth writing back.
  */
 export function migrateExerciseConfig(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
+  return addCardioGroup(addBenchPress(config))
+}
+
+function addBenchPress(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
   const chest = findChestGroup(config)
   if (!chest || chest.exercises.some((e) => isBenchPress(e.name))) return config
 
@@ -208,6 +279,20 @@ export function migrateExerciseConfig(config: MuscleGroupConfig[]): MuscleGroupC
   ].map((e, i) => ({ ...e, order: i, defaultSets: e.defaultSets ?? getDefaultSets(e) }))
 
   return config.map((g) => (g === chest ? { ...g, exercises } : g))
+}
+
+/**
+ * Give an existing account the cardio library, which the defaults only ever hand to an
+ * account that has never saved a config of its own.
+ *
+ * Appended last and outside the split, so nothing about the user's training days or
+ * prescriptions changes — the exercises are simply there to add. A config that already
+ * has a cardio library, under any name, is left alone; so is one carrying a retired
+ * "cardio" tombstone, since reusing that id would resurrect a group the user deleted.
+ */
+function addCardioGroup(config: MuscleGroupConfig[]): MuscleGroupConfig[] {
+  if (config.some((g) => isCardioGroup(g) || g.id === CARDIO_GROUP_ID)) return config
+  return [...config, { ...DEFAULT_CARDIO_GROUP, order: config.length }]
 }
 
 /**

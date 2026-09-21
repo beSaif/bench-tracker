@@ -11,7 +11,7 @@ import {
 import { calcE1RM } from "@/lib/e1rm"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, getSessionExercisesForMuscle, sortedMuscleGroups, getDefaultSets } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, getSessionExercisesForMuscle, sortedMuscleGroups, sortedCardioGroups, isCardioMuscle, getDefaultSets, DEFAULT_CARDIO_MINUTES } from "@/lib/exerciseConfig"
 import { getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
 import {
   DndContext,
@@ -47,6 +47,11 @@ const EXTRA_KG_VALUES = Array.from(
   (_, i) => i * 2.5
 )
 const EXTRA_REPS_VALUES = Array.from({ length: 30 }, (_, i) => i + 1)
+/** Every minute up to an hour, then coarser — nobody dials 73 minutes one click at a time. */
+const CARDIO_MIN_VALUES = [
+  ...Array.from({ length: 60 }, (_, i) => i + 1),
+  ...Array.from({ length: 12 }, (_, i) => 65 + i * 5),
+]
 
 interface LogSessionModalProps {
   session: Session
@@ -69,6 +74,13 @@ interface EditableSet extends MainLiftSet {
 interface EditableExtraSet {
   kgStr: string
   repsStr: string
+  /**
+   * Minutes, on a cardio set only. Its presence is what makes the card show a
+   * duration dial instead of kg x reps, and what makes `handleConfirm` write the set
+   * out as timed work — so it is set once, when the exercise is seeded, and kept
+   * through every edit.
+   */
+  minutesStr?: string
   /**
    * Seeded, never touched by the user. A pristine set follows the set above it as
    * that one is dialled in, so a brand-new exercise only has to be typed once.
@@ -167,10 +179,13 @@ function SortableGroupRow({
       ? mainLiftLabel
       : `${getMuscleLabel(exerciseConfig, group.muscle)} · ${group.exercise}`
 
+  const isCardio = group.kind === "extra" && isCardioMuscle(exerciseConfig, group.muscle)
+
   let count: number
   let completedCount: number
   let topKg: number | null = null
   let topReps: number | null = null
+  let topMinutes: number | null = null
 
   if (group.kind === "main") {
     count = sets.length
@@ -189,12 +204,20 @@ function SortableGroupRow({
       completedSets.has(`extra-${group.muscle}-${group.exercise}-${i}`)
     )
     completedCount = completedExtra.length
-    const topSet = completedExtra.reduce<EditableExtraSet | null>((best, s) => {
-      const kg = parseFloat(s.kgStr)
-      const bkg = best ? parseFloat(best.kgStr) : -1
-      return kg > bkg || (kg === bkg && parseInt(s.repsStr) > parseInt(best!.repsStr)) ? s : best
-    }, null)
-    if (topSet) { topKg = parseFloat(topSet.kgStr); topReps = parseInt(topSet.repsStr) }
+    if (isCardio) {
+      // A cardio row reads as the time put in, so its "top" is the longest bout.
+      const longest = completedExtra.reduce<number>(
+        (best, s) => Math.max(best, parseFloat(s.minutesStr ?? "0") || 0), 0
+      )
+      if (longest > 0) topMinutes = longest
+    } else {
+      const topSet = completedExtra.reduce<EditableExtraSet | null>((best, s) => {
+        const kg = parseFloat(s.kgStr)
+        const bkg = best ? parseFloat(best.kgStr) : -1
+        return kg > bkg || (kg === bkg && parseInt(s.repsStr) > parseInt(best!.repsStr)) ? s : best
+      }, null)
+      if (topSet) { topKg = parseFloat(topSet.kgStr); topReps = parseInt(topSet.repsStr) }
+    }
   }
 
   return (
@@ -233,11 +256,15 @@ function SortableGroupRow({
           ))}
           <span className="text-[11px] text-[#aaaaaa] ml-0.5">{completedCount} / {count}</span>
         </div>
-        {topKg !== null && topReps !== null && (
+        {topMinutes !== null ? (
+          <p className="text-[10px] text-[#1e3a5f] mt-0.5 font-medium">
+            Longest: {topMinutes} min
+          </p>
+        ) : topKg !== null && topReps !== null ? (
           <p className="text-[10px] text-[#1e3a5f] mt-0.5 font-medium">
             Top: {topKg} × {topReps}
           </p>
-        )}
+        ) : null}
       </div>
       {onDelete && (
         <button
@@ -270,13 +297,17 @@ function toEditable(set: MainLiftSet): EditableSet {
  * rather than 0 × 0: every set of a fresh exercise mirrors this one until it is
  * edited, so correcting the first set corrects them all.
  */
-function defaultExtraSet(): EditableExtraSet {
-  return { kgStr: "10", repsStr: "10", pristine: true }
+function defaultExtraSet(isCardio = false): EditableExtraSet {
+  return isCardio
+    ? { kgStr: "0", repsStr: "0", minutesStr: String(DEFAULT_CARDIO_MINUTES), pristine: true }
+    : { kgStr: "10", repsStr: "10", pristine: true }
 }
 
-/** A copy of a set, as the next set: same load, same reps, and no longer following. */
+/** A copy of a set, as the next set: same numbers, and no longer following. */
 function copyExtraSet(set: EditableExtraSet): EditableExtraSet {
-  return { kgStr: set.kgStr, repsStr: set.repsStr }
+  const copy: EditableExtraSet = { kgStr: set.kgStr, repsStr: set.repsStr }
+  if (set.minutesStr != null) copy.minutesStr = set.minutesStr
+  return copy
 }
 
 /**
@@ -287,15 +318,19 @@ function copyExtraSet(set: EditableExtraSet): EditableExtraSet {
 function seedExerciseSets(
   exerciseName: string,
   numSets: number,
-  previousSessions: Session[]
+  previousSessions: Session[],
+  isCardio = false
 ): EditableExtraSet[] {
   const lastSets = getLastSetsForExercise(exerciseName, previousSessions)
   if (!lastSets || lastSets.length === 0) {
-    return Array.from({ length: numSets }, () => defaultExtraSet())
+    return Array.from({ length: numSets }, () => defaultExtraSet(isCardio))
   }
   return Array.from({ length: numSets }, (_, i) => {
     const source = lastSets[Math.min(i, lastSets.length - 1)]
     const set: EditableExtraSet = { kgStr: String(source.kg), repsStr: String(source.reps) }
+    // History decides the numbers, but the config decides the kind: an exercise moved
+    // into the cardio library still opens as a duration, at whatever it last ran for.
+    if (isCardio) set.minutesStr = String(source.minutes ?? DEFAULT_CARDIO_MINUTES)
     // Only the repeats follow; a set that came from history is already its own.
     return i < lastSets.length ? set : { ...set, pristine: true }
   })
@@ -315,10 +350,11 @@ function initExtraWorkoutState(
     for (const workout of session.extraWorkouts) {
       state[workout.muscle] = {}
       for (const exercise of workout.exercises) {
-        state[workout.muscle][exercise.name] = exercise.sets.map((s) => ({
-          kgStr: String(s.kg),
-          repsStr: String(s.reps),
-        }))
+        state[workout.muscle][exercise.name] = exercise.sets.map((s) => {
+          const set: EditableExtraSet = { kgStr: String(s.kg), repsStr: String(s.reps) }
+          if (s.minutes != null) set.minutesStr = String(s.minutes)
+          return set
+        })
       }
     }
     return state
@@ -328,10 +364,11 @@ function initExtraWorkoutState(
   for (const muscle of groups) {
     state[muscle] = {}
     const muscleGroup = exerciseConfig.find((g) => g.id === muscle)
+    const cardio = isCardioMuscle(exerciseConfig, muscle)
     for (const exerciseName of getSessionExercisesForMuscle(exerciseConfig, muscle, { exclude })) {
       const exConfig = muscleGroup?.exercises.find((e) => e.name === exerciseName)
       const numSets = exConfig ? getDefaultSets(exConfig) : 3
-      state[muscle][exerciseName] = seedExerciseSets(exerciseName, numSets, previousSessions)
+      state[muscle][exerciseName] = seedExerciseSets(exerciseName, numSets, previousSessions, cardio)
     }
   }
   return state
@@ -656,7 +693,7 @@ export default function LogSessionModal({
     muscle: string,
     exercise: string,
     setIndex: number,
-    field: "kg" | "reps",
+    field: "kg" | "reps" | "minutes",
     raw: string
   ) {
     setExtraState((prev) => {
@@ -666,7 +703,9 @@ export default function LogSessionModal({
       const edited: EditableExtraSet =
         field === "kg"
           ? { ...arr[setIndex], kgStr: raw, pristine: false }
-          : { ...arr[setIndex], repsStr: raw, pristine: false }
+          : field === "reps"
+            ? { ...arr[setIndex], repsStr: raw, pristine: false }
+            : { ...arr[setIndex], minutesStr: raw, pristine: false }
 
       // Sets below that are still untouched trail the one being dialled in, so
       // typing set 1 of a new exercise fills the rest of it.
@@ -678,7 +717,9 @@ export default function LogSessionModal({
           trailing = false
           return s
         }
-        return { ...s, kgStr: edited.kgStr, repsStr: edited.repsStr }
+        return s.minutesStr != null
+          ? { ...s, minutesStr: edited.minutesStr }
+          : { ...s, kgStr: edited.kgStr, repsStr: edited.repsStr }
       })
       return next
     })
@@ -777,11 +818,12 @@ export default function LogSessionModal({
       const muscleGroup = exerciseConfig.find((g) => g.id === muscleId)
       const exConfig = muscleGroup?.exercises.find((e) => e.name === exerciseName)
       const count = exConfig ? getDefaultSets(exConfig) : 3
+      const cardio = isCardioMuscle(exerciseConfig, muscleId)
       return {
         ...prev,
         [muscleId]: {
           ...muscleExercises,
-          [exerciseName]: seedExerciseSets(exerciseName, count, previousSessions),
+          [exerciseName]: seedExerciseSets(exerciseName, count, previousSessions, cardio),
         },
       }
     })
@@ -910,11 +952,15 @@ export default function LogSessionModal({
           .filter(([, sets]) => sets.length > 0)
           .map(([name, sets]) => ({
             name,
-            sets: sets.map((s) => ({
-              kg: parseFloat(s.kgStr) || 0,
-              reps: parseInt(s.repsStr, 10) || 0,
-              rpe: null,
-            })),
+            sets: sets.map((s) =>
+              s.minutesStr != null
+                ? { kg: 0, reps: 0, rpe: null, minutes: parseFloat(s.minutesStr) || 0 }
+                : {
+                    kg: parseFloat(s.kgStr) || 0,
+                    reps: parseInt(s.repsStr, 10) || 0,
+                    rpe: null,
+                  }
+            ),
           })),
       }))
 
@@ -944,7 +990,10 @@ export default function LogSessionModal({
         ? `${item.set.id} · ${item.set.kg}kg × ${item.set.reps} (warm-up)`
         : `${item.set.id} · ${item.set.kg}kg × ${item.set.reps}`
     }
-    return `${item.exercise} · Set ${item.setIndex + 1}`
+    const set = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
+    return set?.minutesStr != null
+      ? `${item.exercise} · ${set.minutesStr} min`
+      : `${item.exercise} · Set ${item.setIndex + 1}`
   }
 
   const availableGroups = sortedMuscleGroups(exerciseConfig).filter(
@@ -1082,7 +1131,7 @@ export default function LogSessionModal({
 
         {exercisesSheetTab === "add" && (
           <div className="flex-1 overflow-y-auto py-3 px-4 space-y-3 border-t border-[#f0f0f0]">
-            {sortedMuscleGroups(exerciseConfig).map((g) => {
+            {[...sortedMuscleGroups(exerciseConfig), ...sortedCardioGroups(exerciseConfig)].map((g) => {
               const present = extraState[g.id] ?? {}
               const allExercises = getExercisesForMuscle(exerciseConfig, g.id)
               const addable = getSessionExercisesForMuscle(exerciseConfig, g.id, {
@@ -1092,7 +1141,12 @@ export default function LogSessionModal({
               return (
                 <div key={g.id} className="rounded-xl border border-[#e8e8e8] p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-[#111111]">{g.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#111111]">{g.name}</p>
+                      {g.cardio && (
+                        <p className="text-[10px] text-[#aaaaaa] mt-0.5">Logged in minutes</p>
+                      )}
+                    </div>
                     {!allAdded && (
                       <button
                         onClick={() => addMuscleGroup(g.id)}
@@ -1294,18 +1348,29 @@ export default function LogSessionModal({
                                 </button>
                               </div>
                               <div className="flex gap-2">
-                                <DrumRollPicker
-                                  values={EXTRA_KG_VALUES}
-                                  selected={parseFloat(s.kgStr)}
-                                  onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "kg", String(v)) }}
-                                  label="kg"
-                                />
-                                <DrumRollPicker
-                                  values={EXTRA_REPS_VALUES}
-                                  selected={parseInt(s.repsStr, 10)}
-                                  onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "reps", String(v)) }}
-                                  label="reps"
-                                />
+                                {s.minutesStr != null ? (
+                                  <DrumRollPicker
+                                    values={CARDIO_MIN_VALUES}
+                                    selected={parseFloat(s.minutesStr)}
+                                    onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "minutes", String(v)) }}
+                                    label="min"
+                                  />
+                                ) : (
+                                  <>
+                                    <DrumRollPicker
+                                      values={EXTRA_KG_VALUES}
+                                      selected={parseFloat(s.kgStr)}
+                                      onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "kg", String(v)) }}
+                                      label="kg"
+                                    />
+                                    <DrumRollPicker
+                                      values={EXTRA_REPS_VALUES}
+                                      selected={parseInt(s.repsStr, 10)}
+                                      onChange={(v) => { if (v !== null) updateExtraSet(muscleId, exercise, i, "reps", String(v)) }}
+                                      label="reps"
+                                    />
+                                  </>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -1618,6 +1683,7 @@ export default function LogSessionModal({
                   const key = getItemKey(item)
                   const isDone = completedSets.has(key)
                   const currentExtraSet = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
+                  const isCardio = currentExtraSet?.minutesStr != null
                   const topSet = getTopSet(item.exercise, previousSessions)
                   return (
                     <div
@@ -1634,29 +1700,45 @@ export default function LogSessionModal({
                             {item.exercise}
                             {isDone && <span className="ml-2 text-[#1e3a5f] text-lg">✓</span>}
                           </p>
-                          <p className="text-xs text-[#aaaaaa] mt-0.5">Set {item.setIndex + 1}</p>
+                          <p className="text-xs text-[#aaaaaa] mt-0.5">
+                            {isCardio ? "Bout" : "Set"} {item.setIndex + 1}
+                          </p>
                         </div>
                         {topSet && (
                           <span className="text-xs text-[#aaaaaa] mt-0.5">
-                            best: {topSet.kg}kg &times; {topSet.reps}
+                            {isCardio
+                              ? `last: ${topSet.minutes ?? 0} min`
+                              : `best: ${topSet.kg}kg \u00d7 ${topSet.reps}`}
                           </span>
                         )}
                       </div>
                       <div key={`${item.muscle}-${item.exercise}-${item.setIndex}`} className="flex gap-2 mb-5">
-                        <DrumRollPicker
-                          values={EXTRA_KG_VALUES}
-                          selected={parseFloat(currentExtraSet?.kgStr ?? "0")}
-                          onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", String(v)) }}
-                          label="kg"
-                          disabled={isDone}
-                        />
-                        <DrumRollPicker
-                          values={EXTRA_REPS_VALUES}
-                          selected={parseInt(currentExtraSet?.repsStr ?? "10", 10)}
-                          onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", String(v)) }}
-                          label="reps"
-                          disabled={isDone}
-                        />
+                        {isCardio ? (
+                          <DrumRollPicker
+                            values={CARDIO_MIN_VALUES}
+                            selected={parseFloat(currentExtraSet?.minutesStr ?? String(DEFAULT_CARDIO_MINUTES))}
+                            onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "minutes", String(v)) }}
+                            label="min"
+                            disabled={isDone}
+                          />
+                        ) : (
+                          <>
+                            <DrumRollPicker
+                              values={EXTRA_KG_VALUES}
+                              selected={parseFloat(currentExtraSet?.kgStr ?? "0")}
+                              onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "kg", String(v)) }}
+                              label="kg"
+                              disabled={isDone}
+                            />
+                            <DrumRollPicker
+                              values={EXTRA_REPS_VALUES}
+                              selected={parseInt(currentExtraSet?.repsStr ?? "10", 10)}
+                              onChange={(v) => { if (v !== null) updateExtraSet(item.muscle, item.exercise, item.setIndex, "reps", String(v)) }}
+                              label="reps"
+                              disabled={isDone}
+                            />
+                          </>
+                        )}
                       </div>
                       <button
                         onClick={() => markSetDone(key)}

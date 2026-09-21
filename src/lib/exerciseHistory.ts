@@ -1,4 +1,4 @@
-import { ExtraSet, Session } from "./types"
+import { ExtraSet, Session, isCardioSet } from "./types"
 
 /**
  * Looking up what an exercise was last loaded with — shared by the logger, which
@@ -52,24 +52,34 @@ function matchExercise(
   return null
 }
 
-/** Every set from the last time this exercise was logged. */
+/**
+ * Every set from the last time this exercise was logged. Cardio bouts carry their
+ * duration instead of a load, so the logger can reopen them at the time you ran.
+ */
 export function getLastSetsForExercise(
   exerciseName: string,
   history: Session[]
-): Array<{ kg: number; reps: number }> | null {
+): Array<{ kg: number; reps: number; minutes?: number }> | null {
   const found = findLastSessionWithExercise(exerciseName, history)
   if (!found) return null
-  return found.sets.map((s) => ({ kg: s.kg, reps: s.reps }))
+  return found.sets.map((s) =>
+    isCardioSet(s) ? { kg: s.kg, reps: s.reps, minutes: s.minutes } : { kg: s.kg, reps: s.reps }
+  )
 }
 
 /**
  * The heaviest set from the last time this exercise was logged — deliberately the
  * most recent session's best, not the all-time best, so it reads as "what you did".
+ *
+ * For a cardio exercise "heaviest" is longest: every bout is 0kg, so ranking by load
+ * would just return the first one.
  */
 export function getTopSet(exerciseName: string, history: Session[]): ExtraSet | null {
   const found = findLastSessionWithExercise(exerciseName, history)
   if (!found) return null
   return found.sets.reduce((best, set) =>
-    set.kg > best.kg || (set.kg === best.kg && set.reps > best.reps) ? set : best
+    isCardioSet(set) || isCardioSet(best)
+      ? (set.minutes ?? 0) > (best.minutes ?? 0) ? set : best
+      : set.kg > best.kg || (set.kg === best.kg && set.reps > best.reps) ? set : best
   )
 }

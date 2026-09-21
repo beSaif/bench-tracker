@@ -8,6 +8,7 @@ import {
   DEFAULT_TRAINING_DAYS,
   generateId,
   retireReplacedGroups,
+  sortedCardioGroups,
 } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
 import TrainingModeSelector from "@/components/TrainingModeSelector"
@@ -200,7 +201,13 @@ export default function ExercisesPage() {
     )
   }
 
-  const sortedGroups = config.filter((g) => !g.retired).sort((a, b) => a.name.localeCompare(b.name))
+  // Cardio libraries are deliberately absent here: this list is both the split's
+  // muscle groups and the chips a training day is built from, and cardio belongs to
+  // neither. It gets its own section below.
+  const sortedGroups = config
+    .filter((g) => !g.retired && !g.cardio)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const cardioGroups = sortedCardioGroups(config)
   const sortedDays = [...trainingDays].sort((a, b) => a.order - b.order)
 
   // Which muscles are already assigned to some day
@@ -555,6 +562,40 @@ export default function ExercisesPage() {
           </button>
         )}
       </div>
+
+      {/* ─── Cardio ─── */}
+      {cardioGroups.length > 0 && (
+        <>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mt-8 mb-3">
+            Cardio
+          </p>
+          <p className="text-xs text-[#999999] mb-3">
+            Logged in minutes, and never part of a training day — add a bout from the
+            exercises sheet whenever a session calls for one.
+          </p>
+          <div className="space-y-2">
+            {cardioGroups.map((group) => (
+              <Link
+                key={group.id}
+                href={`/exercises/${group.id}`}
+                className="flex items-center gap-2 bg-white border border-[#e8e8e8] rounded-xl px-4 py-3.5 hover:bg-[#fafafa] transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-[#111111] truncate">{group.name}</p>
+                  <p className="text-[11px] text-[#aaaaaa] mt-0.5">
+                    {group.exercises.length === 0
+                      ? "No exercises"
+                      : `${group.exercises.length} exercise${group.exercises.length !== 1 ? "s" : ""}`}
+                  </p>
+                </div>
+                <svg width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <path d="M1 1l5 5-5 5" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
     </main>
   )
 }

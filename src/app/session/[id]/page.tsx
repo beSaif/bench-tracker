@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { Session, MainLiftSet, TrainingDay, UserProfile } from "@/lib/types"
+import { Session, MainLiftSet, TrainingDay, UserProfile, isCardioSet } from "@/lib/types"
 import { getMainLiftLabel, getMainLiftShortLabel, getSessionLabel } from "@/lib/trainingMode"
 import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
 import { MuscleGroupConfig, DEFAULT_TRAINING_DAYS, getMuscleLabel } from "@/lib/exerciseConfig"
@@ -209,13 +209,19 @@ export default function SessionDetailPage() {
                         className="grid grid-cols-[2rem_2.5rem_4.5rem] gap-x-3 py-[2px] text-sm text-[#111111]"
                       >
                         <span className="font-medium text-[#aaaaaa]">{i + 1}</span>
-                        <span>{set.kg}kg</span>
-                        <span>
-                          {set.reps} reps
-                          {set.rpe != null && (
-                            <span className="text-[#aaaaaa]"> · {set.rpe}</span>
-                          )}
-                        </span>
+                        {isCardioSet(set) ? (
+                          <span className="col-span-2">{set.minutes} min</span>
+                        ) : (
+                          <>
+                            <span>{set.kg}kg</span>
+                            <span>
+                              {set.reps} reps
+                              {set.rpe != null && (
+                                <span className="text-[#aaaaaa]"> · {set.rpe}</span>
+                              )}
+                            </span>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

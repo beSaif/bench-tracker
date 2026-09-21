@@ -62,6 +62,13 @@ export default function BalancedSessionRow({
               <span className="text-[#e0e0e0]">·</span>
               <span className="font-semibold">{work.exercises}</span>
               <span className="text-[#aaaaaa]">{work.exercises === 1 ? "exercise" : "exercises"}</span>
+              {work.cardioMinutes > 0 && (
+                <>
+                  <span className="text-[#e0e0e0]">·</span>
+                  <span className="font-semibold">{work.cardioMinutes}</span>
+                  <span className="text-[#aaaaaa]">min cardio</span>
+                </>
+              )}
             </div>
           ) : (
             <p className="mt-1 text-[12px] text-[#aaaaaa]">No sets logged</p>

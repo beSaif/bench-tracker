@@ -145,7 +145,7 @@ export interface SessionDraft {
     _rpeStr: string
   }>
   completedSets: string[]
-  extraState: Record<string, Record<string, Array<{ kgStr: string; repsStr: string }>>>
+  extraState: Record<string, Record<string, Array<{ kgStr: string; repsStr: string; minutesStr?: string }>>>
   coachNote: string
   currentSetIndex: number
   exerciseOrder?: Array<
@@ -199,6 +199,18 @@ export interface ExtraSet {
   kg: number
   reps: number
   rpe: number | null
+  /**
+   * Duration in minutes. Present only on cardio sets, which are logged as time rather
+   * than load: those carry `kg: 0` and `reps: 0`, so tonnage, PRs and top-set maths
+   * skip them on their own. Its presence is what marks a set as cardio, both in the
+   * logger and in everything that reads a session back.
+   */
+  minutes?: number
+}
+
+/** A logged set that is cardio — timed work, no load. */
+export function isCardioSet(set: ExtraSet): boolean {
+  return set.minutes != null
 }
 
 export interface ExtraExercise {
