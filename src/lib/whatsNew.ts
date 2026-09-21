@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 4,
+    items: [
+      {
+        title: "Cardio, logged in minutes",
+        body: "Treadmill, bike, rower, elliptical, stairs, jump rope and incline walk are now in the exercises sheet under Cardio. Open Exercises mid-session, hit Add, and pick one — it logs minutes instead of kg and reps. Tap + distance, + speed or + incline on the card to record more, and the app works out whichever of distance and speed you did not log. Your choice sticks: the next bout of that exercise opens the same way, at last time's numbers. Cardio sits outside your split, so it never joins a training day, never changes what the coach prescribes and never touches your tonnage or PRs.",
+      },
+    ],
+  },
+  {
     version: 3,
     items: [
       {

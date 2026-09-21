@@ -1,5 +1,5 @@
 import { MuscleGroup, Session, TrainingDay } from "./types"
-import { MuscleGroupConfig, getDefaultSets, getExercisesForMuscle, getMuscleLabel } from "./exerciseConfig"
+import { MuscleGroupConfig, getDefaultSets, getExercisesForMuscle, getMuscleLabel, isCardioGroup } from "./exerciseConfig"
 import { daysSinceDate } from "./layoff"
 import { findLastSessionWithExercise } from "./exerciseHistory"
 import { sessionWork } from "./stats"
@@ -132,7 +132,12 @@ export function muscleRecovery(
     ...seen,
   ])
 
+  // Cardio is not a muscle to recover, so it never gets a bar — not from the config,
+  // and not from history either, however many treadmill bouts are logged under it.
+  const cardioIds = new Set(exerciseConfig.filter(isCardioGroup).map((g) => g.id))
+
   return [...ids]
+    .filter((id) => !cardioIds.has(id))
     .map((id): MuscleRecovery => {
       const last = lastTrained.get(id)
       const days = last?.days ?? null

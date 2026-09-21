@@ -176,6 +176,11 @@ export default function GroupPage() {
         {sortedExercises.length === 0
           ? "No exercises yet — add one below"
           : `${sortedExercises.length} exercise${sortedExercises.length !== 1 ? "s" : ""}`}
+        {group.cardio && (
+          <span className="block text-xs text-[#aaaaaa] mt-1">
+            Logged in minutes. The number beside each one is how many bouts it opens with.
+          </span>
+        )}
       </p>
 
       {/* Exercise list */}
