@@ -145,7 +145,20 @@ export interface SessionDraft {
     _rpeStr: string
   }>
   completedSets: string[]
-  extraState: Record<string, Record<string, Array<{ kgStr: string; repsStr: string; minutesStr?: string }>>>
+  extraState: Record<
+    string,
+    Record<
+      string,
+      Array<{
+        kgStr: string
+        repsStr: string
+        minutesStr?: string
+        distanceStr?: string
+        speedStr?: string
+        inclineStr?: string
+      }>
+    >
+  >
   coachNote: string
   currentSetIndex: number
   exerciseOrder?: Array<
@@ -206,6 +219,20 @@ export interface ExtraSet {
    * logger and in everything that reads a session back.
    */
   minutes?: number
+  /**
+   * The optional detail of a cardio bout, each absent unless the user asked to log it.
+   * Time alone is a complete bout — these only ever add to it, so nothing downstream
+   * may assume any of them is there.
+   *
+   * `distance` and `speed` are two views of the same thing, and logging one lets the
+   * card show the other: which one you log is which one the machine told you.
+   */
+  /** Kilometres covered. */
+  distance?: number
+  /** Kilometres per hour, as set on the machine. */
+  speed?: number
+  /** Gradient, as a percentage. */
+  incline?: number
 }
 
 /** A logged set that is cardio — timed work, no load. */

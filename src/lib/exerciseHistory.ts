@@ -53,18 +53,30 @@ function matchExercise(
 }
 
 /**
- * Every set from the last time this exercise was logged. Cardio bouts carry their
- * duration instead of a load, so the logger can reopen them at the time you ran.
+ * Every set from the last time this exercise was logged.
+ *
+ * A cardio bout comes back whole — duration and whichever optional numbers it carried
+ * — because that is what makes the logger's field chips stick: turn incline on once
+ * and every later bout of that exercise opens with it, at last week's gradient.
  */
 export function getLastSetsForExercise(
   exerciseName: string,
   history: Session[]
-): Array<{ kg: number; reps: number; minutes?: number }> | null {
+): Array<{ kg: number; reps: number } & Partial<ExtraSet>> | null {
   const found = findLastSessionWithExercise(exerciseName, history)
   if (!found) return null
-  return found.sets.map((s) =>
-    isCardioSet(s) ? { kg: s.kg, reps: s.reps, minutes: s.minutes } : { kg: s.kg, reps: s.reps }
-  )
+  return found.sets.map((s) => {
+    if (!isCardioSet(s)) return { kg: s.kg, reps: s.reps }
+    const out: { kg: number; reps: number } & Partial<ExtraSet> = {
+      kg: s.kg,
+      reps: s.reps,
+      minutes: s.minutes,
+    }
+    if (s.distance != null) out.distance = s.distance
+    if (s.speed != null) out.speed = s.speed
+    if (s.incline != null) out.incline = s.incline
+    return out
+  })
 }
 
 /**

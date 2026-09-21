@@ -7,6 +7,7 @@ import { Session, MainLiftSet, TrainingDay, UserProfile, isCardioSet } from "@/l
 import { getMainLiftLabel, getMainLiftShortLabel, getSessionLabel } from "@/lib/trainingMode"
 import { loadAll, loadSessionsLocal, loadExerciseConfigLocal, loadExerciseConfig, loadProfile, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
 import { MuscleGroupConfig, DEFAULT_TRAINING_DAYS, getMuscleLabel } from "@/lib/exerciseConfig"
+import { formatCardioSet } from "@/lib/cardio"
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -203,27 +204,30 @@ export default function SessionDetailPage() {
                 {workout.exercises.map((exercise) => (
                   <div key={exercise.name} className="mb-2">
                     <p className="text-xs text-[#777777] mb-1">{exercise.name}</p>
-                    {exercise.sets.map((set, i) => (
-                      <div
-                        key={i}
-                        className="grid grid-cols-[2rem_2.5rem_4.5rem] gap-x-3 py-[2px] text-sm text-[#111111]"
-                      >
-                        <span className="font-medium text-[#aaaaaa]">{i + 1}</span>
-                        {isCardioSet(set) ? (
-                          <span className="col-span-2">{set.minutes} min</span>
-                        ) : (
-                          <>
-                            <span>{set.kg}kg</span>
-                            <span>
-                              {set.reps} reps
-                              {set.rpe != null && (
-                                <span className="text-[#aaaaaa]"> · {set.rpe}</span>
-                              )}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    ))}
+                    {exercise.sets.map((set, i) =>
+                      // A cardio bout is one sentence, not three columns — the lifting
+                      // grid's fixed widths would wrap it mid-figure.
+                      isCardioSet(set) ? (
+                        <div key={i} className="flex gap-x-3 py-[2px] text-sm text-[#111111]">
+                          <span className="w-8 shrink-0 font-medium text-[#aaaaaa]">{i + 1}</span>
+                          <span>{formatCardioSet(set)}</span>
+                        </div>
+                      ) : (
+                        <div
+                          key={i}
+                          className="grid grid-cols-[2rem_2.5rem_4.5rem] gap-x-3 py-[2px] text-sm text-[#111111]"
+                        >
+                          <span className="font-medium text-[#aaaaaa]">{i + 1}</span>
+                          <span>{set.kg}kg</span>
+                          <span>
+                            {set.reps} reps
+                            {set.rpe != null && (
+                              <span className="text-[#aaaaaa]"> · {set.rpe}</span>
+                            )}
+                          </span>
+                        </div>
+                      )
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,10 +1,20 @@
 import { TrainingDay } from "./types"
+import { CardioField } from "./cardio"
 
 export interface ExerciseConfig {
   id: string
   name: string
   order: number
   defaultSets?: number
+  /**
+   * Cardio only: which optional numbers this exercise opens with the very first time
+   * it is logged, before there is a previous bout to copy. A treadmill is set to a
+   * speed and a gradient; a rower counts out a distance; a skipping rope is just time.
+   *
+   * It is a starting point, not a rule — the logger's chips add and drop fields freely,
+   * and from the second bout onwards what the last one carried is what opens.
+   */
+  cardioFields?: CardioField[]
 }
 
 export interface MuscleGroupConfig {
@@ -43,13 +53,13 @@ export const DEFAULT_CARDIO_GROUP: MuscleGroupConfig = {
   order: 6,
   cardio: true,
   exercises: [
-    { id: "treadmill", name: "Treadmill", order: 0, defaultSets: 1 },
-    { id: "incline-walk", name: "Incline Walk", order: 1, defaultSets: 1 },
-    { id: "stationary-bike", name: "Stationary Bike", order: 2, defaultSets: 1 },
-    { id: "rowing-machine", name: "Rowing Machine", order: 3, defaultSets: 1 },
-    { id: "elliptical", name: "Elliptical", order: 4, defaultSets: 1 },
-    { id: "stair-climber", name: "Stair Climber", order: 5, defaultSets: 1 },
-    { id: "jump-rope", name: "Jump Rope", order: 6, defaultSets: 1 },
+    { id: "treadmill", name: "Treadmill", order: 0, defaultSets: 1, cardioFields: ["speed", "incline"] },
+    { id: "incline-walk", name: "Incline Walk", order: 1, defaultSets: 1, cardioFields: ["speed", "incline"] },
+    { id: "stationary-bike", name: "Stationary Bike", order: 2, defaultSets: 1, cardioFields: ["distance"] },
+    { id: "rowing-machine", name: "Rowing Machine", order: 3, defaultSets: 1, cardioFields: ["distance"] },
+    { id: "elliptical", name: "Elliptical", order: 4, defaultSets: 1, cardioFields: ["distance"] },
+    { id: "stair-climber", name: "Stair Climber", order: 5, defaultSets: 1, cardioFields: [] },
+    { id: "jump-rope", name: "Jump Rope", order: 6, defaultSets: 1, cardioFields: [] },
   ],
 }
 
