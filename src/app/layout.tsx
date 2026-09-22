@@ -32,6 +32,19 @@ export default function RootLayout({
       <head>
         <meta name="color-scheme" content="light" />
         <script dangerouslySetInnerHTML={{ __html: `try{screen.orientation.lock('portrait')}catch(_){}` }} />
+        {/*
+          Chrome fires beforeinstallprompt once, often before React has hydrated, and the
+          event is only usable if it was preventDefault()ed. Stash it here so the install
+          sheet can fire the real system dialog whenever it opens, however late that is.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.__installPrompt=null;" +
+              "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__installPrompt=e;dispatchEvent(new Event('installpromptchange'))});" +
+              "addEventListener('appinstalled',function(){window.__installPrompt=null;dispatchEvent(new Event('installpromptchange'))});",
+          }}
+        />
       </head>
       <body className="min-h-dvh antialiased">
         <SwRegistrar />

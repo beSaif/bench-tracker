@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { useNativeInstallPrompt } from "@/lib/installPrompt"
+
 const STORAGE_KEY = "installGuideDismissed"
 
 type Platform = "ios" | "android" | "other"
@@ -152,6 +154,11 @@ interface InstallGuideModalProps {
 
 export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps) {
   const [platform, setPlatform] = useState<Platform>("other")
+  const { available: nativeInstall, promptInstall } = useNativeInstallPrompt()
+  // The written steps are the fallback, not the pitch: when the browser can show the
+  // real system dialog we lead with that and only unfold the steps if it goes unused.
+  const [showSteps, setShowSteps] = useState(false)
+  const [installing, setInstalling] = useState(false)
 
   useEffect(() => {
     setPlatform(detectPlatform())
@@ -162,8 +169,19 @@ export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps)
     onDismiss()
   }
 
+  async function install() {
+    setInstalling(true)
+    const accepted = await promptInstall()
+    setInstalling(false)
+    // Accepting installs the app, so the sheet has done its job. Declining leaves them
+    // on the steps — the event is spent and cannot be fired a second time.
+    if (accepted) dismiss()
+    else setShowSteps(true)
+  }
+
   const steps = platform === "ios" ? IOS_STEPS : ANDROID_STEPS
   const platformLabel = platform === "ios" ? "Safari" : "Chrome"
+  const stepsVisible = showSteps || !nativeInstall
 
   if (platform === "other") {
     // Desktop or unsupported — just skip
@@ -198,31 +216,46 @@ export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps)
           </p>
         </div>
 
-        {/* Steps */}
-        <div className="space-y-4 mb-7">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-start gap-4">
-              <div className="w-11 h-11 shrink-0">{step.icon}</div>
-              <div className="flex-1 pt-0.5">
-                <p className="text-sm font-semibold text-[#111111] mb-0.5">
-                  {i + 1}. {step.title}
-                </p>
-                <p className="text-sm text-[#777777] leading-snug">{step.desc}</p>
-              </div>
+        {/* Steps — hidden while the one-tap install is still on offer */}
+        {stepsVisible && (
+          <>
+            <div className="space-y-4 mb-7">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-4">
+                  <div className="w-11 h-11 shrink-0">{step.icon}</div>
+                  <div className="flex-1 pt-0.5">
+                    <p className="text-sm font-semibold text-[#111111] mb-0.5">
+                      {i + 1}. {step.title}
+                    </p>
+                    <p className="text-sm text-[#777777] leading-snug">{step.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+
+            <p className="text-xs text-[#aaaaaa] text-center mb-4">
+              open in {platformLabel} if you&apos;re not already
+            </p>
+          </>
+        )}
 
         {/* CTA */}
-        <p className="text-xs text-[#aaaaaa] text-center mb-4">
-          open in {platformLabel} if you&apos;re not already
-        </p>
-        <button
-          onClick={dismiss}
-          className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors"
-        >
-          on it
-        </button>
+        {nativeInstall ? (
+          <button
+            onClick={install}
+            disabled={installing}
+            className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors disabled:opacity-60"
+          >
+            {installing ? "installing…" : "install app"}
+          </button>
+        ) : (
+          <button
+            onClick={dismiss}
+            className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors"
+          >
+            on it
+          </button>
+        )}
         <button
           onClick={dismiss}
           className="w-full text-sm text-[#aaaaaa] py-3 mt-1"

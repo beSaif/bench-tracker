@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { loadProfile, wipeLocalUserData } from "@/lib/storage"
+import { useNativeInstallPrompt } from "@/lib/installPrompt"
 
 interface NavDrawerProps {
   open: boolean
@@ -19,6 +20,10 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
   // on every page, and reading localStorage in a state initialiser would make the
   // server and client markup disagree.
   const [weighInDaily, setWeighInDaily] = useState(false)
+  // Capturing beforeinstallprompt suppresses Chrome's own install banner, so the app
+  // owes the user a standing way in — the home-screen sheet is dismissed for good
+  // after one tap. Absent once installed, and on browsers with no such API.
+  const { available: canInstall, promptInstall } = useNativeInstallPrompt()
 
   useEffect(() => {
     fetch("/api/friends/requests")
@@ -186,6 +191,20 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
           </nav>
 
           <div className="mt-8 pt-4 border-t border-[#f0f0f0]">
+            {canInstall && (
+              <button
+                onClick={() => { promptInstall().then((accepted) => { if (accepted) onClose() }) }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#333333] hover:bg-[#f5f5f5] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 2v8" />
+                  <polyline points="4.5,6.5 8,10 11.5,6.5" />
+                  <path d="M2.5 11.5v1.5a1 1 0 001 1h9a1 1 0 001-1v-1.5" />
+                </svg>
+                Install app
+              </button>
+            )}
+
             <button
               onClick={handleSignOut}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#777777] hover:bg-[#f5f5f5] transition-colors"

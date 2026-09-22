@@ -120,7 +120,7 @@ export default function DevPage() {
       delay: delaySecs * 1000,
       title: "Test notification",
       body: "Notification system working!",
-      icon: "/apple-icon.png",
+      icon: "/apple-icon",
     })
 
     setNotifStatus("scheduled")

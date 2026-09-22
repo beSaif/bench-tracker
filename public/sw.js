@@ -73,8 +73,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/apple-icon.png',
-      badge: '/apple-icon.png',
+      icon: '/apple-icon',
+      badge: '/apple-icon',
       tag: data.tag ?? 'lift-push',
       vibrate: [200, 100, 200],
       data: { url: data.url ?? '/gymbros' },
@@ -95,6 +95,38 @@ self.addEventListener('pushsubscriptionchange', (event) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sub),
         })
+      )
+  )
+})
+
+// Chrome only treats a site as installable once its service worker handles fetch,
+// so without this the `beforeinstallprompt` event never fires and no native install
+// dialog is ever offered. Network-first on document loads, with the last successful
+// copy of the page kept as an offline fallback — gyms have bad signal.
+const PAGE_CACHE = 'lift-pages-v1'
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event
+  // Only full page loads. API calls and client-side navigations stay untouched so
+  // nothing here can serve a stale session or swallow a write.
+  if (request.method !== 'GET' || request.mode !== 'navigate') return
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone()
+          event.waitUntil(
+            caches.open(PAGE_CACHE).then((cache) => cache.put(request, copy)).catch(() => {})
+          )
+        }
+        return response
+      })
+      .catch(() =>
+        caches
+          .match(request)
+          .then((cached) => cached ?? caches.match('/'))
+          .then((cached) => cached ?? Response.error())
       )
   )
 })

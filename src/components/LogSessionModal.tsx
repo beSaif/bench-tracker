@@ -630,7 +630,7 @@ export default function LogSessionModal({
     notifIdRef.current = id
     navigator.serviceWorker.ready.then((reg) => {
       if (notifIdRef.current !== id) return // cancelled before SW was ready
-      reg.active?.postMessage({ type: "SCHEDULE", id, delay, title: "Rest done — go!", body, icon: "/apple-icon.png" })
+      reg.active?.postMessage({ type: "SCHEDULE", id, delay, title: "Rest done — go!", body, icon: "/apple-icon" })
     })
   }
 
