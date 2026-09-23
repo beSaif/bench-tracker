@@ -12,17 +12,6 @@ import ProfileTabs, { ProfileTab } from "@/components/ProfileTabs"
 import ProfileHeader, { PRIMARY_ACTION, SECONDARY_ACTION } from "@/components/ProfileHeader"
 import RoutinePreview from "@/components/RoutinePreview"
 
-/** Jabs offered on the sticky bar; which one shows depends on what they're doing. */
-const JABS = {
-  live: "seen your last set lol 😂",
-  slacking: "still waiting on that next session 😴",
-  pr: "ok that PR was actually nasty 🔥",
-  hype: "GET IN THE GYM 🔱",
-}
-
-/** A gymbro counts as slacking once they've been off this many days. */
-const SLACKING_AFTER_DAYS = 5
-
 interface ProfileData {
   /** The full profile for a gymbro; only the card's fields for anyone else. */
   profile: PublicProfile
@@ -38,7 +27,7 @@ type Coaching = "idle" | "confirming" | "busy"
 
 /**
  * Anyone's profile. Everyone signed in sees the card, the counts and the Routine
- * tab — and can train under them from there. Jabs, hype and messages are for
+ * tab — and can train under them from there. Hype and messages are for
  * gymbros only.
  */
 export default function FriendProfilePage() {
@@ -58,7 +47,6 @@ export default function FriendProfilePage() {
   const [loading, setLoading] = useState(true)
   const [showComposer, setShowComposer] = useState(false)
   const [reactedPRs, setReactedPRs] = useState<string[]>([])
-  const [jabSent, setJabSent] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -131,7 +119,7 @@ export default function FriendProfilePage() {
     }
   }
 
-  /** Reactions and jabs are ordinary gymbro messages; there is no separate channel. */
+  /** Reactions are ordinary gymbro messages; there is no separate channel. */
   function sendMessage(text: string) {
     return fetch("/api/messages/send", {
       method: "POST",
@@ -144,12 +132,6 @@ export default function FriendProfilePage() {
     if (reactedPRs.includes(prKey(pr))) return
     setReactedPRs((prev) => [...prev, prKey(pr)])
     sendMessage(`🔥 ${pr.exercise} ${pr.kg}kg × ${pr.reps} — nasty`)
-  }
-
-  function sendJab(text: string) {
-    setJabSent(true)
-    sendMessage(text)
-    setTimeout(() => setJabSent(false), 1800)
   }
 
   const backButton = (
@@ -185,17 +167,8 @@ export default function FriendProfilePage() {
   const { profile, lastSessionSummary, card, social, routine } = data
   const isLive = presence?.inSession ?? false
   const firstName = profile.name.split(" ")[0]
-  // Jabs, hype and messages are between gymbros; your own profile has none either.
+  // Hype and messages are between gymbros; your own profile has none either.
   const canMessage = social.isFriend && !social.isSelf
-
-  // The bar offers the jab that fits what they're doing right now.
-  const contextJab = isLive
-    ? JABS.live
-    : card.daysSinceLast != null && card.daysSinceLast >= SLACKING_AFTER_DAYS
-      ? JABS.slacking
-      : card.records.some((r) => r.isFresh)
-        ? JABS.pr
-        : JABS.hype
 
   // What the viewer can do sits in the header, so it is there whichever tab is open.
   // Training under them is the page's one primary action; the other is about the
@@ -238,11 +211,7 @@ export default function FriendProfilePage() {
   )
 
   return (
-    <main
-      className={`mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] ${
-        canMessage ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
-      }`}
-    >
+    <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))]">
       {backButton}
 
       <ProfileHeader profile={profile} card={card} social={social} isLive={isLive}>
@@ -315,24 +284,6 @@ export default function FriendProfilePage() {
               Cancel
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Sticky jab bar */}
-      {canMessage && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
-          {jabSent ? (
-            <div className="h-11 flex items-center justify-center rounded-xl bg-[#111111] animate-fade-in">
-              <span className="text-[11px] font-medium text-white">Sent ✓</span>
-            </div>
-          ) : (
-            <button
-              onClick={() => sendJab(contextJab)}
-              className="w-full h-11 px-3 rounded-xl bg-[#111111] text-white text-[11px] font-medium truncate active:scale-[0.98] transition-transform"
-            >
-              {contextJab}
-            </button>
-          )}
         </div>
       )}
 
