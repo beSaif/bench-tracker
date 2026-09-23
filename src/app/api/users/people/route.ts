@@ -6,7 +6,8 @@ import { loadPeople } from "@/lib/coach"
 
 /**
  * GET /api/users/people?email=&kind=gymbros|athletes → the people behind a profile's
- * counts. Open to anyone signed in, like the profile the counts sit on.
+ * counts. Private: the counts show on anyone's profile, but only the owner can see
+ * who is behind them.
  */
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -15,6 +16,9 @@ export async function GET(req: NextRequest) {
 
   const params = req.nextUrl.searchParams
   const email = (params.get("email") ?? myEmail).trim().toLowerCase()
+  if (email !== myEmail.trim().toLowerCase()) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  }
   const kind = params.get("kind")
   if (kind !== "gymbros" && kind !== "athletes") {
     return NextResponse.json({ error: "kind must be gymbros or athletes" }, { status: 400 })

@@ -12,17 +12,6 @@ import ProfileTabs, { ProfileTab } from "@/components/ProfileTabs"
 import ProfileHeader, { PRIMARY_ACTION, SECONDARY_ACTION } from "@/components/ProfileHeader"
 import RoutinePreview from "@/components/RoutinePreview"
 
-/** Jabs offered on the sticky bar; which one shows depends on what they're doing. */
-const JABS = {
-  live: "seen your last set lol 😂",
-  slacking: "still waiting on that next session 😴",
-  pr: "ok that PR was actually nasty 🔥",
-  hype: "GET IN THE GYM 🔱",
-}
-
-/** A gymbro counts as slacking once they've been off this many days. */
-const SLACKING_AFTER_DAYS = 5
-
 interface ProfileData {
   /** The full profile for a gymbro; only the card's fields for anyone else. */
   profile: PublicProfile
@@ -38,7 +27,7 @@ type Coaching = "idle" | "confirming" | "busy"
 
 /**
  * Anyone's profile. Everyone signed in sees the card, the counts and the Routine
- * tab — and can train under them from there. Jabs, hype and messages are for
+ * tab — and can train under them from there. Hype and messages are for
  * gymbros only.
  */
 export default function FriendProfilePage() {
@@ -58,7 +47,6 @@ export default function FriendProfilePage() {
   const [loading, setLoading] = useState(true)
   const [showComposer, setShowComposer] = useState(false)
   const [reactedPRs, setReactedPRs] = useState<string[]>([])
-  const [jabSent, setJabSent] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -131,7 +119,7 @@ export default function FriendProfilePage() {
     }
   }
 
-  /** Reactions and jabs are ordinary gymbro messages; there is no separate channel. */
+  /** Reactions are ordinary gymbro messages; there is no separate channel. */
   function sendMessage(text: string) {
     return fetch("/api/messages/send", {
       method: "POST",
@@ -144,12 +132,6 @@ export default function FriendProfilePage() {
     if (reactedPRs.includes(prKey(pr))) return
     setReactedPRs((prev) => [...prev, prKey(pr)])
     sendMessage(`🔥 ${pr.exercise} ${pr.kg}kg × ${pr.reps} — nasty`)
-  }
-
-  function sendJab(text: string) {
-    setJabSent(true)
-    sendMessage(text)
-    setTimeout(() => setJabSent(false), 1800)
   }
 
   const backButton = (
@@ -185,45 +167,24 @@ export default function FriendProfilePage() {
   const { profile, lastSessionSummary, card, social, routine } = data
   const isLive = presence?.inSession ?? false
   const firstName = profile.name.split(" ")[0]
-  // Jabs, hype and messages are between gymbros; your own profile has none either.
+  // Hype and messages are between gymbros; your own profile has none either.
   const canMessage = social.isFriend && !social.isSelf
 
-  // The bar offers the jab that fits what they're doing right now.
-  const contextJab = isLive
-    ? JABS.live
-    : card.daysSinceLast != null && card.daysSinceLast >= SLACKING_AFTER_DAYS
-      ? JABS.slacking
-      : card.records.some((r) => r.isFresh)
-        ? JABS.pr
-        : JABS.hype
-
   // What the viewer can do sits in the header, so it is there whichever tab is open.
-  // Training under them is the page's one primary action; the other is about the
-  // friendship: message a gymbro, or ask a stranger to become one.
+  // The friendship is the primary action: message a gymbro, or ask a stranger to
+  // become one. Training under them rewrites your routine, so it stays secondary.
   const requested = social.requestPending || requestState === "sent"
   const actions = social.isSelf ? null : (
     <>
-      {social.isMyCoach ? (
-        <button onClick={stopTraining} disabled={coaching === "busy"} className={SECONDARY_ACTION}>
-          Training under ✓
-        </button>
-      ) : (
-        <button
-          onClick={() => { setCoachError(null); setCoaching("confirming") }}
-          className={PRIMARY_ACTION}
-        >
-          Train under {firstName}
-        </button>
-      )}
       {canMessage ? (
-        <button onClick={() => setShowComposer(true)} className={SECONDARY_ACTION}>
+        <button onClick={() => setShowComposer(true)} className={PRIMARY_ACTION}>
           Message
         </button>
       ) : (
         <button
           onClick={sendFriendRequest}
           disabled={requested || requestState === "sending"}
-          className={SECONDARY_ACTION}
+          className={PRIMARY_ACTION}
         >
           {requested
             ? "Requested"
@@ -234,15 +195,23 @@ export default function FriendProfilePage() {
                 : "Add gymbro"}
         </button>
       )}
+      {social.isMyCoach ? (
+        <button onClick={stopTraining} disabled={coaching === "busy"} className={SECONDARY_ACTION}>
+          Training under ✓
+        </button>
+      ) : (
+        <button
+          onClick={() => { setCoachError(null); setCoaching("confirming") }}
+          className={SECONDARY_ACTION}
+        >
+          Train under {firstName}
+        </button>
+      )}
     </>
   )
 
   return (
-    <main
-      className={`mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] ${
-        canMessage ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
-      }`}
-    >
+    <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))]">
       {backButton}
 
       <ProfileHeader profile={profile} card={card} social={social} isLive={isLive}>
@@ -288,16 +257,31 @@ export default function FriendProfilePage() {
             className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-base font-semibold text-[#111111] mb-1">Train under {firstName}?</p>
-            <p className="text-sm text-[#777777] mb-2">
-              Your training days and muscle groups will be replaced by {firstName}&apos;s, and
-              kept in sync whenever they change theirs. You won&apos;t be able to edit them
-              while you train under {firstName}.
-            </p>
-            <p className="text-sm text-[#777777] mb-6">
+            <p className="text-base font-semibold text-[#111111] mb-3">Train under {firstName}?</p>
+            {/* The cost comes first and loud: this overwrites the viewer's own routine. */}
+            <div role="alert" className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 mb-3">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5 text-amber-600" aria-hidden="true">
+                <path d="M10 2.5 18 17H2L10 2.5Z" />
+                <line x1="10" y1="8" x2="10" y2="11.5" />
+                <circle cx="10" cy="14.2" r="0.6" fill="currentColor" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Your routine will be replaced</p>
+                <ul className="mt-1.5 space-y-1 text-[13px] text-amber-900/80 list-disc pl-4">
+                  <li>Your training days and muscle groups become {firstName}&apos;s.</li>
+                  <li>They stay in sync whenever {firstName} changes theirs.</li>
+                  <li>You can&apos;t edit them while you train under {firstName}.</li>
+                  {myCoachName && (
+                    <li>
+                      You stop training under <span className="font-semibold">{myCoachName}</span>.
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </div>
+            <p className="text-xs text-[#777777] mb-6">
               Your logged sessions, main lift, targets and cardio stay yours. Stop any time
               and keep the routine.
-              {myCoachName && <> This replaces your current coach, {myCoachName}.</>}
             </p>
             {coachError && <p className="text-xs text-red-500 mb-3">{coachError}</p>}
             <button
@@ -315,24 +299,6 @@ export default function FriendProfilePage() {
               Cancel
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Sticky jab bar */}
-      {canMessage && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
-          {jabSent ? (
-            <div className="h-11 flex items-center justify-center rounded-xl bg-[#111111] animate-fade-in">
-              <span className="text-[11px] font-medium text-white">Sent ✓</span>
-            </div>
-          ) : (
-            <button
-              onClick={() => sendJab(contextJab)}
-              className="w-full h-11 px-3 rounded-xl bg-[#111111] text-white text-[11px] font-medium truncate active:scale-[0.98] transition-transform"
-            >
-              {contextJab}
-            </button>
-          )}
         </div>
       )}
 

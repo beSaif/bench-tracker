@@ -82,8 +82,17 @@ export default function ProfileHeader({
 
           <div className="flex items-start gap-5 mt-3">
             <Count value={card.level} label="session" />
-            <Count value={social.gymbroCount} label="gymbro" onClick={() => setOpen("gymbros")} />
-            <Count value={social.athleteCount} label="athlete" onClick={() => setOpen("athletes")} />
+            {/* Who they are is private: only the owner can open the lists behind the counts. */}
+            <Count
+              value={social.gymbroCount}
+              label="gymbro"
+              onClick={social.isSelf ? () => setOpen("gymbros") : undefined}
+            />
+            <Count
+              value={social.athleteCount}
+              label="athlete"
+              onClick={social.isSelf ? () => setOpen("athletes") : undefined}
+            />
           </div>
         </div>
       </div>
