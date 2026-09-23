@@ -104,6 +104,15 @@ export interface UserProfile {
 }
 
 /**
+ * The slice of a profile anyone signed in may see — exactly what the gymbro card
+ * draws. Bodyweight, check-in settings and the join date stay between gymbros.
+ */
+export type PublicProfile = Pick<
+  UserProfile,
+  "email" | "name" | "trainingMode" | "mainLift" | "anchor" | "target"
+>
+
+/**
  * One bodyweight reading. At most one per calendar date — a second check-in on the
  * same day replaces the first rather than stacking.
  */

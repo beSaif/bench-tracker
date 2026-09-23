@@ -2,11 +2,14 @@ import { kv } from "@vercel/kv"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { Session, TrainingBlock, UserProfile, MainLift, TrainingMode } from "@/lib/types"
+import { stopTrainingUnder } from "@/lib/coach"
 import {
   profileKey,
   sessionsKey,
   exercisesKey,
   weightsKey,
+  trainingDaysKey,
+  athletesKey,
   isLegacyOwner,
   LEGACY_SESSIONS_KEY,
   LEGACY_EXERCISES_KEY,
@@ -90,11 +93,19 @@ export async function DELETE() {
   if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
   try {
+    // Unlink coaching before the split goes: each athlete keeps the routine they were
+    // training as their own, which needs this account's days and groups still there.
+    const athletes = await kv.smembers(athletesKey(email))
+    for (const athlete of athletes) await stopTrainingUnder(athlete)
+    await stopTrainingUnder(email)
+
     await Promise.all([
       kv.del(profileKey(email)),
       kv.del(sessionsKey(email)),
       kv.del(exercisesKey(email)),
+      kv.del(trainingDaysKey(email)),
       kv.del(weightsKey(email)),
+      kv.del(athletesKey(email)),
     ])
     return NextResponse.json({ ok: true })
   } catch {

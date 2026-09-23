@@ -5,6 +5,8 @@ import Link from "next/link"
 import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, UserPresence, FriendRequest, GymbroMessage } from "@/lib/types"
 import { isLiftFocused } from "@/lib/trainingMode"
 import { relativeDate } from "@/lib/time"
+import { PersonSummary } from "@/lib/routines"
+import { PersonRow } from "@/components/ProfileHeader"
 
 function initials(name: string): string {
   return name
@@ -48,6 +50,23 @@ export default function GymBrosPage() {
   const [pendingRemove, setPendingRemove] = useState<Gymbro | null>(null)
   const [messages, setMessages] = useState<GymbroMessage[]>([])
   const addInputRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState<PersonSummary[] | null>(null)
+
+  // Anyone can be found by name, gymbro or not: their profile is where you add them
+  // or train under them.
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) return
+    const timer = setTimeout(() => {
+      fetch(`/api/users/search?q=${encodeURIComponent(q)}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => setResults(Array.isArray(data) ? data : []))
+        .catch(() => setResults([]))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [query])
+  const shownResults = query.trim().length >= 2 ? results : null
 
   function fetchAll() {
     Promise.all([
@@ -274,6 +293,32 @@ export default function GymBrosPage() {
           )}
         </div>
       )}
+
+      {/* Find people */}
+      <div className="mb-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search people by name"
+          className="w-full text-sm px-3 py-2.5 border border-[#dddddd] rounded-xl bg-white text-[#111111] placeholder-[#bbbbbb] focus:outline-none focus:border-[#111111] transition-colors"
+        />
+        {shownResults !== null && (
+          <div className="mt-2 bg-white border border-[#eeeeee] rounded-xl px-4 shadow-sm">
+            {shownResults.length === 0 ? (
+              <p className="py-3 text-sm text-[#aaaaaa]">Nobody by that name</p>
+            ) : (
+              <ul className="divide-y divide-[#f5f5f5]">
+                {shownResults.map((p) => (
+                  <li key={p.email}>
+                    <PersonRow person={p} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Add friend */}
       <form onSubmit={handleAddFriend} className="mb-5">

@@ -11,7 +11,8 @@ import {
   generateId,
   getDefaultSets,
 } from "@/lib/exerciseConfig"
-import { loadExerciseConfigLocal, loadExerciseConfig, saveExerciseConfig } from "@/lib/storage"
+import { loadExerciseConfigLocal, loadExerciseConfig, saveExerciseConfig, loadCoach } from "@/lib/storage"
+import { PersonSummary } from "@/lib/routines"
 
 export default function GroupPage() {
   const params = useParams()
@@ -19,6 +20,7 @@ export default function GroupPage() {
 
   const [config, setConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
   const [mounted, setMounted] = useState(false)
+  const [coach, setCoach] = useState<PersonSummary | null>(null)
 
   const [editingExId, setEditingExId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
@@ -34,6 +36,7 @@ export default function GroupPage() {
     setConfig(loadExerciseConfigLocal())
     setMounted(true)
     loadExerciseConfig().then(setConfig)
+    loadCoach().then(setCoach)
   }, [])
 
   useEffect(() => {
@@ -50,6 +53,8 @@ export default function GroupPage() {
   }
 
   const group = config.find((g) => g.id === groupId)
+  // A coach's groups are theirs to edit; cardio stays the athlete's own.
+  const readOnly = coach !== null && !group?.cardio
   const sortedExercises = [...(group?.exercises ?? [])].sort((a, b) => a.order - b.order)
 
   function startRename(ex: ExerciseConfig) {
@@ -181,6 +186,11 @@ export default function GroupPage() {
             Logged in minutes. The number beside each one is how many bouts it opens with.
           </span>
         )}
+        {readOnly && coach && (
+          <span className="block text-xs text-[#aaaaaa] mt-1">
+            Part of {coach.name}&apos;s routine, which you follow — only they can change it.
+          </span>
+        )}
       </p>
 
       {/* Exercise list */}
@@ -198,7 +208,7 @@ export default function GroupPage() {
                 idx < sortedExercises.length - 1 ? "border-b border-[#f5f5f5]" : ""
               }`}
             >
-              {!isEditing && (
+              {!isEditing && !readOnly && (
                 <div className="flex flex-col shrink-0">
                   <button
                     onClick={() => moveExercise(ex.id, "up")}
@@ -239,7 +249,11 @@ export default function GroupPage() {
                 <span className="flex-1 text-sm text-[#333333]">{ex.name}</span>
               )}
 
-              {!isEditing && (
+              {readOnly && (
+                <span className="shrink-0 text-[10px] text-[#aaaaaa]">{getDefaultSets(ex)} × sets</span>
+              )}
+
+              {!isEditing && !readOnly && (
                 <div className="flex items-center gap-1.5 shrink-0 mr-2">
                   <button
                     onClick={() => updateDefaultSets(ex.id, Math.max(1, getDefaultSets(ex) - 1))}
@@ -259,28 +273,30 @@ export default function GroupPage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button
-                  onClick={() => startRename(ex)}
-                  className="p-1.5 text-[#aaaaaa] hover:text-[#555555] transition-colors"
-                  aria-label="Rename exercise"
-                >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => deleteExercise(ex.id)}
-                  className="p-1.5 text-[#aaaaaa] hover:text-red-400 transition-colors"
-                  aria-label="Delete exercise"
-                >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="2,3 11,3" />
-                    <path d="M4 3V2h5v1" />
-                    <rect x="3" y="4" width="7" height="7" rx="1" />
-                  </svg>
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => startRename(ex)}
+                    className="p-1.5 text-[#aaaaaa] hover:text-[#555555] transition-colors"
+                    aria-label="Rename exercise"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => deleteExercise(ex.id)}
+                    className="p-1.5 text-[#aaaaaa] hover:text-red-400 transition-colors"
+                    aria-label="Delete exercise"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="2,3 11,3" />
+                      <path d="M4 3V2h5v1" />
+                      <rect x="3" y="4" width="7" height="7" rx="1" />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
@@ -331,7 +347,7 @@ export default function GroupPage() {
       </div>
 
       {/* Add exercise button */}
-      {!addingExercise && (
+      {!addingExercise && !readOnly && (
         <button
           onClick={() => { setAddingExercise(true); setNewExerciseName(""); setSimilarWarning([]) }}
           className="w-full border border-dashed border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#aaaaaa] hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
