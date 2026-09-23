@@ -12,7 +12,6 @@ import {
 } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
 import TrainingModeSelector from "@/components/TrainingModeSelector"
-import RoutineShareSection from "@/components/RoutineShareSection"
 import {
   loadExerciseConfigLocal,
   loadExerciseConfig,
@@ -20,12 +19,19 @@ import {
   loadTrainingDaysLocal,
   loadTrainingDays,
   saveTrainingDays,
+  loadCoach,
+  stopTrainingUnderCoach,
 } from "@/lib/storage"
+import { PersonSummary } from "@/lib/routines"
 
 export default function ExercisesPage() {
   const [config, setConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
   const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
   const [mounted, setMounted] = useState(false)
+  /** Who this account trains under. While set, the split is theirs and read-only here. */
+  const [coach, setCoach] = useState<PersonSummary | null>(null)
+  const [stopping, setStopping] = useState(false)
+  const locked = coach !== null
 
   // Muscle group editing
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
@@ -53,7 +59,16 @@ export default function ExercisesPage() {
     setMounted(true)
     loadExerciseConfig().then(setConfig)
     loadTrainingDays().then(setTrainingDays)
+    loadCoach().then(setCoach)
   }, [])
+
+  async function stopFollowing() {
+    if (!coach) return
+    if (!window.confirm(`Stop training under ${coach.name}? Their routine, as it is now, stays yours to edit.`)) return
+    setStopping(true)
+    if (await stopTrainingUnderCoach()) setCoach(null)
+    setStopping(false)
+  }
 
   useEffect(() => {
     if (editingGroupId) renameGroupInputRef.current?.focus()
@@ -232,8 +247,32 @@ export default function ExercisesPage() {
       {/* ─── Training Focus ─── */}
       <TrainingModeSelector />
 
-      {/* ─── Routines ─── */}
-      <RoutineShareSection config={config} trainingDays={trainingDays} />
+      {/* ─── Coach ─── */}
+      {coach && (
+        <div className="bg-[#f0f4f8] border border-[#dbe4ee] rounded-xl px-4 py-3.5 mb-6">
+          <p className="text-sm text-[#111111]">
+            Following{" "}
+            <Link
+              href={`/friends/${encodeURIComponent(coach.email)}`}
+              className="font-semibold text-[#1e3a5f] hover:underline"
+            >
+              {coach.name}
+            </Link>
+            &apos;s routine
+          </p>
+          <p className="text-xs text-[#777777] mt-0.5 mb-2">
+            Your days and muscle groups update when theirs do, so they can&apos;t be edited
+            here. Cardio is still yours.
+          </p>
+          <button
+            onClick={stopFollowing}
+            disabled={stopping}
+            className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
+          >
+            {stopping ? "Stopping…" : "Stop training under them"}
+          </button>
+        </div>
+      )}
 
       {/* ─── Training Days ─── */}
       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
@@ -283,26 +322,30 @@ export default function ExercisesPage() {
                 </button>
 
                 <div className="flex items-center gap-0.5 pr-2 shrink-0">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); startRenameDay(day) }}
-                    className="p-2 text-[#aaaaaa] hover:text-[#555555] transition-colors"
-                    aria-label="Rename day"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteDay(day) }}
-                    className="p-2 text-[#aaaaaa] hover:text-red-400 transition-colors"
-                    aria-label="Delete day"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="2,3 11,3" />
-                      <path d="M4 3V2h5v1" />
-                      <rect x="3" y="4" width="7" height="7" rx="1" />
-                    </svg>
-                  </button>
+                  {!locked && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startRenameDay(day) }}
+                        className="p-2 text-[#aaaaaa] hover:text-[#555555] transition-colors"
+                        aria-label="Rename day"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteDay(day) }}
+                        className="p-2 text-[#aaaaaa] hover:text-red-400 transition-colors"
+                        aria-label="Delete day"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="2,3 11,3" />
+                          <path d="M4 3V2h5v1" />
+                          <rect x="3" y="4" width="7" height="7" rx="1" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                   <svg
                     width="7" height="12" viewBox="0 0 7 12" fill="none"
                     stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
@@ -326,6 +369,7 @@ export default function ExercisesPage() {
                         <button
                           key={group.id}
                           onClick={() => toggleMuscleInDay(day.id, group.id)}
+                          disabled={locked}
                           className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
                             included
                               ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
@@ -346,7 +390,7 @@ export default function ExercisesPage() {
 
       {/* Add training day */}
       <div className="mb-8">
-        {addingDay ? (
+        {locked ? null : addingDay ? (
           <div className="border border-[#e8e8e8] rounded-xl px-4 py-4 bg-white">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
               New Training Day
@@ -431,26 +475,30 @@ export default function ExercisesPage() {
               )}
 
               <div className="flex items-center gap-0.5 pr-2 shrink-0">
-                <button
-                  onClick={(e) => { e.preventDefault(); startRenameGroup(group) }}
-                  className="p-2 text-[#aaaaaa] hover:text-[#555555] transition-colors"
-                  aria-label="Rename group"
-                >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={(e) => { e.preventDefault(); deleteGroup(group) }}
-                  className="p-2 text-[#aaaaaa] hover:text-red-400 transition-colors"
-                  aria-label="Delete group"
-                >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="2,3 11,3" />
-                    <path d="M4 3V2h5v1" />
-                    <rect x="3" y="4" width="7" height="7" rx="1" />
-                  </svg>
-                </button>
+                {!locked && (
+                  <>
+                    <button
+                      onClick={(e) => { e.preventDefault(); startRenameGroup(group) }}
+                      className="p-2 text-[#aaaaaa] hover:text-[#555555] transition-colors"
+                      aria-label="Rename group"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); deleteGroup(group) }}
+                      className="p-2 text-[#aaaaaa] hover:text-red-400 transition-colors"
+                      aria-label="Delete group"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="2,3 11,3" />
+                        <path d="M4 3V2h5v1" />
+                        <rect x="3" y="4" width="7" height="7" rx="1" />
+                      </svg>
+                    </button>
+                  </>
+                )}
                 {!isEditing && (
                   <svg width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
                     <path d="M1 1l5 5-5 5" />
@@ -464,7 +512,7 @@ export default function ExercisesPage() {
 
       {/* Add muscle group */}
       <div className="mt-4">
-        {addingGroup ? (
+        {locked ? null : addingGroup ? (
           <div className="border border-[#e8e8e8] rounded-xl px-4 py-4 bg-white">
             {newGroupStep === "name" ? (
               <>

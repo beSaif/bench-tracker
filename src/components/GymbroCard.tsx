@@ -1,6 +1,6 @@
 "use client"
 
-import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, FriendSessionSummary } from "@/lib/types"
+import { PublicProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, FriendSessionSummary } from "@/lib/types"
 import { isLiftFocused } from "@/lib/trainingMode"
 import { FriendCardStats, FriendPR, CARD_WINDOW_DAYS } from "@/lib/friendCard"
 import { RARITY, LIFT_PILL, BALANCED_PILL } from "@/lib/cardTheme"
@@ -132,7 +132,7 @@ function StreakGrid({ dots }: { dots: boolean[] }) {
 }
 
 interface Props {
-  profile: UserProfile
+  profile: PublicProfile
   card: FriendCardStats
   lastSessionSummary: FriendSessionSummary | null
   isLive: boolean

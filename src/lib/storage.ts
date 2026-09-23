@@ -1,6 +1,6 @@
 import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig, retireReplacedGroups } from "./exerciseConfig"
-import { RoutineBundle } from "./routines"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig } from "./exerciseConfig"
+import { PersonSummary } from "./routines"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
 
@@ -337,30 +337,51 @@ export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
   return config
 }
 
+/** Who this account trains under, or null. Null too when offline — nothing is cached. */
+export async function loadCoach(): Promise<PersonSummary | null> {
+  try {
+    const res = await fetch("/api/coach")
+    if (!res.ok) return null
+    const data = await res.json()
+    return data && typeof data === "object" && data.email ? (data as PersonSummary) : null
+  } catch {
+    return null
+  }
+}
+
 /**
- * Switch this account over to an adopted routine.
- *
- * The routine's groups and days replace what was there — that is the whole point of
- * adopting one, and the screen that calls this confirms it first. What does NOT
- * happen is losing the names behind past sessions: every group the routine drops is
- * carried over as a retired entry, so a session logged under "Lower Back" still says
- * "Lower Back" in History after the swap.
- *
- * Nothing about the user's training mode, main lift, anchor, target or bodyweight is
- * touched, and no logged session is rewritten. In lift-focused mode the main lift is
- * prescribed from the profile rather than from the muscle groups, so adopting a
- * routine cannot displace it from the front of a session.
- *
- * Returns what was written, so the caller can update its own state without a reload.
+ * Train under someone. Their routine replaces this account's groups and days and
+ * stays linked; the server has already synced it, so this only mirrors the result
+ * onto the device. Groups the routine drops are kept, retired, so history still
+ * names them; training mode, main lift, anchor, target and sessions are untouched.
  */
-export function applyRoutineBundle(bundle: RoutineBundle): {
-  config: MuscleGroupConfig[]
-  trainingDays: TrainingDay[]
-} {
-  const config = retireReplacedGroups(bundle.muscleGroups, loadExerciseConfigLocal())
-  saveExerciseConfig(config)
-  saveTrainingDays(bundle.trainingDays)
-  return { config, trainingDays: bundle.trainingDays }
+export async function trainUnder(email: string): Promise<
+  { ok: true; coach: PersonSummary } | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch("/api/coach", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok || !data) return { ok: false, error: data?.error ?? "failed" }
+    saveExerciseConfigLocal(data.config)
+    saveTrainingDaysLocal(data.trainingDays)
+    return { ok: true, coach: data.coach as PersonSummary }
+  } catch {
+    return { ok: false, error: "offline" }
+  }
+}
+
+/** Stop training under your coach. Their routine, as it stands, becomes your own. */
+export async function stopTrainingUnderCoach(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/coach", { method: "DELETE" })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 /** Save exercise config to localStorage (sync) and KV (async, best-effort). */

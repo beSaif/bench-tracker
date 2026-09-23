@@ -23,7 +23,7 @@ function normalize(name: string): string {
  * The most recent session that logged this exercise, with the sets it logged.
  *
  * An exact name match wins outright. Failing that, the scan runs again against
- * normalized names: adopting someone else's split renames the same lift as often as
+ * normalized names: training under someone else's split renames the same lift as often as
  * it replaces it, and a lift that came back as "Lat Pull Down" should still prefill
  * from the "Lat Pulldown" you have been logging for months.
  */

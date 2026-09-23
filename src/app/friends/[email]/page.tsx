@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { UserProfile, UserPresence, Session, FriendSessionSummary } from "@/lib/types"
+import { PublicProfile, UserPresence, Session, FriendSessionSummary } from "@/lib/types"
 import { FriendCardStats, FriendPR } from "@/lib/friendCard"
+import { ProfileSocial, RoutineBundle } from "@/lib/routines"
+import { trainUnder, stopTrainingUnderCoach, loadCoach } from "@/lib/storage"
 import GymbroCard, { prKey } from "@/components/GymbroCard"
 import MessageComposer from "@/components/MessageComposer"
+import ProfileTabs, { ProfileTab } from "@/components/ProfileTabs"
+import ProfileSocialBar from "@/components/ProfileSocial"
+import RoutinePreview from "@/components/RoutinePreview"
 
 /** Jabs offered on the sticky bar; which one shows depends on what they're doing. */
 const JABS = {
@@ -19,13 +24,23 @@ const JABS = {
 const SLACKING_AFTER_DAYS = 5
 
 interface ProfileData {
-  profile: UserProfile
+  /** The full profile for a gymbro; only the card's fields for anyone else. */
+  profile: PublicProfile
   lastSession: Session | null
   /** Resolved server-side: the viewer cannot read the friend's days or muscle names. */
   lastSessionSummary: FriendSessionSummary | null
   card: FriendCardStats
+  social: ProfileSocial
+  routine: RoutineBundle
 }
 
+type Coaching = "idle" | "confirming" | "busy"
+
+/**
+ * Anyone's profile. Everyone signed in sees the card, the counts and the Routine
+ * tab — and can train under them from there. Jabs, hype and messages are for
+ * gymbros only.
+ */
 export default function FriendProfilePage() {
   const params = useParams()
   const router = useRouter()
@@ -33,7 +48,13 @@ export default function FriendProfilePage() {
 
   const [data, setData] = useState<ProfileData | null>(null)
   const [presence, setPresence] = useState<UserPresence | null>(null)
-  const [error, setError] = useState<"forbidden" | "notfound" | null>(null)
+  const [error, setError] = useState<"notfound" | null>(null)
+  const [tab, setTab] = useState<ProfileTab>("card")
+  const [coaching, setCoaching] = useState<Coaching>("idle")
+  const [coachError, setCoachError] = useState<string | null>(null)
+  /** Name of whoever the viewer trains under now, for the switch warning. */
+  const [myCoachName, setMyCoachName] = useState<string | null>(null)
+  const [requestState, setRequestState] = useState<"idle" | "sending" | "sent" | "error">("idle")
   const [loading, setLoading] = useState(true)
   const [showComposer, setShowComposer] = useState(false)
   const [reactedPRs, setReactedPRs] = useState<string[]>([])
@@ -42,7 +63,7 @@ export default function FriendProfilePage() {
   useEffect(() => {
     Promise.all([
       fetch(`/api/friends/profile?email=${encodeURIComponent(email)}`).then((r) =>
-        r.ok ? r.json() : r.status === 403 ? Promise.reject("forbidden") : Promise.reject("notfound")
+        r.ok ? r.json() : Promise.reject("notfound")
       ),
       fetch("/api/presence")
         .then((r) => r.json())
@@ -53,9 +74,62 @@ export default function FriendProfilePage() {
         setData(profileData)
         setPresence(pres)
       })
-      .catch((err) => setError(err === "forbidden" ? "forbidden" : "notfound"))
+      .catch(() => setError("notfound"))
       .finally(() => setLoading(false))
+    loadCoach().then((c) => setMyCoachName(c?.name ?? null))
   }, [email])
+
+  async function confirmTrainUnder() {
+    if (!data) return
+    setCoaching("busy")
+    setCoachError(null)
+    const result = await trainUnder(data.profile.email)
+    if (result.ok) {
+      setData({
+        ...data,
+        social: { ...data.social, isMyCoach: true, athleteCount: data.social.athleteCount + 1 },
+      })
+      setMyCoachName(result.coach.name)
+      setCoaching("idle")
+    } else {
+      setCoachError(
+        result.error === "they train under you"
+          ? `${data.profile.name.split(" ")[0]} already trains under you, so you can't train under them.`
+          : "Couldn't switch over. Check your connection and try again."
+      )
+      setCoaching("confirming")
+    }
+  }
+
+  async function stopTraining() {
+    if (!data) return
+    if (!window.confirm("Stop training under them? Their routine, as it is now, stays yours to edit.")) return
+    setCoaching("busy")
+    const ok = await stopTrainingUnderCoach()
+    if (ok) {
+      setData({
+        ...data,
+        social: { ...data.social, isMyCoach: false, athleteCount: Math.max(0, data.social.athleteCount - 1) },
+      })
+      setMyCoachName(null)
+    }
+    setCoaching("idle")
+  }
+
+  async function sendFriendRequest() {
+    if (!data) return
+    setRequestState("sending")
+    try {
+      const res = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetEmail: data.profile.email }),
+      })
+      setRequestState(res.ok ? "sent" : "error")
+    } catch {
+      setRequestState("error")
+    }
+  }
 
   /** Reactions and jabs are ordinary gymbro messages; there is no separate channel. */
   function sendMessage(text: string) {
@@ -103,16 +177,16 @@ export default function FriendProfilePage() {
     return (
       <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-8">
         {backButton}
-        <p className="text-sm text-[#aaaaaa] text-center mt-20">
-          {error === "forbidden" ? "Not your gymbro" : "No card found"}
-        </p>
+        <p className="text-sm text-[#aaaaaa] text-center mt-20">No profile found</p>
       </main>
     )
   }
 
-  const { profile, lastSessionSummary, card } = data
+  const { profile, lastSessionSummary, card, social, routine } = data
   const isLive = presence?.inSession ?? false
   const firstName = profile.name.split(" ")[0]
+  // Jabs, hype and messages are between gymbros; your own profile has none either.
+  const canMessage = social.isFriend && !social.isSelf
 
   // The bar offers the jab that fits what they're doing right now.
   const contextJab = isLive
@@ -124,46 +198,163 @@ export default function FriendProfilePage() {
         : JABS.hype
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
+    <main
+      className={`mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] ${
+        canMessage ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
+      }`}
+    >
       {backButton}
 
-      <GymbroCard
-        profile={profile}
-        card={card}
-        lastSessionSummary={lastSessionSummary}
-        isLive={isLive}
-        reactedPRs={reactedPRs}
-        onReactPR={reactToPR}
-      />
+      <ProfileSocialBar email={profile.email} social={social} />
+      <ProfileTabs tab={tab} onChange={setTab} />
 
-      <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
-        tap a record to hype it · {profile.email}
-      </p>
+      {tab === "card" ? (
+        <>
+          <GymbroCard
+            profile={profile}
+            card={card}
+            lastSessionSummary={lastSessionSummary}
+            isLive={isLive}
+            reactedPRs={reactedPRs}
+            onReactPR={canMessage ? reactToPR : undefined}
+          />
+
+          {canMessage ? (
+            <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
+              tap a record to hype it · {profile.email}
+            </p>
+          ) : (
+            !social.isSelf && (
+              <div className="mt-4">
+                <button
+                  onClick={sendFriendRequest}
+                  disabled={social.requestPending || requestState === "sending" || requestState === "sent"}
+                  className="w-full h-11 rounded-xl border border-[#e0e0e0] bg-white text-sm font-semibold text-[#111111] disabled:opacity-50 active:scale-[0.98] transition-transform"
+                >
+                  {social.requestPending || requestState === "sent"
+                    ? "Gymbro request sent"
+                    : requestState === "sending"
+                      ? "…"
+                      : `Add ${firstName} as a gymbro`}
+                </button>
+                {requestState === "error" && (
+                  <p className="text-xs text-red-500 text-center mt-2">Couldn&apos;t send the request</p>
+                )}
+                <p className="text-center text-[10px] text-[#bbbbbb] mt-2">
+                  gymbros see each other&apos;s last session and can send jabs
+                </p>
+              </div>
+            )
+          )}
+        </>
+      ) : (
+        <>
+          {!social.isSelf && (
+            <div className="bg-white border border-[#e8e8e8] rounded-xl px-4 py-4 mb-6">
+              {social.isMyCoach ? (
+                <>
+                  <p className="text-sm font-semibold text-[#111111] mb-1">
+                    You train under {firstName}
+                  </p>
+                  <p className="text-xs text-[#999999] mb-3">
+                    Your training days follow theirs. When {firstName} changes the routine,
+                    yours changes with it.
+                  </p>
+                  <button
+                    onClick={stopTraining}
+                    disabled={coaching === "busy"}
+                    className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
+                  >
+                    Stop training under {firstName}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-[#999999] mb-3">
+                    Train {firstName}&apos;s split. Your days and muscle groups become theirs and
+                    stay in sync. Your sessions, targets and cardio stay yours.
+                  </p>
+                  <button
+                    onClick={() => { setCoachError(null); setCoaching("confirming") }}
+                    className="w-full text-sm font-semibold text-white bg-[#1e3a5f] rounded-xl py-3 hover:bg-[#16304f] transition-colors"
+                  >
+                    Train under {firstName}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          <RoutinePreview routine={routine} />
+        </>
+      )}
+
+      {/* Train-under confirmation */}
+      {coaching !== "idle" && !social.isMyCoach && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+          onClick={() => coaching !== "busy" && setCoaching("idle")}
+        >
+          <div
+            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold text-[#111111] mb-1">Train under {firstName}?</p>
+            <p className="text-sm text-[#777777] mb-2">
+              Your training days and muscle groups will be replaced by {firstName}&apos;s, and
+              kept in sync whenever they change theirs. You won&apos;t be able to edit them
+              while you train under {firstName}.
+            </p>
+            <p className="text-sm text-[#777777] mb-6">
+              Your logged sessions, main lift, targets and cardio stay yours. Stop any time
+              and keep the routine.
+              {myCoachName && <> This replaces your current coach, {myCoachName}.</>}
+            </p>
+            {coachError && <p className="text-xs text-red-500 mb-3">{coachError}</p>}
+            <button
+              onClick={confirmTrainUnder}
+              disabled={coaching === "busy"}
+              className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#16304f] transition-colors mb-3 disabled:opacity-60"
+            >
+              {coaching === "busy" ? "Switching…" : `Train under ${firstName}`}
+            </button>
+            <button
+              onClick={() => setCoaching("idle")}
+              disabled={coaching === "busy"}
+              className="w-full border border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#111111] hover:bg-[#fafafa] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Sticky jab bar */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
-        {jabSent ? (
-          <div className="h-11 flex items-center justify-center rounded-xl bg-[#111111] animate-fade-in">
-            <span className="text-[11px] font-medium text-white">Sent ✓</span>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <button
-              onClick={() => sendJab(contextJab)}
-              className="flex-1 h-11 px-3 rounded-xl bg-[#111111] text-white text-[11px] font-medium truncate active:scale-[0.98] transition-transform"
-            >
-              {contextJab}
-            </button>
-            <button
-              onClick={() => setShowComposer(true)}
-              aria-label={`Write a message to ${firstName}`}
-              className="w-11 h-11 shrink-0 rounded-xl border border-[#e0e0e0] bg-white text-base active:scale-[0.98] transition-transform"
-            >
-              💬
-            </button>
-          </div>
-        )}
-      </div>
+      {canMessage && (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
+          {jabSent ? (
+            <div className="h-11 flex items-center justify-center rounded-xl bg-[#111111] animate-fade-in">
+              <span className="text-[11px] font-medium text-white">Sent ✓</span>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={() => sendJab(contextJab)}
+                className="flex-1 h-11 px-3 rounded-xl bg-[#111111] text-white text-[11px] font-medium truncate active:scale-[0.98] transition-transform"
+              >
+                {contextJab}
+              </button>
+              <button
+                onClick={() => setShowComposer(true)}
+                aria-label={`Write a message to ${firstName}`}
+                className="w-11 h-11 shrink-0 rounded-xl border border-[#e0e0e0] bg-white text-base active:scale-[0.98] transition-transform"
+              >
+                💬
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {showComposer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowComposer(false)}>

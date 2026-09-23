@@ -34,7 +34,7 @@ export interface MuscleGroupConfig {
   /**
    * A library of timed work rather than a muscle group: its exercises are logged in
    * minutes, not kg x reps. It is deliberately outside the split — never offered as a
-   * training day's muscle, never published in a routine, never given a recovery bar —
+   * training day's muscle, never part of anyone's routine, never given a recovery bar —
    * so the coach keeps prescribing the same sessions and cardio stays something you
    * reach for yourself, from the Add tab of the exercises sheet.
    */
@@ -154,7 +154,7 @@ export function getDefaultSets(ex: ExerciseConfig): number {
  *
  * Retired groups are never included, and neither are cardio libraries: this is the
  * list every picker that asks "which muscle?" builds from — training days, group
- * swaps, published routines — and cardio belongs to none of them. Use
+ * swaps, coaches' routines — and cardio belongs to none of them. Use
  * `sortedCardioGroups` for those, or both together where the question is simply
  * "what can I add?".
  */
@@ -165,7 +165,7 @@ export function sortedMuscleGroups(config: MuscleGroupConfig[]): MuscleGroupConf
 /**
  * Retire the groups the incoming config drops, so their names survive in history.
  *
- * Used when a published routine replaces the user's split: any group the new config
+ * Used when a coach's routine replaces the user's split: any group the new config
  * has no entry for is appended as a name-only tombstone. Tombstones already present
  * in `outgoing` are carried forward, oldest dropped first past `RETIRED_GROUP_LIMIT`
  * so switching splits repeatedly cannot grow the config without bound.
@@ -185,7 +185,7 @@ export function retireReplacedGroups(
     liveIds.add(group.id)
     // A cardio library is not part of the split, so a split that replaces this one has
     // nothing to say about it: it survives intact, exercises and all. Retiring it would
-    // cost the user their cardio list every time they adopted someone else's routine.
+    // cost the user their cardio list every time they started training under someone.
     if (isCardioGroup(group) && !group.retired) {
       carried.push(group)
       continue

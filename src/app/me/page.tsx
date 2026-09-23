@@ -1,16 +1,23 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { UserProfile, UserPresence, FriendSessionSummary } from "@/lib/types"
 import { FriendCardStats } from "@/lib/friendCard"
+import { ProfileSocial, RoutineBundle } from "@/lib/routines"
 import GymbroCard from "@/components/GymbroCard"
 import ShareImageSheet from "@/components/ShareImageSheet"
+import ProfileTabs, { ProfileTab } from "@/components/ProfileTabs"
+import ProfileSocialBar from "@/components/ProfileSocial"
+import RoutinePreview from "@/components/RoutinePreview"
 
 interface CardData {
   profile: UserProfile
   lastSessionSummary: FriendSessionSummary | null
   card: FriendCardStats
+  social: ProfileSocial
+  routine: RoutineBundle
 }
 
 /**
@@ -26,6 +33,7 @@ export default function MyCardPage() {
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
+  const [tab, setTab] = useState<ProfileTab>("card")
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -87,35 +95,56 @@ export default function MyCardPage() {
     )
   }
 
-  const { profile, lastSessionSummary, card } = data
+  const { profile, lastSessionSummary, card, social, routine } = data
   const fileName = `gymbro-card-${profile.email.split("@")[0]}.png`
 
   return (
     <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
       {backButton}
 
-      <div ref={cardRef}>
-        <GymbroCard
-          profile={profile}
-          card={card}
-          lastSessionSummary={lastSessionSummary}
-          isLive={presence?.inSession ?? false}
-        />
-      </div>
+      <ProfileSocialBar email={profile.email} social={social} />
+      <ProfileTabs tab={tab} onChange={setTab} />
 
-      <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
-        this is what your gymbros see · {profile.email}
-      </p>
+      {tab === "card" ? (
+        <>
+          <div ref={cardRef}>
+            <GymbroCard
+              profile={profile}
+              card={card}
+              lastSessionSummary={lastSessionSummary}
+              isLive={presence?.inSession ?? false}
+            />
+          </div>
+
+          <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
+            this is what your gymbros see · {profile.email}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-[#999999] mb-4">
+            {social.coach
+              ? `You train under ${social.coach.name}, so this is their routine. `
+              : "Everyone can see your routine and train under you. "}
+            <Link href="/exercises" className="font-semibold text-[#1e3a5f] hover:underline">
+              {social.coach ? "Manage" : "Edit it"} →
+            </Link>
+          </p>
+          <RoutinePreview routine={routine} />
+        </>
+      )}
 
       {/* Sticky share bar — the jab bar has no meaning on your own card. */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
-        <button
-          onClick={() => setSharing(true)}
-          className="w-full h-11 rounded-xl bg-[#111111] text-white text-[11px] font-medium active:scale-[0.98] transition-transform"
-        >
-          share my card 🔱
-        </button>
-      </div>
+      {tab === "card" && (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
+          <button
+            onClick={() => setSharing(true)}
+            className="w-full h-11 rounded-xl bg-[#111111] text-white text-[11px] font-medium active:scale-[0.98] transition-transform"
+          >
+            share my card 🔱
+          </button>
+        </div>
+      )}
 
       {sharing && (
         <ShareImageSheet
