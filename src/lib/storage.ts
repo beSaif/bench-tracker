@@ -331,10 +331,15 @@ export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
   const config = exerciseMigrationPending() ? migrateExerciseConfig(stored) : stored
   // A changed reference means the migration had something to add; write it through so
   // it is not redone. Either way it is now spent — from here the config is the user's.
-  if (config !== stored) saveExerciseConfig(config)
-  else saveExerciseConfigLocal(config)
   markExerciseMigrationDone()
-  return config
+  if (config === stored) {
+    saveExerciseConfigLocal(config)
+    return config
+  }
+  saveExerciseConfigLocal(config)
+  // Awaited, not fire-and-forget: for an athlete the server may refuse part of the
+  // repair (a coach's Chest is the coach's), and the screen should show what it kept.
+  return pushExerciseConfig(config).catch(() => config)
 }
 
 /** Who this account trains under, or null. Null too when offline — nothing is cached. */
@@ -387,11 +392,27 @@ export async function stopTrainingUnderCoach(): Promise<boolean> {
 /** Save exercise config to localStorage (sync) and KV (async, best-effort). */
 export function saveExerciseConfig(config: MuscleGroupConfig[]): void {
   saveExerciseConfigLocal(config)
-  fetch("/api/exercises", {
+  pushExerciseConfig(config).catch(() => {})
+}
+
+/**
+ * Send a config to KV and return what was kept. That is the config itself, unless the
+ * account trains under a coach: then the coach's groups win and only the cardio
+ * library is the athlete's, so the server answers with the merged result and this
+ * device takes it over.
+ */
+async function pushExerciseConfig(config: MuscleGroupConfig[]): Promise<MuscleGroupConfig[]> {
+  const res = await fetch("/api/exercises", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
-  }).catch(() => {})
+  })
+  const data = res.ok ? await res.json().catch(() => null) : null
+  if (data?.following && Array.isArray(data.config)) {
+    saveExerciseConfigLocal(data.config)
+    return data.config as MuscleGroupConfig[]
+  }
+  return config
 }
 
 /** Save sessions + blocks to localStorage (sync) and KV (async, best-effort). */
