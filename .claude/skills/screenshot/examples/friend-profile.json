@@ -1,0 +1,62 @@
+{
+  "viewer": { "name": "Saif", "email": "saif@example.com" },
+  "mocks": {
+    "/api/coach": { "email": "karim@example.com", "name": "Karim" },
+    "/api/presence": [],
+    "/api/friends/profile": {
+      "profile": { "email": "omar@example.com", "name": "Omar Haddad", "trainingMode": "lift", "mainLift": "bench", "anchor": 80, "target": 140 },
+      "lastSession": null,
+      "lastSessionSummary": null,
+      "card": {
+        "level": 64,
+        "dayDots": [false, true, false, true, false, true, false, false, true, false, true, false, true, false, false, true, false, true, false, true, false, false, true, false, true, false, true, false],
+        "weekStreak": 9,
+        "sessionsThisWeek": 3,
+        "daysSinceLast": 1,
+        "sessionsInWindow": 12,
+        "avgPerWeek": 3,
+        "records": [
+          { "exercise": "Bench Press", "kg": 110, "reps": 3, "date": "2026-09-18", "isFresh": true },
+          { "exercise": "Incline DB Press", "kg": 36, "reps": 8, "date": "2026-08-30", "isFresh": false },
+          { "exercise": "Weighted Dips", "kg": 30, "reps": 6, "date": "2026-08-20", "isFresh": false }
+        ],
+        "progressPct": 72,
+        "rarity": "rare"
+      },
+      "routine": {
+        "muscleGroups": [
+          { "id": "chest", "name": "Chest", "order": 0, "exercises": [{ "id": "bench", "name": "Bench Press" }, { "id": "incline", "name": "Incline DB Press" }] },
+          { "id": "back", "name": "Back", "order": 1, "exercises": [{ "id": "row", "name": "Barbell Row" }, { "id": "pull", "name": "Pull-ups" }] },
+          { "id": "legs", "name": "Legs", "order": 2, "exercises": [{ "id": "squat", "name": "Squat" }] }
+        ],
+        "trainingDays": [
+          { "id": "d1", "name": "Push", "order": 0, "muscleGroupIds": ["chest"] },
+          { "id": "d2", "name": "Pull", "order": 1, "muscleGroupIds": ["back"] },
+          { "id": "d3", "name": "Legs", "order": 2, "muscleGroupIds": ["legs"] }
+        ]
+      },
+      "social": {
+        "gymbroCount": 14,
+        "athleteCount": 3,
+        "coach": { "email": "lina@example.com", "name": "Lina", "trainingMode": "lift", "mainLift": "bench" },
+        "isSelf": false,
+        "isFriend": true,
+        "requestPending": false,
+        "isMyCoach": false
+      }
+    }
+  },
+  "shots": [
+    {
+      "name": "gymbro-profile",
+      "path": "/friends/omar%40example.com",
+      "waitFor": "text=Omar Haddad"
+    },
+    {
+      "name": "train-under-sheet",
+      "path": "/friends/omar%40example.com",
+      "waitFor": "text=Omar Haddad",
+      "steps": [{ "click": "role:button:Train under Omar", "waitFor": "text=Your routine will be replaced" }]
+    }
+  ]
+}
