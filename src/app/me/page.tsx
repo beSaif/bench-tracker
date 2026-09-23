@@ -9,7 +9,7 @@ import { ProfileSocial, RoutineBundle } from "@/lib/routines"
 import GymbroCard from "@/components/GymbroCard"
 import ShareImageSheet from "@/components/ShareImageSheet"
 import ProfileTabs, { ProfileTab } from "@/components/ProfileTabs"
-import ProfileSocialBar from "@/components/ProfileSocial"
+import ProfileHeader, { SECONDARY_ACTION } from "@/components/ProfileHeader"
 import RoutinePreview from "@/components/RoutinePreview"
 
 interface CardData {
@@ -33,7 +33,7 @@ export default function MyCardPage() {
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
-  const [tab, setTab] = useState<ProfileTab>("card")
+  const [tab, setTab] = useState<ProfileTab>("stats")
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -97,54 +97,58 @@ export default function MyCardPage() {
 
   const { profile, lastSessionSummary, card, social, routine } = data
   const fileName = `gymbro-card-${profile.email.split("@")[0]}.png`
+  const isLive = presence?.inSession ?? false
 
   return (
-    <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
+    <main className="mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))]">
       {backButton}
 
-      <ProfileSocialBar email={profile.email} social={social} />
+      <ProfileHeader profile={profile} card={card} social={social} isLive={isLive}>
+        <Link href="/exercises" className={SECONDARY_ACTION}>
+          Edit routine
+        </Link>
+        <button onClick={() => setSharing(true)} className={SECONDARY_ACTION}>
+          Share card
+        </button>
+      </ProfileHeader>
+
       <ProfileTabs tab={tab} onChange={setTab} />
 
-      {tab === "card" ? (
+      {tab === "stats" ? (
         <>
-          <div ref={cardRef}>
-            <GymbroCard
-              profile={profile}
-              card={card}
-              lastSessionSummary={lastSessionSummary}
-              isLive={presence?.inSession ?? false}
-            />
-          </div>
-
-          <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
-            this is what your gymbros see · {profile.email}
-          </p>
+          <GymbroCard
+            variant="stats"
+            profile={profile}
+            card={card}
+            lastSessionSummary={lastSessionSummary}
+            isLive={isLive}
+          />
+          <p className="text-center text-[10px] text-[#bbbbbb] mt-3">this is what your gymbros see</p>
         </>
       ) : (
         <>
           <p className="text-xs text-[#999999] mb-4">
             {social.coach
-              ? `You train under ${social.coach.name}, so this is their routine. `
-              : "Everyone can see your routine and train under you. "}
-            <Link href="/exercises" className="font-semibold text-[#1e3a5f] hover:underline">
-              {social.coach ? "Manage" : "Edit it"} →
-            </Link>
+              ? `You train under ${social.coach.name}, so this is their routine.`
+              : "Anyone can see your routine and train under you."}
           </p>
           <RoutinePreview routine={routine} />
         </>
       )}
 
-      {/* Sticky share bar — the jab bar has no meaning on your own card. */}
-      {tab === "card" && (
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-white via-white to-transparent">
-          <button
-            onClick={() => setSharing(true)}
-            className="w-full h-11 rounded-xl bg-[#111111] text-white text-[11px] font-medium active:scale-[0.98] transition-transform"
-          >
-            share my card 🔱
-          </button>
+      {/* The shared image is the whole collectible, sprite and name included, which the
+          stats tab leaves to the header. It is laid out off-screen at the width it
+          renders on the page, purely for the snapshot. */}
+      <div aria-hidden="true" className="fixed top-0 left-[-10000px] w-[353px] pointer-events-none">
+        <div ref={cardRef}>
+          <GymbroCard
+            profile={profile}
+            card={card}
+            lastSessionSummary={lastSessionSummary}
+            isLive={isLive}
+          />
         </div>
-      )}
+      </div>
 
       {sharing && (
         <ShareImageSheet

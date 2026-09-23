@@ -6,7 +6,7 @@ import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, UserPresen
 import { isLiftFocused } from "@/lib/trainingMode"
 import { relativeDate } from "@/lib/time"
 import { PersonSummary } from "@/lib/routines"
-import { PersonRow } from "@/components/ProfileSocial"
+import { PersonRow } from "@/components/ProfileHeader"
 
 function initials(name: string): string {
   return name

@@ -140,6 +140,12 @@ interface Props {
   reactedPRs?: string[]
   /** Left out on your own card, which renders the same layout without reactions. */
   onReactPR?: (pr: FriendPR) => void
+  /**
+   * "full" is the collectible: sprite, name and all, as shared on /me. "stats" is
+   * the same card without the identity strip, for a profile whose header already
+   * says who this is.
+   */
+  variant?: "full" | "stats"
 }
 
 /**
@@ -157,7 +163,9 @@ export default function GymbroCard({
   isLive,
   reactedPRs = [],
   onReactPR,
+  variant = "full",
 }: Props) {
+  const full = variant === "full"
   const liftFocused = isLiftFocused(profile)
   const lift: MainLift | undefined = liftFocused ? profile.mainLift : undefined
   const rarity = RARITY[card.rarity]
@@ -169,53 +177,57 @@ export default function GymbroCard({
   return (
     <div className="rounded-2xl border border-[#eeeeee] bg-white shadow-sm overflow-hidden animate-fade-up">
       {/* Artwork */}
-      <div
-        className="relative flex items-center justify-center py-7 overflow-hidden"
-        style={{ backgroundColor: rarity.bg }}
-      >
-        {rarity.holo && (
-          <span
-            className="pointer-events-none absolute -inset-y-12 -left-1/3 w-1/3 animate-holo-sweep"
-            style={{
-              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent)",
-            }}
-            aria-hidden="true"
-          />
-        )}
-
-        <PixelAvatar seed={profile.email} colour={rarity.bar} className="w-24 h-24" />
-
-        {isLive && (
-          <span className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/90">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#555555]">
-              In session
-            </span>
-          </span>
-        )}
-
-        <span
-          className="absolute bottom-3 right-3 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/90"
-          style={{ color: rarity.ink }}
+      {full && (
+        <div
+          className="relative flex items-center justify-center py-7 overflow-hidden"
+          style={{ backgroundColor: rarity.bg }}
         >
-          {rarity.label}
-        </span>
-      </div>
+          {rarity.holo && (
+            <span
+              className="pointer-events-none absolute -inset-y-12 -left-1/3 w-1/3 animate-holo-sweep"
+              style={{
+                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent)",
+              }}
+              aria-hidden="true"
+            />
+          )}
+
+          <PixelAvatar seed={profile.email} colour={rarity.bar} className="w-24 h-24" />
+
+          {isLive && (
+            <span className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/90">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#555555]">
+                In session
+              </span>
+            </span>
+          )}
+
+          <span
+            className="absolute bottom-3 right-3 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/90"
+            style={{ color: rarity.ink }}
+          >
+            {rarity.label}
+          </span>
+        </div>
+      )}
 
       <div className="px-4 pt-4 pb-4">
         {/* Name + main lift */}
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <h2 className="text-2xl font-semibold text-[#111111] tracking-tight truncate">
-            {profile.name}
-          </h2>
-          <span
-            className={`shrink-0 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${
-              lift ? LIFT_PILL[lift] : BALANCED_PILL
-            }`}
-          >
-            {lift ? MAIN_LIFT_LABEL[lift] : TRAINING_MODE_LABEL.balanced}
-          </span>
-        </div>
+        {full && (
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="text-2xl font-semibold text-[#111111] tracking-tight truncate">
+              {profile.name}
+            </h2>
+            <span
+              className={`shrink-0 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                lift ? LIFT_PILL[lift] : BALANCED_PILL
+              }`}
+            >
+              {lift ? MAIN_LIFT_LABEL[lift] : TRAINING_MODE_LABEL.balanced}
+            </span>
+          </div>
+        )}
 
         {/* Progress to target */}
         {hasProgress && (
@@ -244,8 +256,9 @@ export default function GymbroCard({
           </div>
         )}
 
-        {/* Records */}
-        <div className="border-t border-[#f5f5f5]">
+        {/* Records — ruled off from whatever sits above; on a stats-only card with no
+            progress to show, nothing does. */}
+        <div className={full || hasProgress ? "border-t border-[#f5f5f5]" : ""}>
           {card.records.length > 0 ? (
             card.records.map((pr) => (
               <RecordRow
@@ -308,10 +321,13 @@ export default function GymbroCard({
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-[#f5f5f5]">
-          <Label>
-            {card.level} session{card.level === 1 ? "" : "s"}
-          </Label>
-          <Label>{card.sessionsThisWeek} this week</Label>
+          {/* The profile header already counts sessions; the collectible carries its own. */}
+          {full && (
+            <Label>
+              {card.level} session{card.level === 1 ? "" : "s"}
+            </Label>
+          )}
+          <Label className={full ? "" : "ml-auto"}>{card.sessionsThisWeek} this week</Label>
         </div>
       </div>
     </div>

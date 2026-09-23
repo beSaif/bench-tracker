@@ -9,7 +9,7 @@ import { trainUnder, stopTrainingUnderCoach, loadCoach } from "@/lib/storage"
 import GymbroCard, { prKey } from "@/components/GymbroCard"
 import MessageComposer from "@/components/MessageComposer"
 import ProfileTabs, { ProfileTab } from "@/components/ProfileTabs"
-import ProfileSocialBar from "@/components/ProfileSocial"
+import ProfileHeader, { PRIMARY_ACTION, SECONDARY_ACTION } from "@/components/ProfileHeader"
 import RoutinePreview from "@/components/RoutinePreview"
 
 /** Jabs offered on the sticky bar; which one shows depends on what they're doing. */
@@ -49,7 +49,7 @@ export default function FriendProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [presence, setPresence] = useState<UserPresence | null>(null)
   const [error, setError] = useState<"notfound" | null>(null)
-  const [tab, setTab] = useState<ProfileTab>("card")
+  const [tab, setTab] = useState<ProfileTab>("stats")
   const [coaching, setCoaching] = useState<Coaching>("idle")
   const [coachError, setCoachError] = useState<string | null>(null)
   /** Name of whoever the viewer trains under now, for the switch warning. */
@@ -197,6 +197,46 @@ export default function FriendProfilePage() {
         ? JABS.pr
         : JABS.hype
 
+  // What the viewer can do sits in the header, so it is there whichever tab is open.
+  // Training under them is the page's one primary action; the other is about the
+  // friendship: message a gymbro, or ask a stranger to become one.
+  const requested = social.requestPending || requestState === "sent"
+  const actions = social.isSelf ? null : (
+    <>
+      {social.isMyCoach ? (
+        <button onClick={stopTraining} disabled={coaching === "busy"} className={SECONDARY_ACTION}>
+          Training under ✓
+        </button>
+      ) : (
+        <button
+          onClick={() => { setCoachError(null); setCoaching("confirming") }}
+          className={PRIMARY_ACTION}
+        >
+          Train under {firstName}
+        </button>
+      )}
+      {canMessage ? (
+        <button onClick={() => setShowComposer(true)} className={SECONDARY_ACTION}>
+          Message
+        </button>
+      ) : (
+        <button
+          onClick={sendFriendRequest}
+          disabled={requested || requestState === "sending"}
+          className={SECONDARY_ACTION}
+        >
+          {requested
+            ? "Requested"
+            : requestState === "sending"
+              ? "…"
+              : requestState === "error"
+                ? "Try again"
+                : "Add gymbro"}
+        </button>
+      )}
+    </>
+  )
+
   return (
     <main
       className={`mx-auto w-full max-w-[393px] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] ${
@@ -205,12 +245,16 @@ export default function FriendProfilePage() {
     >
       {backButton}
 
-      <ProfileSocialBar email={profile.email} social={social} />
+      <ProfileHeader profile={profile} card={card} social={social} isLive={isLive}>
+        {actions}
+      </ProfileHeader>
+
       <ProfileTabs tab={tab} onChange={setTab} />
 
-      {tab === "card" ? (
+      {tab === "stats" ? (
         <>
           <GymbroCard
+            variant="stats"
             profile={profile}
             card={card}
             lastSessionSummary={lastSessionSummary}
@@ -218,73 +262,18 @@ export default function FriendProfilePage() {
             reactedPRs={reactedPRs}
             onReactPR={canMessage ? reactToPR : undefined}
           />
-
-          {canMessage ? (
-            <p className="text-center text-[10px] text-[#bbbbbb] mt-3">
-              tap a record to hype it · {profile.email}
-            </p>
-          ) : (
-            !social.isSelf && (
-              <div className="mt-4">
-                <button
-                  onClick={sendFriendRequest}
-                  disabled={social.requestPending || requestState === "sending" || requestState === "sent"}
-                  className="w-full h-11 rounded-xl border border-[#e0e0e0] bg-white text-sm font-semibold text-[#111111] disabled:opacity-50 active:scale-[0.98] transition-transform"
-                >
-                  {social.requestPending || requestState === "sent"
-                    ? "Gymbro request sent"
-                    : requestState === "sending"
-                      ? "…"
-                      : `Add ${firstName} as a gymbro`}
-                </button>
-                {requestState === "error" && (
-                  <p className="text-xs text-red-500 text-center mt-2">Couldn&apos;t send the request</p>
-                )}
-                <p className="text-center text-[10px] text-[#bbbbbb] mt-2">
-                  gymbros see each other&apos;s last session and can send jabs
-                </p>
-              </div>
-            )
+          {canMessage && card.records.length > 0 && (
+            <p className="text-center text-[10px] text-[#bbbbbb] mt-3">tap a record to hype it</p>
           )}
         </>
       ) : (
         <>
-          {!social.isSelf && (
-            <div className="bg-white border border-[#e8e8e8] rounded-xl px-4 py-4 mb-6">
-              {social.isMyCoach ? (
-                <>
-                  <p className="text-sm font-semibold text-[#111111] mb-1">
-                    You train under {firstName}
-                  </p>
-                  <p className="text-xs text-[#999999] mb-3">
-                    Your training days follow theirs. When {firstName} changes the routine,
-                    yours changes with it.
-                  </p>
-                  <button
-                    onClick={stopTraining}
-                    disabled={coaching === "busy"}
-                    className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
-                  >
-                    Stop training under {firstName}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-[#999999] mb-3">
-                    Train {firstName}&apos;s split. Your days and muscle groups become theirs and
-                    stay in sync. Your sessions, targets and cardio stay yours.
-                  </p>
-                  <button
-                    onClick={() => { setCoachError(null); setCoaching("confirming") }}
-                    className="w-full text-sm font-semibold text-white bg-[#1e3a5f] rounded-xl py-3 hover:bg-[#16304f] transition-colors"
-                  >
-                    Train under {firstName}
-                  </button>
-                </>
-              )}
-            </div>
+          {social.isMyCoach && (
+            <p className="text-xs text-[#999999] mb-4">
+              You train under {firstName}, so this is your routine too. When they change it,
+              yours changes with it.
+            </p>
           )}
-
           <RoutinePreview routine={routine} />
         </>
       )}
@@ -337,21 +326,12 @@ export default function FriendProfilePage() {
               <span className="text-[11px] font-medium text-white">Sent ✓</span>
             </div>
           ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => sendJab(contextJab)}
-                className="flex-1 h-11 px-3 rounded-xl bg-[#111111] text-white text-[11px] font-medium truncate active:scale-[0.98] transition-transform"
-              >
-                {contextJab}
-              </button>
-              <button
-                onClick={() => setShowComposer(true)}
-                aria-label={`Write a message to ${firstName}`}
-                className="w-11 h-11 shrink-0 rounded-xl border border-[#e0e0e0] bg-white text-base active:scale-[0.98] transition-transform"
-              >
-                💬
-              </button>
-            </div>
+            <button
+              onClick={() => sendJab(contextJab)}
+              className="w-full h-11 px-3 rounded-xl bg-[#111111] text-white text-[11px] font-medium truncate active:scale-[0.98] transition-transform"
+            >
+              {contextJab}
+            </button>
           )}
         </div>
       )}
