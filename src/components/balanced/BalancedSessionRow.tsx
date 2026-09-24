@@ -3,14 +3,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Session, TrainingDay } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 import { getSessionLabel } from "@/lib/trainingMode"
 import { sessionWork } from "@/lib/stats"
 import { relativeDate } from "@/lib/time"
 
 interface Props {
   session: Session
-  exerciseConfig: MuscleGroupConfig[]
   trainingDays: TrainingDay[]
   /** Labels the top set of sessions carried over from lift-focused mode. */
   mainLiftLabel: string
@@ -20,7 +18,7 @@ interface Props {
 }
 
 /**
- * A logged Balanced session, as one row of the home screen's recent-sessions card.
+ * A logged Balanced session, as a card in the home screen's recent sessions.
  *
  * The shared SessionCard reads its numbers from `session.sets`, which a Balanced
  * session never has — every set lives in `extraWorkouts` instead, so those cards
@@ -28,7 +26,6 @@ interface Props {
  */
 export default function BalancedSessionRow({
   session,
-  exerciseConfig,
   trainingDays,
   mainLiftLabel,
   onEdit,
@@ -38,63 +35,52 @@ export default function BalancedSessionRow({
   const [open, setOpen] = useState(false)
   const work = sessionWork(session, mainLiftLabel)
   const label = getSessionLabel(session, trainingDays)
-  const logged = work.sets > 0
 
   const date = session.date ? new Date(session.date) : null
   const dateLabel =
     date && !isNaN(date.getTime())
-      ? date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })
+      ? [
+          date.toLocaleDateString(undefined, { weekday: "short" }),
+          date.getDate(),
+          date.toLocaleDateString(undefined, { month: "short" }),
+        ].join(" ")
       : ""
-  const muscles = work.muscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" · ")
+  const highlight =
+    work.sets === 0
+      ? "No sets logged"
+      : work.topSet
+      ? `${work.topSet.exercise} ${work.topSet.kg}×${work.topSet.reps}`
+      : work.cardioMinutes > 0
+      ? `${work.cardioMinutes} min cardio`
+      : ""
+  const subtitle = [dateLabel, highlight].filter(Boolean).join(" · ")
 
   return (
-    <article>
-      <div className="flex items-start">
+    <article className="mb-2 rounded-xl bg-white border border-[#e8e8e8] overflow-hidden">
+      <div className="flex items-center">
         <Link
           href={`/session/${session.id}`}
-          className="flex-1 min-w-0 pl-4 pr-1 py-3 active:opacity-70 transition-opacity"
+          className="flex-1 min-w-0 flex items-center gap-3 pl-4 pr-1 py-3.5 active:opacity-70 transition-opacity"
         >
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[14px] font-semibold text-[#111111] truncate">{label}</span>
-            <span
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-bold text-[#111111] truncate">{label}</p>
+            <p
               title={session.date ? relativeDate(session.date) : undefined}
-              className="shrink-0 text-[11px] text-[#aaaaaa] tabular-nums"
+              className="mt-0.5 text-[12px] text-[#aaaaaa] truncate"
             >
-              {dateLabel}
-            </span>
-          </div>
-
-          {muscles && <p className="mt-0.5 text-[12px] text-[#777777] truncate">{muscles}</p>}
-
-          {logged ? (
-            <p className="mt-1.5 text-[12px] text-[#aaaaaa] tabular-nums truncate">
-              <span className="font-semibold text-[#1e3a5f]">{work.sets}</span> sets
-              {work.topSet && (
-                <>
-                  <span className="text-[#e0e0e0]"> · </span>
-                  <span className="font-semibold text-[#444444]">
-                    {work.topSet.kg}kg × {work.topSet.reps}
-                  </span>{" "}
-                  {work.topSet.exercise}
-                </>
-              )}
-              {work.cardioMinutes > 0 && (
-                <>
-                  <span className="text-[#e0e0e0]"> · </span>
-                  <span className="font-semibold text-[#444444]">{work.cardioMinutes}</span> min cardio
-                </>
-              )}
+              {subtitle}
             </p>
-          ) : (
-            <p className="mt-1.5 text-[12px] text-[#aaaaaa]">No sets logged</p>
-          )}
+          </div>
+          <span className="shrink-0 min-w-[64px] text-center rounded-lg bg-[#eef3f9] text-[#1e3a5f] text-[12px] font-bold px-2.5 py-1.5 tabular-nums">
+            {work.sets} sets
+          </span>
         </Link>
 
         <button
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Hide session actions" : "Show session actions"}
           aria-expanded={open}
-          className="shrink-0 self-start px-3 pt-[19px] pb-3 text-[#cccccc] hover:text-[#777777] active:opacity-70 transition-colors"
+          className="shrink-0 self-stretch px-3 text-[#cccccc] hover:text-[#777777] active:opacity-70 transition-colors"
         >
           <svg width="16" height="4" viewBox="0 0 16 4" fill="currentColor" aria-hidden="true">
             <circle cx="2" cy="2" r="1.6" />
@@ -105,7 +91,7 @@ export default function BalancedSessionRow({
       </div>
 
       {open && (
-        <div className="flex gap-2 px-4 pb-3 pt-1 animate-fade-up">
+        <div className="flex gap-2 px-4 pb-3 pt-2 border-t border-[#f0f0f0] animate-fade-up">
           <button
             onClick={() => onShare(session)}
             className="text-xs font-semibold text-[#1e3a5f] border border-[#1e3a5f] rounded-lg px-3 py-1.5 hover:bg-[#1e3a5f] hover:text-white transition-colors"

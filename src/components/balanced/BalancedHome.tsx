@@ -83,33 +83,29 @@ export default function BalancedHome({
       />
 
       {recent.length > 0 && (
-        <section className="mt-5 rounded-xl bg-white border border-[#e8e8e8] overflow-hidden">
-          <div className="flex items-baseline justify-between gap-2 px-4 pt-3 pb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-              Recent sessions
-            </p>
-            {pill && (
-              <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${pill.className}`}>
-                {pill.text}
-              </span>
-            )}
-          </div>
-          <div className="divide-y divide-[#f0f0f0] border-t border-[#f0f0f0]">
-            {recent.map((s) => (
-              <BalancedSessionRow
-                key={s.id}
-                session={s}
-                exerciseConfig={exerciseConfig}
-                trainingDays={trainingDays}
-                mainLiftLabel={mainLiftLabel}
-                onEdit={onEdit}
-                onUnlog={onUnlog}
-                onShare={onShare}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="flex items-baseline justify-between gap-2 mt-6 mb-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
+            Recent sessions
+          </p>
+          {pill && (
+            <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${pill.className}`}>
+              {pill.text}
+            </span>
+          )}
+        </div>
       )}
+
+      {recent.map((s) => (
+        <BalancedSessionRow
+          key={s.id}
+          session={s}
+          trainingDays={trainingDays}
+          mainLiftLabel={mainLiftLabel}
+          onEdit={onEdit}
+          onUnlog={onUnlog}
+          onShare={onShare}
+        />
+      ))}
     </div>
   )
 }
