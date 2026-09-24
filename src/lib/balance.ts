@@ -2,21 +2,17 @@ import { MuscleGroup, Session, TrainingDay } from "./types"
 import { MuscleGroupConfig, getDefaultSets, getExercisesForMuscle, getMuscleLabel, isCardioGroup } from "./exerciseConfig"
 import { daysSinceDate } from "./layoff"
 import { findLastSessionWithExercise } from "./exerciseHistory"
-import { sessionWork } from "./stats"
 
 /**
  * Balanced mode has no block, no target and no main lift, so the questions worth
- * answering on its home screen are different: am I training at all (momentum),
- * am I training everything (recovery), and what exactly am I about to do (plan).
+ * answering on its home screen are different: am I training everything (recovery),
+ * and what exactly am I about to do (plan).
  */
 
 /** Trained within this many days — the group is covered. */
 export const FRESH_DAYS = 4
 /** At or past this many days the group reads as neglected and its bar empties. */
 export const STALE_DAYS = 10
-/** Rolling buckets, newest ending today, so there is no Monday-morning cliff. */
-export const BUCKET_DAYS = 7
-export const BUCKET_COUNT = 8
 /** Lookback for the per-muscle set and volume totals. */
 export const BALANCE_WINDOW_DAYS = 28
 
@@ -37,7 +33,7 @@ function loggedSessions(sessions: Session[]): Session[] {
  * training was. Only muscles with at least one logged set are returned.
  *
  * Main-lift sets (`session.sets`) carry no muscle group, so a lift-focused session
- * from before a mode switch contributes volume to `momentum` but nothing here.
+ * from before a mode switch contributes nothing here.
  */
 export function trainedMuscles(session: Session): Map<MuscleGroup, { sets: number; volume: number }> {
   const out = new Map<MuscleGroup, { sets: number; volume: number }>()
@@ -162,83 +158,6 @@ export function muscleRecovery(
       if (av !== bv) return bv - av
       return (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity)
     })
-}
-
-export interface WeekBucket {
-  /** 0 = the last 7 days ending today; BUCKET_COUNT-1 = the oldest bucket. */
-  weeksAgo: number
-  sessions: number
-  sets: number
-  volume: number
-  /** Distinct muscle groups trained in the bucket. */
-  muscles: number
-}
-
-export interface Momentum {
-  /** Oldest to newest, always BUCKET_COUNT entries, zero-filled. */
-  buckets: WeekBucket[]
-  current: WeekBucket
-  previous: WeekBucket
-  /** Signed % change in sets against the previous bucket; null when it had none. */
-  setsDeltaPct: number | null
-  volumeDeltaPct: number | null
-  /** Largest set count in any bucket — the bar-height denominator. */
-  peakSets: number
-  /** Days since the last confirmed session; null when there is no history. */
-  daysSinceLast: number | null
-  /**
-   * Whether anything was logged before the current bucket, including outside the
-   * window. Distinguishes a genuine first week from a return after a long layoff.
-   */
-  hasEarlierHistory: boolean
-  /** True when nothing at all falls inside the window. */
-  empty: boolean
-}
-
-function emptyBucket(weeksAgo: number): WeekBucket {
-  return { weeksAgo, sessions: 0, sets: 0, volume: 0, muscles: 0 }
-}
-
-function deltaPct(current: number, previous: number): number | null {
-  if (previous === 0) return null
-  return Math.round(((current - previous) / previous) * 100)
-}
-
-/** Training volume and consistency over BUCKET_COUNT rolling weeks ending today. */
-export function momentum(sessions: Session[], opts: { now?: Date } = {}): Momentum {
-  const { now = new Date() } = opts
-  const logged = loggedSessions(sessions)
-
-  const buckets = Array.from({ length: BUCKET_COUNT }, (_, i) => emptyBucket(i))
-  const musclesPerBucket = Array.from({ length: BUCKET_COUNT }, () => new Set<MuscleGroup>())
-
-  for (const session of logged) {
-    const index = Math.floor(daysSinceDate(session.date!, now) / BUCKET_DAYS)
-    if (index >= BUCKET_COUNT) continue
-    const work = sessionWork(session)
-    buckets[index].sessions += 1
-    buckets[index].sets += work.sets
-    buckets[index].volume += work.volume
-    for (const muscle of trainedMuscles(session).keys()) musclesPerBucket[index].add(muscle)
-  }
-  buckets.forEach((b, i) => { b.muscles = musclesPerBucket[i].size })
-
-  // Oldest to newest, so the array maps straight onto a left-to-right sparkline.
-  const ordered = [...buckets].reverse()
-  const current = buckets[0]
-  const previous = buckets[1]
-
-  return {
-    buckets: ordered,
-    current,
-    previous,
-    setsDeltaPct: deltaPct(current.sets, previous.sets),
-    volumeDeltaPct: deltaPct(current.volume, previous.volume),
-    peakSets: Math.max(0, ...buckets.map((b) => b.sets)),
-    daysSinceLast: logged[0]?.date ? daysSinceDate(logged[0].date, now) : null,
-    hasEarlierHistory: logged.some((s) => daysSinceDate(s.date!, now) >= BUCKET_DAYS),
-    empty: logged.length === 0,
-  }
 }
 
 export interface DaySuggestion {
