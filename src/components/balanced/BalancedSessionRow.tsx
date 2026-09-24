@@ -19,8 +19,11 @@ interface Props {
   onShare: (session: Session) => void
 }
 
+/** Muscle chips shown before collapsing the rest into "+N". */
+const MAX_CHIPS = 3
+
 /**
- * A logged Balanced session, with the work it actually contained.
+ * A logged Balanced session, as one row of the home screen's recent-sessions card.
  *
  * The shared SessionCard reads its numbers from `session.sets`, which a Balanced
  * session never has — every set lives in `extraWorkouts` instead, so those cards
@@ -40,69 +43,93 @@ export default function BalancedSessionRow({
   const label = getSessionLabel(session, trainingDays)
   const logged = work.sets > 0
 
+  const date = session.date ? new Date(session.date) : null
+  const validDate = date != null && !isNaN(date.getTime())
+  const chips = work.muscles.slice(0, MAX_CHIPS)
+  const hiddenChips = work.muscles.length - chips.length
+
+  const detail = [
+    work.topSet && `top ${work.topSet.kg}kg × ${work.topSet.reps} — ${work.topSet.exercise}`,
+    work.cardioMinutes > 0 && `${work.cardioMinutes} min cardio`,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
   return (
-    <article className="relative mb-2 rounded-xl bg-white border border-[#e8e8e8] overflow-hidden">
-      <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#16a34a]" aria-hidden="true" />
-      <div className="flex items-stretch">
+    <article>
+      <div className="flex items-center gap-3 pl-4">
+        <div
+          title={session.date ? relativeDate(session.date) : undefined}
+          className="shrink-0 w-10 h-11 rounded-lg bg-[#f5f5f5] flex flex-col items-center justify-center"
+        >
+          <span className="text-[15px] font-bold text-[#111111] leading-none tabular-nums">
+            {validDate ? date.getDate() : "–"}
+          </span>
+          <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#aaaaaa] leading-none">
+            {validDate ? date.toLocaleDateString(undefined, { weekday: "short" }) : ""}
+          </span>
+        </div>
+
         <Link
           href={`/session/${session.id}`}
-          className="flex-1 min-w-0 pl-4 pr-2 py-2.5 active:opacity-70 transition-opacity"
+          className="flex-1 min-w-0 py-3 active:opacity-70 transition-opacity"
         >
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[13px] font-bold text-[#111111] truncate">{label}</span>
-            <span className="shrink-0 text-[11px] text-[#aaaaaa]">
-              {session.date ? relativeDate(session.date) : ""}
-            </span>
-          </div>
+          <p className="text-[13px] font-bold text-[#111111] truncate">{label}</p>
 
-          {logged ? (
-            <div className="flex items-baseline gap-1.5 mt-1 text-[12px] text-[#444444] tabular-nums">
-              <span className="font-semibold">{work.sets}</span>
-              <span className="text-[#aaaaaa]">sets</span>
-              <span className="text-[#e0e0e0]">·</span>
-              <span className="font-semibold">{work.exercises}</span>
-              <span className="text-[#aaaaaa]">{work.exercises === 1 ? "exercise" : "exercises"}</span>
-              {work.cardioMinutes > 0 && (
-                <>
-                  <span className="text-[#e0e0e0]">·</span>
-                  <span className="font-semibold">{work.cardioMinutes}</span>
-                  <span className="text-[#aaaaaa]">min cardio</span>
-                </>
+          {chips.length > 0 && (
+            <div className="flex gap-1 mt-1 overflow-hidden">
+              {chips.map((id) => (
+                <span
+                  key={id}
+                  className="shrink-0 text-[10px] font-medium text-[#777777] bg-[#f5f5f5] rounded px-1.5 py-px"
+                >
+                  {getMuscleLabel(exerciseConfig, id)}
+                </span>
+              ))}
+              {hiddenChips > 0 && (
+                <span className="shrink-0 text-[10px] font-medium text-[#aaaaaa] px-0.5 py-px">
+                  +{hiddenChips}
+                </span>
               )}
             </div>
+          )}
+
+          {logged ? (
+            detail && <p className="mt-1 text-[11px] text-[#777777] truncate">{detail}</p>
           ) : (
-            <p className="mt-1 text-[12px] text-[#aaaaaa]">No sets logged</p>
-          )}
-
-          {work.topSet && (
-            <p className="mt-0.5 text-[11px] text-[#777777] truncate">
-              top {work.topSet.kg}kg × {work.topSet.reps} — {work.topSet.exercise}
-            </p>
-          )}
-
-          {work.muscles.length > 0 && (
-            <p className="mt-0.5 text-[11px] text-[#aaaaaa] truncate">
-              {work.muscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" · ")}
-            </p>
+            <p className="mt-1 text-[11px] text-[#aaaaaa]">No sets logged</p>
           )}
         </Link>
 
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? "Hide session actions" : "Show session actions"}
-          aria-expanded={open}
-          className="shrink-0 px-3 text-[#cccccc] hover:text-[#777777] active:opacity-70 transition-colors"
-        >
-          <svg width="16" height="4" viewBox="0 0 16 4" fill="currentColor" aria-hidden="true">
-            <circle cx="2" cy="2" r="1.6" />
-            <circle cx="8" cy="2" r="1.6" />
-            <circle cx="14" cy="2" r="1.6" />
-          </svg>
-        </button>
+        <div className="shrink-0 flex flex-col items-end self-stretch justify-center">
+          <Link
+            href={`/session/${session.id}`}
+            className="pr-4 pt-2 text-right active:opacity-70 transition-opacity"
+          >
+            <span className="block text-lg font-bold text-[#111111] leading-none tabular-nums">
+              {work.sets}
+            </span>
+            <span className="block mt-0.5 text-[9px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
+              sets
+            </span>
+          </Link>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Hide session actions" : "Show session actions"}
+            aria-expanded={open}
+            className="px-4 py-2 text-[#cccccc] hover:text-[#777777] active:opacity-70 transition-colors"
+          >
+            <svg width="16" height="4" viewBox="0 0 16 4" fill="currentColor" aria-hidden="true">
+              <circle cx="2" cy="2" r="1.6" />
+              <circle cx="8" cy="2" r="1.6" />
+              <circle cx="14" cy="2" r="1.6" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {open && (
-        <div className="flex gap-2 px-4 pb-3 pt-2 border-t border-[#f0f0f0] animate-fade-up">
+        <div className="flex gap-2 px-4 pb-3 pt-1 animate-fade-up">
           <button
             onClick={() => onShare(session)}
             className="text-xs font-semibold text-[#1e3a5f] border border-[#1e3a5f] rounded-lg px-3 py-1.5 hover:bg-[#1e3a5f] hover:text-white transition-colors"

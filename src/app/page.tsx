@@ -1084,7 +1084,7 @@ export default function Page() {
           <WeightCard entries={weights} onCheckIn={() => setCheckInDay(dateKey())} />
         )}
 
-        {/* Balanced mode: momentum, how balanced the training is, the next session, recent ones */}
+        {/* Balanced mode: the next session, how balanced the training is, recent ones */}
         {!liftFocused && (
           <BalancedHome
             confirmedSorted={confirmedSorted}

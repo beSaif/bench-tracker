@@ -24,8 +24,7 @@ interface Pill {
 function pillFor(d: number | null, entryCount: number): Pill {
   if (d === null) {
     // Either the very first entry, or a log too young to have a week-old reading to
-    // compare against. "first week" is the wording MomentumStrip already uses for the
-    // same not-enough-history state.
+    // compare against.
     return {
       text: entryCount < 2 ? "first weigh-in" : "first week",
       className: "bg-[#f5f5f5] text-[#777777]",
