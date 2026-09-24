@@ -7,7 +7,6 @@ import {
   DEFAULT_MUSCLE_GROUPS,
   DEFAULT_TRAINING_DAYS,
   generateId,
-  retireReplacedGroups,
   sortedCardioGroups,
 } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
@@ -24,6 +23,36 @@ import {
 } from "@/lib/storage"
 import { PersonSummary } from "@/lib/routines"
 
+const SECTION_LABEL = "text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3"
+const ADD_BUTTON =
+  "w-full border border-dashed border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#aaaaaa] hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
+
+function Chevron({ open = false }: { open?: boolean }) {
+  return (
+    <svg
+      width="7" height="12" viewBox="0 0 7 12" fill="none"
+      stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+      className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+      aria-hidden="true"
+    >
+      <path d="M1 1l5 5-5 5" />
+    </svg>
+  )
+}
+
+function chipClass(on: boolean) {
+  return `px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+    on
+      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+      : "bg-white text-[#777777] border-[#e8e8e8] hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
+  }`
+}
+
+/**
+ * The routine editor: training focus, the days of the split, and the muscle groups
+ * those days are built from. Rows stay quiet — a day's rename and delete live inside
+ * it once opened, and a group's live on its own page.
+ */
 export default function ExercisesPage() {
   const [config, setConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
   const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
@@ -33,13 +62,10 @@ export default function ExercisesPage() {
   const [stopping, setStopping] = useState(false)
   const locked = coach !== null
 
-  // Muscle group editing
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
-  const [editingGroupName, setEditingGroupName] = useState("")
+  // Adding a muscle group: name and day in one form
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupDayId, setNewGroupDayId] = useState<string | null>(null)
-  const [newGroupStep, setNewGroupStep] = useState<"name" | "day">("name")
 
   // Training day editing
   const [expandedDayId, setExpandedDayId] = useState<string | null>(null)
@@ -48,7 +74,6 @@ export default function ExercisesPage() {
   const [addingDay, setAddingDay] = useState(false)
   const [newDayName, setNewDayName] = useState("")
 
-  const renameGroupInputRef = useRef<HTMLInputElement>(null)
   const addGroupInputRef = useRef<HTMLInputElement>(null)
   const renameDayInputRef = useRef<HTMLInputElement>(null)
   const addDayInputRef = useRef<HTMLInputElement>(null)
@@ -71,12 +96,8 @@ export default function ExercisesPage() {
   }
 
   useEffect(() => {
-    if (editingGroupId) renameGroupInputRef.current?.focus()
-  }, [editingGroupId])
-
-  useEffect(() => {
-    if (addingGroup && newGroupStep === "name") addGroupInputRef.current?.focus()
-  }, [addingGroup, newGroupStep])
+    if (addingGroup) addGroupInputRef.current?.focus()
+  }, [addingGroup])
 
   useEffect(() => {
     if (editingDayId) renameDayInputRef.current?.focus()
@@ -98,48 +119,9 @@ export default function ExercisesPage() {
     saveTrainingDays(newDays)
   }
 
-  function startRenameGroup(group: MuscleGroupConfig) {
-    setEditingGroupId(group.id)
-    setEditingGroupName(group.name)
-  }
-
-  function saveRenameGroup(id: string) {
-    const name = editingGroupName.trim()
-    setEditingGroupId(null)
-    if (!name) return
-    persistConfig(config.map((g) => (g.id === id ? { ...g, name } : g)))
-  }
-
-  function deleteGroup(group: MuscleGroupConfig) {
-    const exCount = group.exercises.length
-    const msg =
-      exCount > 0
-        ? `Delete "${group.name}" and its ${exCount} exercise${exCount !== 1 ? "s" : ""}? History is kept.`
-        : `Delete "${group.name}"?`
-    if (!window.confirm(msg)) return
-    // Retired, not dropped: the confirmation above promises history is kept, and
-    // sessions that logged this group resolve its name through the tombstone.
-    const live = config.filter((g) => g.id !== group.id && !g.retired)
-    persistConfig(retireReplacedGroups(live, config))
-    // Remove from any training day
-    persistDays(trainingDays.map((d) => ({
-      ...d,
-      muscleGroupIds: d.muscleGroupIds.filter((id) => id !== group.id),
-    })))
-  }
-
-  function addGroupNameConfirm() {
-    const name = newGroupName.trim()
-    if (!name) return
-    setNewGroupStep("day")
-  }
-
   function addGroupFinish() {
     const name = newGroupName.trim()
-    if (!name) {
-      resetAddGroup()
-      return
-    }
+    if (!name) return
     const id = generateId(name)
     const newGroup: MuscleGroupConfig = { id, name, order: config.length, exercises: [] }
     persistConfig([...config, newGroup])
@@ -158,7 +140,6 @@ export default function ExercisesPage() {
     setAddingGroup(false)
     setNewGroupName("")
     setNewGroupDayId(null)
-    setNewGroupStep("name")
   }
 
   // --- Training day helpers ---
@@ -171,6 +152,7 @@ export default function ExercisesPage() {
     const id = generateId(name)
     const newDay: TrainingDay = { id, name, order: trainingDays.length, muscleGroupIds: [] }
     persistDays([...trainingDays, newDay])
+    setExpandedDayId(id)
   }
 
   function startRenameDay(day: TrainingDay) {
@@ -224,9 +206,7 @@ export default function ExercisesPage() {
     .sort((a, b) => a.name.localeCompare(b.name))
   const cardioGroups = sortedCardioGroups(config)
   const sortedDays = [...trainingDays].sort((a, b) => a.order - b.order)
-
-  // Which muscles are already assigned to some day
-  const assignedMuscles = new Set(trainingDays.flatMap((d) => d.muscleGroupIds))
+  const groupName = (id: string) => config.find((g) => g.id === id)?.name ?? id
 
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]">
@@ -238,18 +218,15 @@ export default function ExercisesPage() {
       </Link>
 
       <h1 className="text-2xl font-semibold text-[#111111] tracking-tight mb-1">
-        Exercise Selection
+        Routine
       </h1>
       <p className="text-sm text-[#777777] mb-6">
-        Organise muscle groups into training days
+        Your training days and the exercises in each.
       </p>
-
-      {/* ─── Training Focus ─── */}
-      <TrainingModeSelector />
 
       {/* ─── Coach ─── */}
       {coach && (
-        <div className="bg-[#f0f4f8] border border-[#dbe4ee] rounded-xl px-4 py-3.5 mb-6">
+        <div className="bg-[#f0f4f8] border border-[#dbe4ee] rounded-xl px-4 py-3 mb-6">
           <p className="text-sm text-[#111111]">
             Following{" "}
             <Link
@@ -258,129 +235,106 @@ export default function ExercisesPage() {
             >
               {coach.name}
             </Link>
-            &apos;s routine
-          </p>
-          <p className="text-xs text-[#777777] mt-0.5 mb-2">
-            Your days and muscle groups update when theirs do, so they can&apos;t be edited
-            here. Cardio is still yours.
+            &apos;s routine. Only cardio is yours to edit.
           </p>
           <button
             onClick={stopFollowing}
             disabled={stopping}
-            className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
+            className="mt-1.5 text-xs font-semibold text-red-500 hover:text-red-600 transition-colors disabled:opacity-50"
           >
             {stopping ? "Stopping…" : "Stop training under them"}
           </button>
         </div>
       )}
 
-      {/* ─── Training Days ─── */}
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
-        Training Days
-      </p>
+      {/* ─── Training Focus ─── */}
+      <TrainingModeSelector />
 
-      <div className="space-y-2 mb-4">
+      {/* ─── Training Days ─── */}
+      <p className={SECTION_LABEL}>Training Days</p>
+
+      <div className="space-y-2 mb-3">
         {sortedDays.map((day) => {
           const isExpanded = expandedDayId === day.id
           const isEditing = editingDayId === day.id
-          const dayMuscleNames = day.muscleGroupIds
-            .map((id) => config.find((g) => g.id === id)?.name ?? id)
-            .join(", ")
+          const dayMuscleNames = day.muscleGroupIds.map(groupName).join(", ")
 
           return (
             <div
               key={day.id}
-              className="bg-white border border-[#e8e8e8] rounded-xl overflow-hidden"
+              className={`bg-white border rounded-xl overflow-hidden transition-colors ${
+                isExpanded ? "border-[#cfd9e5]" : "border-[#e8e8e8]"
+              }`}
             >
-              {/* Day header row */}
-              <div className="flex items-center gap-2">
+              {isEditing ? (
+                <div className="px-4 py-3.5">
+                  <input
+                    ref={renameDayInputRef}
+                    value={editingDayName}
+                    onChange={(e) => setEditingDayName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveRenameDay(day.id)
+                      if (e.key === "Escape") setEditingDayId(null)
+                    }}
+                    onBlur={() => saveRenameDay(day.id)}
+                    aria-label="Day name"
+                    className="w-full text-sm font-semibold text-[#111111] border-b border-[#1e3a5f] outline-none bg-transparent py-0.5"
+                  />
+                </div>
+              ) : (
                 <button
                   onClick={() => setExpandedDayId(isExpanded ? null : day.id)}
-                  className="flex-1 px-4 py-3.5 text-left hover:bg-[#fafafa] transition-colors min-w-0"
+                  aria-expanded={isExpanded}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[#fafafa] transition-colors"
                 >
-                  {isEditing ? (
-                    <input
-                      ref={renameDayInputRef}
-                      value={editingDayName}
-                      onChange={(e) => setEditingDayName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveRenameDay(day.id)
-                        if (e.key === "Escape") setEditingDayId(null)
-                      }}
-                      onBlur={() => saveRenameDay(day.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-full text-sm font-semibold text-[#111111] border-b border-[#1e3a5f] outline-none bg-transparent py-0.5"
-                    />
-                  ) : (
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[#111111] truncate">{day.name}</p>
-                  )}
-                  {!isEditing && (
                     <p className="text-[11px] text-[#aaaaaa] mt-0.5 truncate">
-                      {dayMuscleNames || "No muscles assigned"}
+                      {dayMuscleNames || "No muscles yet — tap to add"}
                     </p>
-                  )}
+                  </div>
+                  <Chevron open={isExpanded} />
                 </button>
+              )}
 
-                <div className="flex items-center gap-0.5 pr-2 shrink-0">
-                  {!locked && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startRenameDay(day) }}
-                        className="p-2 text-[#aaaaaa] hover:text-[#555555] transition-colors"
-                        aria-label="Rename day"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteDay(day) }}
-                        className="p-2 text-[#aaaaaa] hover:text-red-400 transition-colors"
-                        aria-label="Delete day"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="2,3 11,3" />
-                          <path d="M4 3V2h5v1" />
-                          <rect x="3" y="4" width="7" height="7" rx="1" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
-                  <svg
-                    width="7" height="12" viewBox="0 0 7 12" fill="none"
-                    stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                    className={`mr-1 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                  >
-                    <path d="M1 1l5 5-5 5" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Expanded: muscle group toggles */}
+              {/* Expanded: which muscles this day trains, then the day's own actions */}
               {isExpanded && (
-                <div className="border-t border-[#f0f0f0] px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-2">
-                    Muscles in this day
+                <div className="border-t border-[#f0f0f0] px-4 pt-3 pb-3">
+                  <p className="text-[11px] text-[#999999] mb-2">
+                    {locked ? "Muscles trained this day" : "Tap to add or remove muscles"}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {sortedGroups.map((group) => {
-                      const included = day.muscleGroupIds.includes(group.id)
-                      return (
-                        <button
-                          key={group.id}
-                          onClick={() => toggleMuscleInDay(day.id, group.id)}
-                          disabled={locked}
-                          className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                            included
-                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                              : "bg-white text-[#777777] border-[#e8e8e8] hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
-                          }`}
-                        >
-                          {group.name}
-                        </button>
-                      )
-                    })}
+                    {/* Locked, the unpicked chips would only look tappable: show the day's own */}
+                    {sortedGroups
+                      .filter((group) => !locked || day.muscleGroupIds.includes(group.id))
+                      .map((group) => (
+                      <button
+                        key={group.id}
+                        onClick={() => toggleMuscleInDay(day.id, group.id)}
+                        disabled={locked}
+                        aria-pressed={day.muscleGroupIds.includes(group.id)}
+                        className={chipClass(day.muscleGroupIds.includes(group.id))}
+                      >
+                        {group.name}
+                      </button>
+                    ))}
                   </div>
+                  {!locked && (
+                    <div className="flex gap-4 mt-3 pt-3 border-t border-[#f5f5f5]">
+                      <button
+                        onClick={() => startRenameDay(day)}
+                        className="text-xs font-semibold text-[#555555] hover:text-[#111111] transition-colors"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => deleteDay(day)}
+                        className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        Delete day
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -392,9 +346,6 @@ export default function ExercisesPage() {
       <div className="mb-8">
         {locked ? null : addingDay ? (
           <div className="border border-[#e8e8e8] rounded-xl px-4 py-4 bg-white">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
-              New Training Day
-            </p>
             <input
               ref={addDayInputRef}
               value={newDayName}
@@ -403,13 +354,15 @@ export default function ExercisesPage() {
                 if (e.key === "Enter") addDay()
                 if (e.key === "Escape") { setAddingDay(false); setNewDayName("") }
               }}
-              placeholder="e.g. Day D"
+              placeholder="Day name, e.g. Push"
+              aria-label="New training day name"
               className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#1e3a5f] outline-none bg-transparent pb-1 mb-4"
             />
             <div className="flex gap-3">
               <button
                 onClick={addDay}
-                className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-1.5 hover:bg-[#16304f] transition-colors"
+                disabled={!newDayName.trim()}
+                className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-1.5 hover:bg-[#16304f] transition-colors disabled:opacity-40"
               >
                 Add day
               </button>
@@ -422,190 +375,100 @@ export default function ExercisesPage() {
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setAddingDay(true)}
-            className="w-full border border-dashed border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#aaaaaa] hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
-          >
+          <button onClick={() => setAddingDay(true)} className={ADD_BUTTON}>
             + Add training day
           </button>
         )}
       </div>
 
       {/* ─── Muscle Groups ─── */}
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
-        Muscle Groups
-      </p>
+      <p className={SECTION_LABEL}>Muscle Groups</p>
 
-      <div className="space-y-2">
-        {sortedGroups.map((group) => {
-          const isEditing = editingGroupId === group.id
+      <div className="bg-white border border-[#e8e8e8] rounded-xl overflow-hidden">
+        {sortedGroups.map((group, idx) => {
           const exCount = group.exercises.length
-          const inDay = trainingDays.find((d) => d.muscleGroupIds.includes(group.id))
+          const days = sortedDays.filter((d) => d.muscleGroupIds.includes(group.id))
 
           return (
-            <div
+            <Link
               key={group.id}
-              className="flex items-center gap-2 bg-white border border-[#e8e8e8] rounded-xl overflow-hidden"
+              href={`/exercises/${group.id}`}
+              className={`flex items-center gap-3 px-4 py-3 hover:bg-[#fafafa] transition-colors ${
+                idx < sortedGroups.length - 1 ? "border-b border-[#f5f5f5]" : ""
+              }`}
             >
-              {isEditing ? (
-                <div className="flex-1 px-4 py-3.5">
-                  <input
-                    ref={renameGroupInputRef}
-                    value={editingGroupName}
-                    onChange={(e) => setEditingGroupName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") saveRenameGroup(group.id)
-                      if (e.key === "Escape") setEditingGroupId(null)
-                    }}
-                    onBlur={() => saveRenameGroup(group.id)}
-                    className="w-full text-sm font-semibold text-[#111111] border-b border-[#1e3a5f] outline-none bg-transparent py-0.5"
-                  />
-                </div>
-              ) : (
-                <Link
-                  href={`/exercises/${group.id}`}
-                  className="flex-1 px-4 py-3.5 hover:bg-[#fafafa] transition-colors min-w-0"
-                >
-                  <p className="text-sm font-semibold text-[#111111] truncate">{group.name}</p>
-                  <p className="text-[11px] text-[#aaaaaa] mt-0.5">
-                    {exCount === 0 ? "No exercises" : `${exCount} exercise${exCount !== 1 ? "s" : ""}`}
-                    {inDay ? <span className="ml-1 text-[#1e3a5f]">· {inDay.name}</span> : null}
-                  </p>
-                </Link>
-              )}
-
-              <div className="flex items-center gap-0.5 pr-2 shrink-0">
-                {!locked && (
-                  <>
-                    <button
-                      onClick={(e) => { e.preventDefault(); startRenameGroup(group) }}
-                      className="p-2 text-[#aaaaaa] hover:text-[#555555] transition-colors"
-                      aria-label="Rename group"
-                    >
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => { e.preventDefault(); deleteGroup(group) }}
-                      className="p-2 text-[#aaaaaa] hover:text-red-400 transition-colors"
-                      aria-label="Delete group"
-                    >
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="2,3 11,3" />
-                        <path d="M4 3V2h5v1" />
-                        <rect x="3" y="4" width="7" height="7" rx="1" />
-                      </svg>
-                    </button>
-                  </>
-                )}
-                {!isEditing && (
-                  <svg width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                    <path d="M1 1l5 5-5 5" />
-                  </svg>
-                )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#111111] truncate">{group.name}</p>
+                <p className="text-[11px] text-[#aaaaaa] mt-0.5 truncate">
+                  {exCount === 0 ? "No exercises" : `${exCount} exercise${exCount !== 1 ? "s" : ""}`}
+                  {" · "}
+                  {days.length > 0 ? (
+                    <span className="text-[#1e3a5f]">{days.map((d) => d.name).join(", ")}</span>
+                  ) : (
+                    <span className="text-amber-600">Not on a day</span>
+                  )}
+                </p>
               </div>
-            </div>
+              <Chevron />
+            </Link>
           )
         })}
       </div>
 
-      {/* Add muscle group */}
-      <div className="mt-4">
+      {/* Add muscle group: name and day together, one step */}
+      <div className="mt-3">
         {locked ? null : addingGroup ? (
           <div className="border border-[#e8e8e8] rounded-xl px-4 py-4 bg-white">
-            {newGroupStep === "name" ? (
-              <>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
-                  New Muscle Group
-                </p>
-                <input
-                  ref={addGroupInputRef}
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newGroupName.trim()) addGroupNameConfirm()
-                    if (e.key === "Escape") resetAddGroup()
-                  }}
-                  placeholder="e.g. Abs"
-                  className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#1e3a5f] outline-none bg-transparent pb-1 mb-4"
-                />
-                <div className="flex gap-3">
-                  <button
-                    onClick={addGroupNameConfirm}
-                    disabled={!newGroupName.trim()}
-                    className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-1.5 hover:bg-[#16304f] transition-colors disabled:opacity-40"
-                  >
-                    Next
-                  </button>
-                  <button
-                    onClick={resetAddGroup}
-                    className="text-xs font-semibold text-[#777777] hover:text-[#333333] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1">
-                  Assign to training day
-                </p>
-                <p className="text-xs text-[#999999] mb-3">
-                  Which day should <span className="font-semibold text-[#333333]">{newGroupName}</span> belong to?
-                </p>
-                <div className="space-y-1.5 mb-4">
-                  <button
-                    onClick={() => setNewGroupDayId(null)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors ${
-                      newGroupDayId === null
-                        ? "bg-[#f0f4f8] border-[#1e3a5f] text-[#1e3a5f] font-semibold"
-                        : "border-[#e8e8e8] text-[#777777] hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
-                    }`}
-                  >
-                    None (unassigned)
-                  </button>
-                  {sortedDays.map((day) => (
-                    <button
-                      key={day.id}
-                      onClick={() => setNewGroupDayId(day.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors ${
-                        newGroupDayId === day.id
-                          ? "bg-[#f0f4f8] border-[#1e3a5f] text-[#1e3a5f] font-semibold"
-                          : "border-[#e8e8e8] text-[#777777] hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
-                      }`}
-                    >
-                      {day.name}
-                      {day.muscleGroupIds.length > 0 && (
-                        <span className="text-[#aaaaaa] font-normal ml-1 text-xs">
-                          ({day.muscleGroupIds.map((id) => config.find((g) => g.id === id)?.name ?? id).join(", ")})
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={addGroupFinish}
-                    className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-1.5 hover:bg-[#16304f] transition-colors"
-                  >
-                    Add group
-                  </button>
-                  <button
-                    onClick={resetAddGroup}
-                    className="text-xs font-semibold text-[#777777] hover:text-[#333333] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
+            <input
+              ref={addGroupInputRef}
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addGroupFinish()
+                if (e.key === "Escape") resetAddGroup()
+              }}
+              placeholder="Muscle group, e.g. Abs"
+              aria-label="New muscle group name"
+              className="w-full text-sm text-[#111111] border-b border-[#e8e8e8] focus:border-[#1e3a5f] outline-none bg-transparent pb-1 mb-4"
+            />
+            <p className="text-[11px] text-[#999999] mb-2">Train it on</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                onClick={() => setNewGroupDayId(null)}
+                aria-pressed={newGroupDayId === null}
+                className={chipClass(newGroupDayId === null)}
+              >
+                No day yet
+              </button>
+              {sortedDays.map((day) => (
+                <button
+                  key={day.id}
+                  onClick={() => setNewGroupDayId(day.id)}
+                  aria-pressed={newGroupDayId === day.id}
+                  className={chipClass(newGroupDayId === day.id)}
+                >
+                  {day.name}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={addGroupFinish}
+                disabled={!newGroupName.trim()}
+                className="text-xs font-semibold text-white bg-[#1e3a5f] rounded-lg px-4 py-1.5 hover:bg-[#16304f] transition-colors disabled:opacity-40"
+              >
+                Add group
+              </button>
+              <button
+                onClick={resetAddGroup}
+                className="text-xs font-semibold text-[#777777] hover:text-[#333333] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         ) : (
-          <button
-            onClick={() => setAddingGroup(true)}
-            className="w-full border border-dashed border-[#e8e8e8] rounded-xl py-3 text-sm font-semibold text-[#aaaaaa] hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
-          >
+          <button onClick={() => setAddingGroup(true)} className={ADD_BUTTON}>
             + Add muscle group
           </button>
         )}
@@ -614,19 +477,18 @@ export default function ExercisesPage() {
       {/* ─── Cardio ─── */}
       {cardioGroups.length > 0 && (
         <>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mt-8 mb-3">
-            Cardio
+          <p className={`${SECTION_LABEL} mt-8 !mb-1`}>Cardio</p>
+          <p className="text-[11px] text-[#999999] mb-3">
+            Logged in minutes. Add a bout from any session.
           </p>
-          <p className="text-xs text-[#999999] mb-3">
-            Logged in minutes, and never part of a training day — add a bout from the
-            exercises sheet whenever a session calls for one.
-          </p>
-          <div className="space-y-2">
-            {cardioGroups.map((group) => (
+          <div className="bg-white border border-[#e8e8e8] rounded-xl overflow-hidden">
+            {cardioGroups.map((group, idx) => (
               <Link
                 key={group.id}
                 href={`/exercises/${group.id}`}
-                className="flex items-center gap-2 bg-white border border-[#e8e8e8] rounded-xl px-4 py-3.5 hover:bg-[#fafafa] transition-colors"
+                className={`flex items-center gap-3 px-4 py-3 hover:bg-[#fafafa] transition-colors ${
+                  idx < cardioGroups.length - 1 ? "border-b border-[#f5f5f5]" : ""
+                }`}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-[#111111] truncate">{group.name}</p>
@@ -636,9 +498,7 @@ export default function ExercisesPage() {
                       : `${group.exercises.length} exercise${group.exercises.length !== 1 ? "s" : ""}`}
                   </p>
                 </div>
-                <svg width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="#cccccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                  <path d="M1 1l5 5-5 5" />
-                </svg>
+                <Chevron />
               </Link>
             ))}
           </div>

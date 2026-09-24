@@ -131,36 +131,28 @@ export default function TrainingModeSelector() {
       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3">
         Training Focus
       </p>
-      <div className="space-y-2 mb-8">
-        {MODES.map((mode) => {
-          const selected = mode === current
-          return (
-            <button
-              key={mode}
-              onClick={() => choose(mode)}
-              disabled={saving}
-              aria-pressed={selected}
-              className={`w-full text-left px-4 py-3.5 rounded-xl border-2 transition-colors disabled:opacity-60 ${
-                selected
-                  ? "border-[#1e3a5f] bg-[#eff6ff]"
-                  : "border-[#e8e8e8] bg-white hover:border-[#cccccc]"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className={`text-sm font-semibold ${selected ? "text-[#1e3a5f]" : "text-[#111111]"}`}>
-                  {TRAINING_MODE_LABEL[mode]}
-                </span>
-                {selected && (
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#1e3a5f]">
-                    Current
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-[#777777] mt-1 leading-snug">{TRAINING_MODE_DESC[mode]}</p>
-            </button>
-          )
-        })}
-        {error && <p className="text-sm text-red-500">{error}</p>}
+      {/* Two short segments rather than two cards: only the chosen mode is explained. */}
+      <div className="mb-8">
+        <div className="flex gap-1 p-1 rounded-xl bg-[#f5f5f5]">
+          {MODES.map((mode) => {
+            const selected = mode === current
+            return (
+              <button
+                key={mode}
+                onClick={() => choose(mode)}
+                disabled={saving}
+                aria-pressed={selected}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60 ${
+                  selected ? "bg-white text-[#1e3a5f] shadow-sm" : "text-[#777777] hover:text-[#333333]"
+                }`}
+              >
+                {TRAINING_MODE_LABEL[mode]}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-[11px] text-[#777777] mt-2 leading-snug">{TRAINING_MODE_DESC[current]}</p>
+        {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
       </div>
 
       {/* Lift setup sheet: needed before lift-focused mode can prescribe anything */}
