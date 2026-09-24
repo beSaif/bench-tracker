@@ -19,9 +19,6 @@ interface Props {
   onShare: (session: Session) => void
 }
 
-/** Muscle chips shown before collapsing the rest into "+N". */
-const MAX_CHIPS = 3
-
 /**
  * A logged Balanced session, as one row of the home screen's recent-sessions card.
  *
@@ -44,88 +41,67 @@ export default function BalancedSessionRow({
   const logged = work.sets > 0
 
   const date = session.date ? new Date(session.date) : null
-  const validDate = date != null && !isNaN(date.getTime())
-  const chips = work.muscles.slice(0, MAX_CHIPS)
-  const hiddenChips = work.muscles.length - chips.length
-
-  const detail = [
-    work.topSet && `top ${work.topSet.kg}kg × ${work.topSet.reps} — ${work.topSet.exercise}`,
-    work.cardioMinutes > 0 && `${work.cardioMinutes} min cardio`,
-  ]
-    .filter(Boolean)
-    .join(" · ")
+  const dateLabel =
+    date && !isNaN(date.getTime())
+      ? date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })
+      : ""
+  const muscles = work.muscles.map((id) => getMuscleLabel(exerciseConfig, id)).join(" · ")
 
   return (
     <article>
-      <div className="flex items-center gap-3 pl-4">
-        <div
-          title={session.date ? relativeDate(session.date) : undefined}
-          className="shrink-0 w-10 h-11 rounded-lg bg-[#f5f5f5] flex flex-col items-center justify-center"
-        >
-          <span className="text-[15px] font-bold text-[#111111] leading-none tabular-nums">
-            {validDate ? date.getDate() : "–"}
-          </span>
-          <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#aaaaaa] leading-none">
-            {validDate ? date.toLocaleDateString(undefined, { weekday: "short" }) : ""}
-          </span>
-        </div>
-
+      <div className="flex items-start">
         <Link
           href={`/session/${session.id}`}
-          className="flex-1 min-w-0 py-3 active:opacity-70 transition-opacity"
+          className="flex-1 min-w-0 pl-4 pr-1 py-3 active:opacity-70 transition-opacity"
         >
-          <p className="text-[13px] font-bold text-[#111111] truncate">{label}</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[14px] font-semibold text-[#111111] truncate">{label}</span>
+            <span
+              title={session.date ? relativeDate(session.date) : undefined}
+              className="shrink-0 text-[11px] text-[#aaaaaa] tabular-nums"
+            >
+              {dateLabel}
+            </span>
+          </div>
 
-          {chips.length > 0 && (
-            <div className="flex gap-1 mt-1 overflow-hidden">
-              {chips.map((id) => (
-                <span
-                  key={id}
-                  className="shrink-0 text-[10px] font-medium text-[#777777] bg-[#f5f5f5] rounded px-1.5 py-px"
-                >
-                  {getMuscleLabel(exerciseConfig, id)}
-                </span>
-              ))}
-              {hiddenChips > 0 && (
-                <span className="shrink-0 text-[10px] font-medium text-[#aaaaaa] px-0.5 py-px">
-                  +{hiddenChips}
-                </span>
-              )}
-            </div>
-          )}
+          {muscles && <p className="mt-0.5 text-[12px] text-[#777777] truncate">{muscles}</p>}
 
           {logged ? (
-            detail && <p className="mt-1 text-[11px] text-[#777777] truncate">{detail}</p>
+            <p className="mt-1.5 text-[12px] text-[#aaaaaa] tabular-nums truncate">
+              <span className="font-semibold text-[#1e3a5f]">{work.sets}</span> sets
+              {work.topSet && (
+                <>
+                  <span className="text-[#e0e0e0]"> · </span>
+                  <span className="font-semibold text-[#444444]">
+                    {work.topSet.kg}kg × {work.topSet.reps}
+                  </span>{" "}
+                  {work.topSet.exercise}
+                </>
+              )}
+              {work.cardioMinutes > 0 && (
+                <>
+                  <span className="text-[#e0e0e0]"> · </span>
+                  <span className="font-semibold text-[#444444]">{work.cardioMinutes}</span> min cardio
+                </>
+              )}
+            </p>
           ) : (
-            <p className="mt-1 text-[11px] text-[#aaaaaa]">No sets logged</p>
+            <p className="mt-1.5 text-[12px] text-[#aaaaaa]">No sets logged</p>
           )}
         </Link>
 
-        <div className="shrink-0 flex flex-col items-end self-stretch justify-center">
-          <Link
-            href={`/session/${session.id}`}
-            className="pr-4 pt-2 text-right active:opacity-70 transition-opacity"
-          >
-            <span className="block text-lg font-bold text-[#111111] leading-none tabular-nums">
-              {work.sets}
-            </span>
-            <span className="block mt-0.5 text-[9px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-              sets
-            </span>
-          </Link>
-          <button
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? "Hide session actions" : "Show session actions"}
-            aria-expanded={open}
-            className="px-4 py-2 text-[#cccccc] hover:text-[#777777] active:opacity-70 transition-colors"
-          >
-            <svg width="16" height="4" viewBox="0 0 16 4" fill="currentColor" aria-hidden="true">
-              <circle cx="2" cy="2" r="1.6" />
-              <circle cx="8" cy="2" r="1.6" />
-              <circle cx="14" cy="2" r="1.6" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Hide session actions" : "Show session actions"}
+          aria-expanded={open}
+          className="shrink-0 self-start px-3 pt-[19px] pb-3 text-[#cccccc] hover:text-[#777777] active:opacity-70 transition-colors"
+        >
+          <svg width="16" height="4" viewBox="0 0 16 4" fill="currentColor" aria-hidden="true">
+            <circle cx="2" cy="2" r="1.6" />
+            <circle cx="8" cy="2" r="1.6" />
+            <circle cx="14" cy="2" r="1.6" />
+          </svg>
+        </button>
       </div>
 
       {open && (
