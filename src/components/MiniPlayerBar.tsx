@@ -25,17 +25,17 @@ export default function MiniPlayerBar() {
 
   // Tick rest timer down
   useEffect(() => {
-    if (!miniState?.restEndTime) {
-      setRestSeconds(null)
-      return
-    }
+    if (!miniState?.restEndTime) return
     const tick = () => {
       const remaining = Math.max(0, Math.ceil((miniState.restEndTime! - Date.now()) / 1000))
       setRestSeconds(remaining > 0 ? remaining : null)
     }
     tick()
     const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
+    return () => {
+      clearInterval(id)
+      setRestSeconds(null)
+    }
   }, [miniState?.restEndTime])
 
   if (!miniState) return null

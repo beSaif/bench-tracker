@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Session, MuscleGroup, TrainingDay } from "@/lib/types"
-import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
+import { MuscleGroupConfig, getMuscleLabel, isCardioMuscle } from "@/lib/exerciseConfig"
 
 interface SessionCardProps {
   session: Session
@@ -71,8 +71,12 @@ export default function SessionCard({
     return (session.selectedMuscleGroups ?? []).filter((m) => !dayMuscles.includes(m))
   })
 
-  // Sync state when the session prop changes (e.g. after save)
-  useEffect(() => {
+  // Re-sync when the session's saved day or groups change (e.g. after save). Done while
+  // rendering, React's pattern for state that follows a prop, rather than in an effect.
+  const savedKey = `${session.selectedTrainingDayId ?? ""}|${(session.selectedMuscleGroups ?? []).join(",")}`
+  const [syncedKey, setSyncedKey] = useState(savedKey)
+  if (savedKey !== syncedKey) {
+    setSyncedKey(savedKey)
     const dayId = session.selectedTrainingDayId ?? sortedDays[0]?.id ?? null
     setSelectedDayId(dayId)
     if (hasDays) {
@@ -81,14 +85,16 @@ export default function SessionCard({
     } else {
       setExtraMuscles(session.selectedMuscleGroups ?? [])
     }
-  }, [session.selectedTrainingDayId, session.selectedMuscleGroups])
+  }
 
-  useEffect(() => {
-    if (pickerOpen) {
+  // Opening the extras picker starts from what is saved, discarding unsaved picks.
+  function togglePicker() {
+    if (!pickerOpen) {
       const dayMuscles = sortedDays.find((d) => d.id === selectedDayId)?.muscleGroupIds ?? []
       setExtraMuscles((session.selectedMuscleGroups ?? []).filter((m) => !dayMuscles.includes(m)))
     }
-  }, [pickerOpen])
+    setPickerOpen((v) => !v)
+  }
 
   const selectedDay = sortedDays.find((d) => d.id === selectedDayId) ?? null
   const dayMuscles: MuscleGroup[] = selectedDay?.muscleGroupIds ?? []
@@ -117,18 +123,33 @@ export default function SessionCard({
   const topReps = working[0]?.reps ?? null
   const setCount = working.length
 
-  // Muscles trained in a completed session (for its training-day card)
-  const confirmedMuscles: MuscleGroup[] =
+  // Muscles trained in a completed session (for its training-day card). Cardio is not a
+  // muscle, and older sessions stored it among the groups; it only shows when a session
+  // was nothing but cardio.
+  const loggedMuscles: MuscleGroup[] =
     session.selectedMuscleGroups && session.selectedMuscleGroups.length > 0
       ? session.selectedMuscleGroups
       : session.extraWorkouts?.map((w) => w.muscle) ?? []
+  const strengthMuscles = loggedMuscles.filter((m) => !isCardioMuscle(exerciseConfig, m))
+  const confirmedMuscles = strengthMuscles.length > 0 ? strengthMuscles : loggedMuscles
+  // Block sessions are numbered by their place in the block, the scheme the previews
+  // use. A session outside any block (a skipped main lift, a Balanced-mode session) has
+  // no such place, and its internal id would read as a second, clashing count.
+  const sessionLabel =
+    blockIndex !== undefined
+      ? `Session ${blockIndex}`
+      : session.skippedMainLift
+      ? "Accessories"
+      : session.type === "Free"
+      ? "Balanced session"
+      : `Session ${String(session.id).padStart(2, "0")}`
   const confirmedDay = sortedDays.find((d) => d.id === session.selectedTrainingDayId) ?? null
 
   const upcomingBody = (
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-semibold text-[#777777]">
-          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
+          {sessionLabel}
         </span>
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#1e3a5f] inline-block" />
@@ -188,7 +209,7 @@ export default function SessionCard({
             <div className="flex items-center gap-3">
               {onUpdateMuscleGroups && (
                 <button
-                  onClick={() => setPickerOpen((v) => !v)}
+                  onClick={togglePicker}
                   className="text-[11px] font-semibold text-[#777777] hover:text-[#1e3a5f] transition-colors"
                 >
                   {pickerOpen
@@ -276,7 +297,7 @@ export default function SessionCard({
     <div className="px-4 pt-3 pb-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-semibold text-[#777777] flex items-center gap-1.5">
-          Session {blockIndex !== undefined ? String(blockIndex) : String(session.id).padStart(2, "0")}
+          {sessionLabel}
           {session.bw ? ` · ${session.bw}kg BW` : ""}
           {mainLiftSkipped && (
             <span className="text-[9px] font-bold uppercase tracking-wide bg-[#f0f0f0] text-[#888888] rounded-full px-2 py-0.5">
@@ -422,7 +443,7 @@ export default function SessionCard({
           <div className="flex gap-2 items-center">
             {!hasDays && onUpdateMuscleGroups && (
               <button
-                onClick={() => setPickerOpen((v) => !v)}
+                onClick={togglePicker}
                 className="text-xs font-semibold text-[#777777] border border-[#e8e8e8] rounded-lg px-3 py-1.5 hover:border-[#aaaaaa] transition-colors"
               >
                 {pickerOpen

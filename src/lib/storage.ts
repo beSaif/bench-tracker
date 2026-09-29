@@ -1,8 +1,69 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, WHATS_NEW_SEEN_KEY, PENDING_SYNC_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig } from "./exerciseConfig"
 import { PersonSummary } from "./routines"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
+
+/**
+ * Writes to KV are fire-and-forget, so a save made offline (or while KV is down) only
+ * reached localStorage. Each one is marked pending here until the server acknowledges
+ * it; a load that finds its data still pending re-sends the local copy instead of
+ * letting the older server copy overwrite it.
+ */
+type SyncTarget = "sessions" | "weights" | "exercises" | "trainingDays"
+
+function readPending(): Partial<Record<SyncTarget, string>> {
+  try {
+    const raw = localStorage.getItem(PENDING_SYNC_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === "object" ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writePending(map: Partial<Record<SyncTarget, string>>): void {
+  try {
+    if (Object.keys(map).length === 0) localStorage.removeItem(PENDING_SYNC_KEY)
+    else localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(map))
+  } catch {
+    // Private mode / quota — the write is simply not retried.
+  }
+}
+
+function isPending(target: SyncTarget): boolean {
+  return readPending()[target] !== undefined
+}
+
+/**
+ * POST `body` and keep `target` marked pending until the server takes it. A 4xx other
+ * than 401/429 means the server will never accept this payload, so retrying is
+ * pointless and the server copy wins; a 401 (signed out mid-session), a 5xx or no
+ * network at all leaves it pending for the next load.
+ */
+async function pushTracked(target: SyncTarget, url: string, body: unknown): Promise<Response | null> {
+  const stamp = `${Date.now()}-${Math.random()}`
+  writePending({ ...readPending(), [target]: stamp })
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const rejected = res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 429
+    // Only clear our own mark: a newer save that is still in flight keeps its own.
+    if (res.ok || rejected) {
+      const map = readPending()
+      if (map[target] === stamp) {
+        delete map[target]
+        writePending(map)
+      }
+    }
+    return res
+  } catch {
+    return null
+  }
+}
 
 export function loadSessionsLocal(): Session[] {
   try {
@@ -127,7 +188,8 @@ export function loadTrainingDaysLocal(): TrainingDay[] {
     const raw = localStorage.getItem(TRAINING_DAYS_KEY)
     if (!raw) return DEFAULT_TRAINING_DAYS
     const parsed = JSON.parse(raw) as TrainingDay[]
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_TRAINING_DAYS
+    // An empty list is a choice (every day deleted), not "nothing saved".
+    return Array.isArray(parsed) ? parsed : DEFAULT_TRAINING_DAYS
   } catch {
     return DEFAULT_TRAINING_DAYS
   }
@@ -137,12 +199,21 @@ function saveTrainingDaysLocal(days: TrainingDay[]): void {
   localStorage.setItem(TRAINING_DAYS_KEY, JSON.stringify(days))
 }
 
+/**
+ * Like `loadWeights`: the route sends `null` for "never saved", so an empty array is
+ * the user having deleted every day and is kept rather than replaced by the defaults.
+ */
 export async function loadTrainingDays(): Promise<TrainingDay[]> {
+  if (isPending("trainingDays")) {
+    const local = loadTrainingDaysLocal()
+    await pushTracked("trainingDays", "/api/training-days", local)
+    return local
+  }
   try {
     const res = await fetch("/api/training-days")
     if (res.ok) {
       const data = await res.json()
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         saveTrainingDaysLocal(data)
         return data
       }
@@ -155,11 +226,7 @@ export async function loadTrainingDays(): Promise<TrainingDay[]> {
 
 export function saveTrainingDays(days: TrainingDay[]): void {
   saveTrainingDaysLocal(days)
-  fetch("/api/training-days", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(days),
-  }).catch(() => {})
+  void pushTracked("trainingDays", "/api/training-days", days)
 }
 
 export function loadWeightsLocal(): WeightEntry[] {
@@ -186,6 +253,11 @@ function saveWeightsLocal(entries: WeightEntry[]): void {
  * key has never been written, which is what the fallback below keys off.
  */
 export async function loadWeights(): Promise<WeightEntry[]> {
+  if (isPending("weights")) {
+    const local = loadWeightsLocal()
+    await pushTracked("weights", "/api/weights", local)
+    return local
+  }
   try {
     const res = await fetch("/api/weights")
     if (res.ok) {
@@ -246,11 +318,7 @@ export function saveWeights(entries: WeightEntry[]): void {
     }
   }
 
-  fetch("/api/weights", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(entries),
-  }).catch(() => {})
+  void pushTracked("weights", "/api/weights", entries)
 }
 
 /** Wipe all per-user local data — call on sign out. */
@@ -264,6 +332,12 @@ export function wipeLocalUserData(): void {
   localStorage.removeItem(LAYOFF_DISMISS_KEY)
   localStorage.removeItem(WEIGHTS_KEY)
   localStorage.removeItem(WEIGH_IN_SKIP_KEY)
+  localStorage.removeItem(MINI_PLAYER_KEY)
+  localStorage.removeItem(PRESENCES_KEY)
+  localStorage.removeItem(FRIENDS_KEY)
+  localStorage.removeItem(FRIEND_LAST_ACTIVE_KEY)
+  localStorage.removeItem(WHATS_NEW_SEEN_KEY)
+  localStorage.removeItem(PENDING_SYNC_KEY)
 }
 
 /**
@@ -289,6 +363,11 @@ export function saveLayoffDismissLocal(key: string): void {
 
 /** Load sessions + blocks from KV, falling back to localStorage. */
 export async function loadAll(): Promise<StoredData> {
+  if (isPending("sessions")) {
+    const local = { sessions: loadSessionsLocal(), blocks: loadBlocksLocal() }
+    await pushTracked("sessions", "/api/sessions", local)
+    return local
+  }
   try {
     const res = await fetch("/api/sessions")
     if (res.ok) {
@@ -316,6 +395,10 @@ export async function loadAll(): Promise<StoredData> {
 
 /** Load exercise config from KV, falling back to localStorage. */
 export async function loadExerciseConfig(): Promise<MuscleGroupConfig[]> {
+  if (isPending("exercises")) {
+    const local = loadExerciseConfigLocal()
+    return pushExerciseConfig(local).catch(() => local)
+  }
   let stored: MuscleGroupConfig[] | null = null
   try {
     const res = await fetch("/api/exercises")
@@ -402,12 +485,8 @@ export function saveExerciseConfig(config: MuscleGroupConfig[]): void {
  * device takes it over.
  */
 async function pushExerciseConfig(config: MuscleGroupConfig[]): Promise<MuscleGroupConfig[]> {
-  const res = await fetch("/api/exercises", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
-  })
-  const data = res.ok ? await res.json().catch(() => null) : null
+  const res = await pushTracked("exercises", "/api/exercises", config)
+  const data = res?.ok ? await res.json().catch(() => null) : null
   if (data?.following && Array.isArray(data.config)) {
     saveExerciseConfigLocal(data.config)
     return data.config as MuscleGroupConfig[]
@@ -419,11 +498,7 @@ async function pushExerciseConfig(config: MuscleGroupConfig[]): Promise<MuscleGr
 export function saveAll(sessions: Session[], blocks: TrainingBlock[]): void {
   saveLocal(sessions)
   saveBlocksLocal(blocks)
-  fetch("/api/sessions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessions, blocks }),
-  }).catch(() => {})
+  void pushTracked("sessions", "/api/sessions", { sessions, blocks })
 }
 
 export function saveDraft(draft: SessionDraft): void {

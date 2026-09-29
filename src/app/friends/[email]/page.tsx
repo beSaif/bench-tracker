@@ -113,6 +113,13 @@ export default function FriendProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetEmail: data.profile.email }),
       })
+      const body = res.ok ? await res.json().catch(() => null) : null
+      if (body?.accepted) {
+        // They had already asked: asking back made it mutual.
+        setData({ ...data, social: { ...data.social, isFriend: true, gymbroCount: data.social.gymbroCount + 1 } })
+        setRequestState("idle")
+        return
+      }
       setRequestState(res.ok ? "sent" : "error")
     } catch {
       setRequestState("error")
@@ -254,7 +261,7 @@ export default function FriendProfilePage() {
           onClick={() => coaching !== "busy" && setCoaching("idle")}
         >
           <div
-            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
+            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold text-[#111111] mb-3">Train under {firstName}?</p>
@@ -305,7 +312,7 @@ export default function FriendProfilePage() {
       {showComposer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setShowComposer(false)}>
           <div
-            className="w-full max-w-md rounded-t-2xl bg-zinc-900 px-5 pt-5 pb-8"
+            className="w-full max-w-md rounded-t-2xl bg-zinc-900 px-5 pt-5 pb-8 max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <MessageComposer

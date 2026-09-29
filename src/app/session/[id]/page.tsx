@@ -59,6 +59,7 @@ export default function SessionDetailPage() {
   useEffect(() => {
     const local = loadSessionsLocal()
     const found = local.find((s) => s.id === id) ?? null
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
     setSession(found)
     setTrainingDays(loadTrainingDaysLocal())
     setMounted(true)

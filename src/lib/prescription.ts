@@ -86,6 +86,24 @@ export function nextBlockPhase(current: BlockPhase): BlockPhase {
   return BLOCK_PHASE_ORDER[(idx + 1) % BLOCK_PHASE_ORDER.length]
 }
 
+const PLATE_STEP = 2.5
+
+/**
+ * The rounded load for every session of a scheme. With a light anchor two neighbouring
+ * percentages can round to the same plate (80kg: 67.5% and 70% are both 55kg), which
+ * turns a progression into a repeat; the earlier session then steps down one plate so
+ * the loads still climb through the block.
+ */
+function schemeLoads(scheme: Array<{ pct: number }>, anchorWeight: number): number[] {
+  const loads = scheme.map((e) => roundToPlate(anchorWeight * e.pct))
+  for (let i = loads.length - 2; i >= 0; i--) {
+    if (loads[i] >= loads[i + 1] && scheme[i].pct < scheme[i + 1].pct) {
+      loads[i] = loads[i + 1] - PLATE_STEP
+    }
+  }
+  return loads
+}
+
 export function prescribeBlockSession(
   phase: BlockPhase,
   sessionIndexInBlock: number,
@@ -95,9 +113,10 @@ export function prescribeBlockSession(
   // (e.g. reacclimation, which should go through prescribeForBlock instead).
   const scheme = PHASE_SCHEMES[phase]?.length ? PHASE_SCHEMES[phase] : ACCUMULATION_SCHEME
   const type = scheme === ACCUMULATION_SCHEME ? PHASE_SESSION_TYPE.accumulation : PHASE_SESSION_TYPE[phase]
-  const entry = scheme[Math.min(sessionIndexInBlock, scheme.length - 1)]
+  const index = Math.min(sessionIndexInBlock, scheme.length - 1)
+  const entry = scheme[index]
   return {
-    weight: roundToPlate(anchorWeight * entry.pct),
+    weight: schemeLoads(scheme, anchorWeight)[index],
     reps: entry.reps,
     sets: entry.sets,
     sessionType: type,
@@ -140,7 +159,14 @@ export function deriveNextAnchor(completedRealizationBlock: TrainingBlock, sessi
   const blockSessions = sessions.filter(
     (s) => s.confirmed && completedRealizationBlock.sessionIds.includes(s.id)
   )
-  const peakSessions = blockSessions.filter((s) => s.type === "Peak")
+  // Sessions are kept newest-first elsewhere, so order them here rather than trusting
+  // the caller: the anchor must come from the final (heaviest) realization session.
+  const peakSessions = blockSessions
+    .filter((s) => s.type === "Peak")
+    .sort((a, b) => {
+      const byDate = (a.date ? new Date(a.date).getTime() : 0) - (b.date ? new Date(b.date).getTime() : 0)
+      return byDate !== 0 ? byDate : a.id - b.id
+    })
   const lastPeak = peakSessions[peakSessions.length - 1]
 
   if (!lastPeak) return completedRealizationBlock.anchorWeight

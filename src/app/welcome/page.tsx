@@ -12,7 +12,7 @@ export default function WelcomePage() {
           best workout tracker.
         </h1>
         <p className="text-sm text-[#777777] mb-12 leading-relaxed">
-          built around your one main lift. logs the work, plans what's next, and stays out of the way.
+          built around your one main lift. logs the work, plans what&apos;s next, and stays out of the way.
         </p>
 
         <Link
@@ -30,7 +30,7 @@ export default function WelcomePage() {
           className="mt-8"
         >
           <button type="submit" className="text-xs text-[#cccccc] hover:text-[#999999] transition-colors">
-            i've done this before
+            i&apos;ve done this before
           </button>
         </form>
       </div>

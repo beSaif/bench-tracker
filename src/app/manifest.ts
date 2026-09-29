@@ -8,8 +8,9 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#111827',
-    theme_color: '#2563eb',
+    // Match the app: a white splash, and the accent navy for the system bars.
+    background_color: '#ffffff',
+    theme_color: '#1e3a5f',
     icons: [
       {
         src: '/apple-icon',

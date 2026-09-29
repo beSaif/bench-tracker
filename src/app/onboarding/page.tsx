@@ -87,6 +87,13 @@ export default function OnboardingPage() {
     setReadUnlocked(false)
   }, [step])
 
+  // The sign-in step keeps a beat of pause, but not the whole word-by-word reveal.
+  useEffect(() => {
+    if (step !== LAST_STEP) return
+    const id = setTimeout(() => setReadUnlocked(true), 1200)
+    return () => clearTimeout(id)
+  }, [step])
+
   async function autoFinish(d: PendingOnboarding) {
     setSubmitting(true)
     const liftFocused = d.mode === "lift-focused"
@@ -141,11 +148,13 @@ export default function OnboardingPage() {
       const v = parseFloat(bw)
       return Number.isFinite(v) && v > 0
     }
-    if (step === 2) return readUnlocked
-    if (step === 3) return readUnlocked
+    // The explainer steps animate in, but reading along is optional: continue is live
+    // from the start, so someone who has seen it before isn't held for ~16s.
+    if (step === 2) return true
+    if (step === 3) return true
     if (step === 4) return mode !== null
     if (step === 5) return lift !== null
-    if (step === 6) return readUnlocked
+    if (step === 6) return true
     if (step === 7) {
       const v = parseFloat(anchor)
       return Number.isFinite(v) && v > 0
@@ -494,8 +503,8 @@ function PhasesReveal({ started, onComplete }: { started: boolean; onComplete?: 
 
   useEffect(() => {
     if (!started) return
-    let r1: number, r2: number
-    r1 = requestAnimationFrame(() => {
+    let r2: number
+    const r1 = requestAnimationFrame(() => {
       r2 = requestAnimationFrame(() => setLabelsVisible(true))
     })
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2) }
@@ -541,8 +550,8 @@ function PhasesReveal({ started, onComplete }: { started: boolean; onComplete?: 
 function DescSpan({ children, delay }: { children: React.ReactNode; delay: number }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
-    let r1: number, r2: number
-    r1 = requestAnimationFrame(() => {
+    let r2: number
+    const r1 = requestAnimationFrame(() => {
       r2 = requestAnimationFrame(() => setVisible(true))
     })
     return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2) }
@@ -573,13 +582,10 @@ function RevealText({
   const [active, setActive] = useState(false)
 
   useEffect(() => {
-    if (!started) {
-      setActive(false)
-      return
-    }
+    if (!started) return
     // Double RAF ensures opacity-0 is painted before the transition begins
-    let raf1: number, raf2: number
-    raf1 = requestAnimationFrame(() => {
+    let raf2: number
+    const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => setActive(true))
     })
     const totalMs = (words.length - 1) * speed + 600
@@ -588,6 +594,8 @@ function RevealText({
       cancelAnimationFrame(raf1)
       cancelAnimationFrame(raf2)
       clearTimeout(id)
+      // Reset on the way out, so the next start fades in from opacity-0 again.
+      setActive(false)
     }
   }, [text, started]) // eslint-disable-line react-hooks/exhaustive-deps
 

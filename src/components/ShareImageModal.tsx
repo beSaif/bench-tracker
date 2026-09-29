@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react"
 import { Session, TrainingBlock, TrainingDay, UserProfile } from "@/lib/types"
-import { getMainLiftLabel, getSessionLabel } from "@/lib/trainingMode"
+import { getMainLiftLabel, getSessionLabel, isLiftFocused } from "@/lib/trainingMode"
 import { getBestWeight, getLatestBW, sessionWork } from "@/lib/stats"
 import { MuscleGroupConfig, getMuscleLabel } from "@/lib/exerciseConfig"
 import { PHASE_SESSION_TYPE } from "@/lib/prescription"
@@ -51,7 +51,7 @@ export default function ShareImageModal({
   const resumePhaseType = resumeBlock ? PHASE_SESSION_TYPE[resumeBlock.phase] : null
 
   const dateStr = session.date ?? new Date().toISOString()
-  const fileName = `bench-${dateStr.slice(0, 10)}.png`
+  const fileName = `${isLiftFocused(profile) && profile.mainLift ? profile.mainLift : "session"}-${dateStr.slice(0, 10)}.png`
 
   // The card is rendered offscreen at full width, so the snapshot is the same
   // 1080px image regardless of the phone it was shared from.

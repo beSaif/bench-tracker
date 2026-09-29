@@ -39,7 +39,8 @@ export async function GET() {
     const valid = profiles
       .filter((p): p is UserProfile => p !== null && typeof p === "object")
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map((p) => ({ ...p, lastSessionDate: lastActiveDates[p.email] ?? null }))
+      // Keyed by the lowercased set member; the profile keeps the email as typed.
+      .map((p) => ({ ...p, lastSessionDate: lastActiveDates[p.email.trim().toLowerCase()] ?? null }))
 
     return NextResponse.json(valid)
   } catch {
@@ -54,7 +55,12 @@ export async function DELETE(req: NextRequest) {
   }
   const me = session.user.email.trim().toLowerCase()
 
-  const { friendEmail } = await req.json()
+  let friendEmail: unknown
+  try {
+    friendEmail = (await req.json())?.friendEmail
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 })
+  }
   if (!friendEmail || typeof friendEmail !== "string") {
     return NextResponse.json({ error: "friendEmail required" }, { status: 400 })
   }

@@ -55,6 +55,7 @@ export default function ProfilePage() {
 
     const cached = loadProfileLocal()
     if (cached) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
       seedForm(cached)
       setSessions(loadSessionsLocal())
       setMounted(true)
@@ -355,7 +356,7 @@ export default function ProfilePage() {
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => !deleting && setShowDelete(false)}>
           <div
-            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10"
+            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10 max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold text-[#111111] mb-1">Delete everything?</p>

@@ -57,7 +57,7 @@ export default function WeightCheckInSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-      <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl">
+      <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl max-h-[90dvh] overflow-y-auto">
         <div className="mb-4">
           <p className="text-lg font-semibold text-[#111111] leading-snug mb-1">
             {date && day !== dateKey()

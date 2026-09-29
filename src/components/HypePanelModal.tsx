@@ -15,11 +15,19 @@ function initials(name: string) {
 
 interface Props {
   friends: UserProfile[]
+  /** Set when the session just confirmed raised the best e1RM. */
+  pr?: { e1rm: number; previous: number } | null
+  /** Short main-lift label for the PR line, e.g. "Bench". */
+  liftLabel?: string
   onClose: () => void
   onShareWorkout?: () => void
 }
 
-export default function HypePanelModal({ friends, onClose, onShareWorkout }: Props) {
+function formatKg(kg: number): string {
+  return String(Math.round(kg * 10) / 10)
+}
+
+export default function HypePanelModal({ friends, pr, liftLabel, onClose, onShareWorkout }: Props) {
   const autoSelected = friends.length === 1 ? friends[0] : null
   const [pickedFriend, setPickedFriend] = useState<UserProfile | null>(autoSelected)
   const [blastAll, setBlastAll] = useState(false)
@@ -56,7 +64,7 @@ export default function HypePanelModal({ friends, onClose, onShareWorkout }: Pro
           <div className="flex flex-col gap-1">
             <p className="text-white text-2xl font-bold tracking-tight">sent</p>
             <p className="text-zinc-500 text-sm mt-0.5 max-w-[240px] leading-relaxed">
-              "{sentText}"
+              &ldquo;{sentText}&rdquo;
             </p>
           </div>
           <div className="flex flex-col items-center gap-2 mt-2">
@@ -130,7 +138,22 @@ export default function HypePanelModal({ friends, onClose, onShareWorkout }: Pro
 
       {/* Title block */}
       <div className="px-6 pt-4 pb-6 animate-fade-up">
-        {!inComposer ? (
+        {pr && !inComposer && (
+          <div className="mb-6 rounded-2xl bg-amber-400/10 border border-amber-400/30 px-4 py-3.5">
+            <p className="text-amber-300 text-xs uppercase tracking-widest font-semibold">
+              new {liftLabel ? `${liftLabel} ` : ""}e1RM PR 🏆
+            </p>
+            <p className="text-white text-3xl font-bold tracking-tight mt-1">{formatKg(pr.e1rm)} kg</p>
+            <p className="text-zinc-400 text-xs mt-0.5">
+              +{formatKg(pr.e1rm - pr.previous)} kg on your previous best of {formatKg(pr.previous)} kg
+            </p>
+          </div>
+        )}
+        {!inComposer && friends.length === 0 ? (
+          <p className="text-zinc-500 text-xs uppercase tracking-widest font-semibold mb-1">
+            session done
+          </p>
+        ) : !inComposer ? (
           <>
             <p className="text-zinc-500 text-xs uppercase tracking-widest font-semibold mb-1">
               session done
@@ -160,9 +183,14 @@ export default function HypePanelModal({ friends, onClose, onShareWorkout }: Pro
         {!inComposer && (
           <div className="flex flex-col gap-2">
             {friends.length === 0 ? (
-              <p className="text-zinc-500 text-sm text-center py-10">
-                no gymbros yet
-              </p>
+              onShareWorkout && (
+                <button
+                  onClick={onShareWorkout}
+                  className="w-full py-3.5 rounded-2xl bg-white text-zinc-900 text-sm font-semibold hover:bg-zinc-100 active:scale-[0.98] transition-all"
+                >
+                  share this session 📸
+                </button>
+              )
             ) : (
               <>
                 {friends.map((f, i) => (

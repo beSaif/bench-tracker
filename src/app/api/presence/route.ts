@@ -2,10 +2,7 @@ import { kv } from "@vercel/kv"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { UserProfile, UserPresence } from "@/lib/types"
-
-function presenceKey(email: string): string {
-  return `user:${email.trim().toLowerCase()}:presence`
-}
+import { friendsKey, presenceKey, profileKey } from "@/lib/userKeys"
 
 export async function GET() {
   const session = await auth()
@@ -13,11 +10,15 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  try {
-    const profileKeys = await kv.keys("user:*:profile")
-    if (profileKeys.length === 0) return NextResponse.json([])
+  const me = session.user.email.trim().toLowerCase()
 
-    const profiles = await kv.mget<UserProfile[]>(...profileKeys)
+  try {
+    // Only the viewer and their gymbros: whether a stranger is mid-session is not
+    // anyone else's business.
+    const friends = (await kv.smembers(friendsKey(me))) as string[]
+    const emails = [me, ...friends.filter((e) => e !== me)]
+
+    const profiles = await kv.mget<UserProfile[]>(...emails.map(profileKey))
     const validProfiles = profiles.filter((p): p is UserProfile => p !== null && typeof p === "object")
 
     const pKeys = validProfiles.map((p) => presenceKey(p.email))
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const inSession = Boolean(body.inSession)
+    const inSession = Boolean(body?.inSession)
     const record = {
       inSession,
       startedAt: inSession ? new Date().toISOString() : null,

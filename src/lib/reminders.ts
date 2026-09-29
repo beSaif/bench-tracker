@@ -1,4 +1,5 @@
 import { Session, UserProfile, WeightEntry } from "./types"
+import { getMainLiftShortLabel, isLiftFocused } from "./trainingMode"
 import { daysBetween, streak } from "./weight"
 import { LAYOFF_NUDGE_DAYS, LAYOFF_RESTART_DAYS } from "./layoff"
 
@@ -135,6 +136,7 @@ function weighInReminder(
  * which is why the old three-day reminder in `swNotify` effectively never arrived.
  */
 function inactivityReminder(
+  profile: UserProfile | null,
   sessions: Session[],
   state: ReminderState,
   today: string,
@@ -152,11 +154,16 @@ function inactivityReminder(
     if (daysBetween(state.lastNudgePush, today) < NUDGE_REPEAT_DAYS) return null
   }
 
+  // Name the lift they chose; a Balanced user has no main lift and no block to restart.
+  const liftFocused = isLiftFocused(profile)
+  const waiting = liftFocused ? `${getMainLiftShortLabel(profile)} is waiting.` : "The gym is waiting."
   const push: ReminderPush =
     days >= LAYOFF_RESTART_DAYS
       ? {
           title: `${days} days off`,
-          body: "Strength is leaking. Open the app and restart the block.",
+          body: liftFocused
+            ? "Strength is leaking. Open the app and restart the block."
+            : "Strength is leaking. Get one easy session in this week.",
           tag: "training-nudge",
           url: "/",
         }
@@ -169,7 +176,7 @@ function inactivityReminder(
           }
         : {
             title: "Two days off",
-            body: "Rest is fine, three in a row isn't. Bench is waiting.",
+            body: `Rest is fine, three in a row isn't. ${waiting}`,
             tag: "training-nudge",
             url: "/",
           }
@@ -196,7 +203,7 @@ export function decideReminder(input: {
   const today = dateKeyInTz(now, state.tz)
 
   return (
-    inactivityReminder(sessions, state, today, state.tz) ??
+    inactivityReminder(profile, sessions, state, today, state.tz) ??
     weighInReminder(profile, weights, state, today)
   )
 }

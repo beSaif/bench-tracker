@@ -135,6 +135,8 @@ export const LAYOFF_DISMISS_KEY = "lift-tracker-layoff-dismissed"
 export const WHATS_NEW_SEEN_KEY = "lift-tracker-whats-new-seen"
 export const EXERCISES_MIGRATION_KEY = "lift-tracker-exercises-migration"
 export const WEIGHTS_KEY = "lift-tracker-weights"
+/** Which KV writes this device made that the server has not acknowledged yet. */
+export const PENDING_SYNC_KEY = "lift-tracker-pending-sync"
 /** The day the check-in prompt was last dismissed on this device, "YYYY-MM-DD". */
 export const WEIGH_IN_SKIP_KEY = "lift-tracker-weigh-in-skipped"
 

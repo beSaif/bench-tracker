@@ -6,6 +6,7 @@ import { UserProfile, MainLift, MAIN_LIFT_LABEL, TRAINING_MODE_LABEL, UserPresen
 import { isLiftFocused } from "@/lib/trainingMode"
 import { relativeDate } from "@/lib/time"
 import { PersonSummary } from "@/lib/routines"
+import { useOnboardingGuard } from "@/lib/useOnboardingGuard"
 import { PersonRow } from "@/components/ProfileHeader"
 
 function initials(name: string): string {
@@ -34,9 +35,10 @@ function LiftBadge({ profile }: { profile: UserProfile }) {
 /** /api/friends attaches the friend's most recent confirmed session date. */
 type Gymbro = UserProfile & { lastSessionDate?: string | null }
 
-type AddState = "idle" | "sending" | "sent" | "not_found" | "already_friends" | "already_pending" | "self" | "error"
+type AddState = "idle" | "sending" | "sent" | "accepted" | "not_found" | "already_friends" | "already_pending" | "self" | "error"
 
 export default function GymBrosPage() {
+  useOnboardingGuard()
   const [friends, setFriends] = useState<Gymbro[]>([])
   const [presences, setPresences] = useState<UserPresence[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
@@ -45,11 +47,12 @@ export default function GymBrosPage() {
   const [addEmail, setAddEmail] = useState("")
   const [addState, setAddState] = useState<AddState>("idle")
   const [loading, setLoading] = useState(true)
-  const [currentEmail, setCurrentEmail] = useState<string>("")
   const [removingEmail, setRemovingEmail] = useState<string | null>(null)
   const [pendingRemove, setPendingRemove] = useState<Gymbro | null>(null)
   const [messages, setMessages] = useState<GymbroMessage[]>([])
   const addInputRef = useRef<HTMLInputElement>(null)
+  // One timer at a time: an older request's reset must not wipe a newer result.
+  const addFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<PersonSummary[] | null>(null)
 
@@ -97,11 +100,6 @@ export default function GymBrosPage() {
   }
 
   useEffect(() => {
-    fetch("/api/profile")
-      .then((r) => r.json())
-      .then((p) => { if (p?.email) setCurrentEmail(p.email) })
-      .catch(() => {})
-
     fetchAll()
     fetchPresence()
 
@@ -121,6 +119,7 @@ export default function GymBrosPage() {
     e.preventDefault()
     const email = addEmail.trim().toLowerCase()
     if (!email) return
+    if (addFeedbackTimer.current) clearTimeout(addFeedbackTimer.current)
     setAddState("sending")
     try {
       const res = await fetch("/api/friends/request", {
@@ -129,8 +128,11 @@ export default function GymBrosPage() {
         body: JSON.stringify({ targetEmail: email }),
       })
       if (res.ok) {
-        setAddState("sent")
+        // They had already asked us, so the server made it mutual on the spot.
+        const body = await res.json().catch(() => null)
+        setAddState(body?.accepted ? "accepted" : "sent")
         setAddEmail("")
+        if (body?.accepted) fetchAll()
       } else {
         const body = await res.json()
         if (body.error === "user not found") setAddState("not_found")
@@ -142,7 +144,7 @@ export default function GymBrosPage() {
     } catch {
       setAddState("error")
     }
-    setTimeout(() => setAddState("idle"), 3000)
+    addFeedbackTimer.current = setTimeout(() => setAddState("idle"), 3000)
   }
 
   async function handleAccept(requesterEmail: string) {
@@ -179,6 +181,7 @@ export default function GymBrosPage() {
     idle: "",
     sending: "",
     sent: "Request sent",
+    accepted: "They'd already asked — you're gymbros now",
     not_found: "No user with that email",
     already_friends: "Already friends",
     already_pending: "Request already sent",
@@ -340,7 +343,7 @@ export default function GymBrosPage() {
           </button>
         </div>
         {addState !== "idle" && addState !== "sending" && (
-          <p className={`mt-1.5 text-[12px] ml-1 ${addState === "sent" ? "text-green-600" : "text-red-500"}`}>
+          <p className={`mt-1.5 text-[12px] ml-1 ${addState === "sent" || addState === "accepted" ? "text-green-600" : "text-red-500"}`}>
             {addFeedback[addState]}
           </p>
         )}
@@ -446,7 +449,7 @@ export default function GymBrosPage() {
           onClick={() => setPendingRemove(null)}
         >
           <div
-            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10"
+            className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10 max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-base font-semibold text-[#111111] mb-1">

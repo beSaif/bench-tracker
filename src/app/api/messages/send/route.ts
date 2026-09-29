@@ -13,57 +13,66 @@ export async function POST(req: NextRequest) {
   }
   const me = session.user.email.trim().toLowerCase()
 
-  const body = await req.json()
-  const { toEmail, text } = body as { toEmail: string; text: string }
+  let body: { toEmail?: unknown; text?: unknown } | null
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 })
+  }
+  const { toEmail, text } = (body ?? {}) as { toEmail: string; text: string }
 
-  if (!toEmail || !text || typeof text !== "string" || text.trim().length === 0) {
+  if (!toEmail || typeof toEmail !== "string" || !text || typeof text !== "string" || text.trim().length === 0) {
     return NextResponse.json({ error: "toEmail and text required" }, { status: 400 })
   }
   if (text.trim().length > 300) {
     return NextResponse.json({ error: "message too long" }, { status: 400 })
   }
 
-  const myProfile = await kv.get<UserProfile>(profileKey(me))
-  const fromName = myProfile?.name ?? session.user.name ?? "Someone"
+  try {
+    const myProfile = await kv.get<UserProfile>(profileKey(me))
+    const fromName = myProfile?.name ?? session.user.name ?? "Someone"
 
-  let recipients: string[]
-  if (toEmail === "all") {
-    recipients = (await kv.smembers(friendsKey(me))) as string[]
-  } else {
-    const friend = toEmail.trim().toLowerCase()
-    const isFriend = await kv.sismember(friendsKey(me), friend)
-    if (!isFriend) {
-      return NextResponse.json({ error: "not a friend" }, { status: 403 })
+    let recipients: string[]
+    if (toEmail === "all") {
+      recipients = (await kv.smembers(friendsKey(me))) as string[]
+    } else {
+      const friend = toEmail.trim().toLowerCase()
+      const isFriend = await kv.sismember(friendsKey(me), friend)
+      if (!isFriend) {
+        return NextResponse.json({ error: "not a friend" }, { status: 403 })
+      }
+      recipients = [friend]
     }
-    recipients = [friend]
-  }
 
-  if (recipients.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0 })
-  }
+    if (recipients.length === 0) {
+      return NextResponse.json({ ok: true, sent: 0 })
+    }
 
-  const message: GymbroMessage = {
-    id: crypto.randomUUID(),
-    fromEmail: me,
-    fromName,
-    text: text.trim(),
-    sentAt: new Date().toISOString(),
-  }
-  const json = JSON.stringify(message)
+    const message: GymbroMessage = {
+      id: crypto.randomUUID(),
+      fromEmail: me,
+      fromName,
+      text: text.trim(),
+      sentAt: new Date().toISOString(),
+    }
+    const json = JSON.stringify(message)
 
-  await Promise.all(
-    recipients.map(async (email) => {
-      const key = messageInboxKey(email)
-      await kv.rpush(key, json)
-      await kv.expire(key, 60 * 60 * 24 * 7)
-      await sendPushToUser(email, {
-        title: `🔥 ${fromName}`,
-        body: text.trim(),
-        tag: "gymbro-message",
-        url: "/",
+    await Promise.all(
+      recipients.map(async (email) => {
+        const key = messageInboxKey(email)
+        await kv.rpush(key, json)
+        await kv.expire(key, 60 * 60 * 24 * 7)
+        await sendPushToUser(email, {
+          title: `🔥 ${fromName}`,
+          body: text.trim(),
+          tag: "gymbro-message",
+          url: "/",
+        })
       })
-    })
-  )
+    )
 
-  return NextResponse.json({ ok: true, sent: recipients.length })
+    return NextResponse.json({ ok: true, sent: recipients.length })
+  } catch {
+    return NextResponse.json({ error: "failed" }, { status: 503 })
+  }
 }
