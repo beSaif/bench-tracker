@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { trainingDaysKey } from "@/lib/userKeys"
 import { getCoach, syncAthleteSplit } from "@/lib/coach"
+import { isTrainingDayArray } from "@/lib/validate"
 
 /** Like /api/exercises: someone training under a coach gets the coach's days. */
 export async function GET() {
@@ -29,11 +30,20 @@ export async function POST(request: Request) {
   const email = session?.user?.email
   if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 })
+  }
+  if (!isTrainingDayArray(body)) {
+    return NextResponse.json({ error: "expected an array of training days" }, { status: 400 })
+  }
+
   try {
     if (await getCoach(email)) {
       return NextResponse.json({ error: "following" }, { status: 409 })
     }
-    const body = await request.json()
     await kv.set(trainingDaysKey(email), body)
     return NextResponse.json({ ok: true })
   } catch {

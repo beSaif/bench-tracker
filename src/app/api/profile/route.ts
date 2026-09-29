@@ -10,6 +10,14 @@ import {
   weightsKey,
   trainingDaysKey,
   athletesKey,
+  friendsKey,
+  friendRequestsInKey,
+  friendRequestsOutKey,
+  friendRequestTimesKey,
+  messageInboxKey,
+  presenceKey,
+  pushSubKey,
+  reminderStateKey,
   isLegacyOwner,
   LEGACY_SESSIONS_KEY,
   LEGACY_EXERCISES_KEY,
@@ -99,6 +107,23 @@ export async function DELETE() {
     for (const athlete of athletes) await stopTrainingUnder(athlete)
     await stopTrainingUnder(email)
 
+    // Take this account out of everyone else's sets, or their gymbro counts stay
+    // inflated and a re-registration with the same email gets the old friends back.
+    const me = email.trim().toLowerCase()
+    const [friends, requestsIn, requestsOut] = await Promise.all([
+      kv.smembers(friendsKey(me)),
+      kv.smembers(friendRequestsInKey(me)),
+      kv.smembers(friendRequestsOutKey(me)),
+    ])
+    await Promise.all([
+      ...friends.map((f) => kv.srem(friendsKey(f), me)),
+      ...requestsIn.map((r) => kv.srem(friendRequestsOutKey(r), me)),
+      ...requestsOut.flatMap((t) => [
+        kv.srem(friendRequestsInKey(t), me),
+        kv.hdel(friendRequestTimesKey(t), me),
+      ]),
+    ])
+
     await Promise.all([
       kv.del(profileKey(email)),
       kv.del(sessionsKey(email)),
@@ -106,6 +131,16 @@ export async function DELETE() {
       kv.del(trainingDaysKey(email)),
       kv.del(weightsKey(email)),
       kv.del(athletesKey(email)),
+      kv.del(friendsKey(email)),
+      kv.del(friendRequestsInKey(email)),
+      kv.del(friendRequestsOutKey(email)),
+      kv.del(friendRequestTimesKey(email)),
+      kv.del(messageInboxKey(email)),
+      kv.del(presenceKey(email)),
+      // The push subscription is the cron's roster; leaving it would keep reminding
+      // a deleted account.
+      kv.del(pushSubKey(email)),
+      kv.del(reminderStateKey(email)),
     ])
     return NextResponse.json({ ok: true })
   } catch {

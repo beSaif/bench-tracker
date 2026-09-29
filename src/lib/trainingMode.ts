@@ -67,7 +67,10 @@ export function countConsecutiveSkips(sessions: Session[]): number {
 }
 
 /**
- * Skipped sessions that belong to the stretch the active block is currently in.
+ * Off-block sessions that belong to the stretch the active block is currently in:
+ * lift-focused sessions that skipped the main lift, and sessions logged in Balanced
+ * mode while the block was parked (without these, switching back to lift-focused made
+ * them vanish from Home straight into History).
  *
  * They carry no blockId by design, so membership cannot be read off the block —
  * instead they qualify by being newer than every session already filed under an
@@ -87,7 +90,7 @@ export function currentStretchSkips(sessions: Session[], blocks: TrainingBlock[]
   return sessions.filter(
     (s) =>
       s.confirmed &&
-      s.skippedMainLift &&
+      s.type === "Free" &&
       s.blockId === undefined &&
       s.date !== null &&
       new Date(s.date).getTime() > lastEarlierTime

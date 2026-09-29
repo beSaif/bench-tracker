@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { exercisesKey } from "@/lib/userKeys"
 import { getCoach, syncAthleteSplit } from "@/lib/coach"
-import { MuscleGroupConfig } from "@/lib/exerciseConfig"
+import { isMuscleGroupConfigArray } from "@/lib/validate"
 
 /**
  * GET answers with the split this user trains. For someone training under a coach
@@ -38,11 +38,19 @@ export async function POST(request: Request) {
   const email = session?.user?.email
   if (!email) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
+  let body: unknown
   try {
-    const body = await request.json()
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 })
+  }
+  if (!isMuscleGroupConfigArray(body)) {
+    return NextResponse.json({ error: "expected an array of muscle groups" }, { status: 400 })
+  }
+
+  try {
     if (await getCoach(email)) {
-      const own = Array.isArray(body) ? (body as MuscleGroupConfig[]) : undefined
-      const { config } = await syncAthleteSplit(email, own)
+      const { config } = await syncAthleteSplit(email, body)
       return NextResponse.json({ ok: true, following: true, config })
     }
     await kv.set(exercisesKey(email), body)

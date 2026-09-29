@@ -36,7 +36,7 @@ export default function MessageComposer({ recipientLabel, toEmail, onSent, onClo
       <div className="flex flex-col items-center gap-3 py-8 text-center animate-fade-in">
         <span className="text-4xl animate-bounce-in select-none">🔥</span>
         <p className="text-white font-semibold">sent</p>
-        <p className="text-zinc-500 text-sm">"{sentText}"</p>
+        <p className="text-zinc-500 text-sm">&ldquo;{sentText}&rdquo;</p>
       </div>
     )
   }

@@ -21,6 +21,7 @@ import {
   loadCoach,
 } from "@/lib/storage"
 import { PersonSummary } from "@/lib/routines"
+import { useOnboardingGuard } from "@/lib/useOnboardingGuard"
 
 const ICON_BUTTON = "p-1.5 text-[#aaaaaa] transition-colors disabled:opacity-30"
 
@@ -30,6 +31,7 @@ const ICON_BUTTON = "p-1.5 text-[#aaaaaa] transition-colors disabled:opacity-30"
  * the group itself.
  */
 export default function GroupPage() {
+  useOnboardingGuard()
   const params = useParams()
   const router = useRouter()
   const groupId = String(params.groupId)
@@ -46,6 +48,7 @@ export default function GroupPage() {
   const addInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
     setConfig(loadExerciseConfigLocal())
     setMounted(true)
     loadExerciseConfig().then(setConfig)

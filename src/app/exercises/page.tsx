@@ -22,6 +22,7 @@ import {
   stopTrainingUnderCoach,
 } from "@/lib/storage"
 import { PersonSummary } from "@/lib/routines"
+import { useOnboardingGuard } from "@/lib/useOnboardingGuard"
 
 const SECTION_LABEL = "text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-3"
 const ADD_BUTTON =
@@ -54,6 +55,7 @@ function chipClass(on: boolean) {
  * it once opened, and a group's live on its own page.
  */
 export default function ExercisesPage() {
+  useOnboardingGuard()
   const [config, setConfig] = useState<MuscleGroupConfig[]>(DEFAULT_MUSCLE_GROUPS)
   const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
   const [mounted, setMounted] = useState(false)
@@ -79,6 +81,7 @@ export default function ExercisesPage() {
   const addDayInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
     setConfig(loadExerciseConfigLocal())
     setTrainingDays(loadTrainingDaysLocal())
     setMounted(true)

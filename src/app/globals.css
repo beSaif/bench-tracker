@@ -97,3 +97,15 @@ body {
     animation-duration: 1ms;
   }
 }
+
+/* ---- iOS input zoom ------------------------------------------------------ */
+/* iOS Safari zooms the page when a field under 16px is focused. The viewport no
+   longer pins maximum-scale (that also blocked pinch zoom), so the small fields are
+   lifted to 16px on iOS only. Unlayered, so it wins over the Tailwind utilities. */
+@supports (-webkit-touch-callout: none) {
+  input.text-xs, input.text-sm, input[class*="text-[1"],
+  textarea.text-xs, textarea.text-sm, textarea[class*="text-[1"],
+  select.text-xs, select.text-sm, select[class*="text-[1"] {
+    font-size: 16px;
+  }
+}

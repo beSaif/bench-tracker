@@ -2,7 +2,7 @@ import { kv } from "@vercel/kv"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { UserProfile } from "@/lib/types"
-import { profileKey, friendsKey, friendRequestsInKey, friendRequestsOutKey } from "@/lib/userKeys"
+import { profileKey, friendsKey, friendRequestsInKey, friendRequestsOutKey, friendRequestTimesKey } from "@/lib/userKeys"
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.email) {
@@ -10,7 +10,12 @@ export async function POST(req: NextRequest) {
   }
   const me = session.user.email.trim().toLowerCase()
 
-  const { requesterEmail } = await req.json()
+  let requesterEmail: unknown
+  try {
+    requesterEmail = (await req.json())?.requesterEmail
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 })
+  }
   if (!requesterEmail || typeof requesterEmail !== "string") {
     return NextResponse.json({ error: "requesterEmail required" }, { status: 400 })
   }
@@ -27,6 +32,7 @@ export async function POST(req: NextRequest) {
       kv.sadd(friendsKey(requester), me),
       kv.srem(friendRequestsInKey(me), requester),
       kv.srem(friendRequestsOutKey(requester), me),
+      kv.hdel(friendRequestTimesKey(me), requester),
     ])
 
     const myProfile = await kv.get<UserProfile>(profileKey(me))

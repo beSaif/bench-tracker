@@ -2,7 +2,7 @@ import { kv } from "@vercel/kv"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { UserProfile, FriendRequest } from "@/lib/types"
-import { friendRequestsInKey, profileKey } from "@/lib/userKeys"
+import { friendRequestTimesKey, friendRequestsInKey, profileKey } from "@/lib/userKeys"
 
 export async function GET() {
   const session = await auth()
@@ -17,10 +17,18 @@ export async function GET() {
       return NextResponse.json({ requests: [], count: 0 })
     }
 
-    const profiles = await kv.mget<UserProfile[]>(...requesterEmails.map(profileKey))
+    const [profiles, times] = await Promise.all([
+      kv.mget<UserProfile[]>(...requesterEmails.map(profileKey)),
+      kv.hgetall<Record<string, string>>(friendRequestTimesKey(me)),
+    ])
+    // Requests sent before the time was recorded fall back to the requester's signup.
     const requests: FriendRequest[] = profiles
       .filter((p): p is UserProfile => p !== null && typeof p === "object")
-      .map((p) => ({ email: p.email, name: p.name, sentAt: p.createdAt }))
+      .map((p) => ({
+        email: p.email,
+        name: p.name,
+        sentAt: times?.[p.email.trim().toLowerCase()] ?? p.createdAt,
+      }))
 
     return NextResponse.json({ requests, count: requests.length })
   } catch {

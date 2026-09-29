@@ -7,8 +7,9 @@ import MiniPlayerBar from "@/components/MiniPlayerBar"
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  themeColor: "#2563eb",
+  // No maximumScale: it blocks pinch zoom on Android. iOS used it to skip the zoom-on-
+  // focus for small inputs, which globals.css now handles by sizing those at 16px.
+  themeColor: "#1e3a5f",
   viewportFit: "cover",
 }
 
@@ -31,7 +32,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="color-scheme" content="light" />
-        <script dangerouslySetInnerHTML={{ __html: `try{screen.orientation.lock('portrait')}catch(_){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var p=screen.orientation.lock('portrait');if(p&&p.catch)p.catch(function(){})}catch(_){}` }} />
         {/*
           Chrome fires beforeinstallprompt once, often before React has hydrated, and the
           event is only usable if it was preventDefault()ed. Stash it here so the install

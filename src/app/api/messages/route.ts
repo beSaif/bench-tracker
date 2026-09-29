@@ -11,7 +11,12 @@ export async function GET() {
   }
   const me = session.user.email.trim().toLowerCase()
 
-  const raw = await kv.lrange(messageInboxKey(me), 0, -1)
+  let raw: unknown[]
+  try {
+    raw = await kv.lrange(messageInboxKey(me), 0, -1)
+  } catch {
+    return NextResponse.json([], { status: 503 })
+  }
   const messages: GymbroMessage[] = raw
     .map((item) => {
       try {
@@ -44,24 +49,28 @@ export async function DELETE(req: NextRequest) {
     // no body — delete all
   }
 
-  if (!fromEmail) {
+  try {
+    if (!fromEmail) {
+      await kv.del(key)
+      return NextResponse.json({ ok: true })
+    }
+
+    // Selective delete: keep messages not from this sender
+    const raw = await kv.lrange(key, 0, -1)
+    const remaining = raw
+      .map((item) => {
+        try { return typeof item === "string" ? JSON.parse(item) : item } catch { return null }
+      })
+      .filter((m): m is GymbroMessage => m !== null && m.fromEmail !== fromEmail)
+
     await kv.del(key)
+    if (remaining.length > 0) {
+      await kv.rpush(key, ...remaining.map((m) => JSON.stringify(m)))
+      await kv.expire(key, 60 * 60 * 24 * 7)
+    }
+
     return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: "failed" }, { status: 503 })
   }
-
-  // Selective delete: keep messages not from this sender
-  const raw = await kv.lrange(key, 0, -1)
-  const remaining = raw
-    .map((item) => {
-      try { return typeof item === "string" ? JSON.parse(item) : item } catch { return null }
-    })
-    .filter((m): m is GymbroMessage => m !== null && m.fromEmail !== fromEmail)
-
-  await kv.del(key)
-  if (remaining.length > 0) {
-    await kv.rpush(key, ...remaining.map((m) => JSON.stringify(m)))
-    await kv.expire(key, 60 * 60 * 24 * 7)
-  }
-
-  return NextResponse.json({ ok: true })
 }

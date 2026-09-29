@@ -59,6 +59,15 @@ export function friendRequestsOutKey(email: string): string {
   return `user:${normalize(email)}:friend-requests-out`
 }
 
+/** Hash of requester email → ISO time the request was sent, alongside friendRequestsInKey. */
+export function friendRequestTimesKey(email: string): string {
+  return `user:${normalize(email)}:friend-requests-at`
+}
+
+export function presenceKey(email: string): string {
+  return `user:${normalize(email)}:presence`
+}
+
 export function messageInboxKey(email: string): string {
   return `user:${normalize(email)}:messages`
 }

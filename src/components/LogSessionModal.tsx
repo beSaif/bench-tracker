@@ -43,7 +43,16 @@ import { CSS } from "@dnd-kit/utilities"
 import { DrumRollPicker } from "@/components/DrumRollPicker"
 import SessionProgressDashes, { type ProgressDash } from "@/components/SessionProgressDashes"
 
-const REST_DURATION = 180 // seconds
+/**
+ * Rest after a set, in seconds, by what the set was: a heavy main-lift set needs the
+ * full three minutes, a 20kg warm-up or an accessory does not.
+ */
+const REST_SECONDS = {
+  warmup: 60,
+  main: 180,
+  accessory: 90,
+  cardio: 60,
+} as const
 
 const KG_VALUES = Array.from(
   { length: Math.floor((300 - 20) / 2.5) + 1 },
@@ -153,9 +162,17 @@ function buildDefaultOrder(
 ): ExerciseGroup[] {
   // A Free (Balanced-mode) session carries no main-lift sets, so it gets no main group.
   const order: ExerciseGroup[] = session.sets.length > 0 ? [{ kind: "main" }] : []
-  for (const muscle of session.selectedMuscleGroups ?? []) {
+  const selected = session.selectedMuscleGroups ?? []
+  for (const muscle of selected) {
     for (const exercise of getSessionExercisesForMuscle(exerciseConfig, muscle, { exclude })) {
       order.push({ kind: "extra", muscle, exercise })
+    }
+  }
+  // Logged cardio is not among the muscle groups, so it is ordered from the bouts.
+  for (const workout of session.extraWorkouts ?? []) {
+    if (selected.includes(workout.muscle) || !isCardioMuscle(exerciseConfig, workout.muscle)) continue
+    for (const exercise of workout.exercises) {
+      order.push({ kind: "extra", muscle: workout.muscle, exercise: exercise.name })
     }
   }
   return order
@@ -409,8 +426,9 @@ function initExtraWorkoutState(
   exclude?: string
 ): ExtraWorkoutState {
   const groups = session.selectedMuscleGroups ?? []
-  if (groups.length === 0) return {}
 
+  // Checked before the empty-groups bail-out: a cardio-only session has logged bouts
+  // but no muscle groups.
   if (session.extraWorkouts && session.extraWorkouts.length > 0) {
     const state: ExtraWorkoutState = {}
     for (const workout of session.extraWorkouts) {
@@ -428,6 +446,7 @@ function initExtraWorkoutState(
     }
     return state
   }
+  if (groups.length === 0) return {}
 
   const state: ExtraWorkoutState = {}
   for (const muscle of groups) {
@@ -519,11 +538,18 @@ export default function LogSessionModal({
       currentSetIndex,
       exerciseOrder,
     })
-  }, [sets, completedSets, extraState, coachNote, currentSetIndex])
+  }, [mode, session.id, sets, completedSets, extraState, coachNote, currentSetIndex, exerciseOrder])
 
-  const [selectedGroups, setSelectedGroups] = useState<string[]>(
-    session.selectedMuscleGroups ?? []
-  )
+  // Cardio is never stored among a session's muscle groups, so bring back any library
+  // whose bouts are already in play (editing a logged session, resuming a draft) or
+  // its section would not render and the bouts would be dropped on save.
+  const [selectedGroups, setSelectedGroups] = useState<string[]>(() => {
+    const base = session.selectedMuscleGroups ?? []
+    const cardio = Object.keys(extraState).filter(
+      (m) => !base.includes(m) && isCardioMuscle(exerciseConfig, m)
+    )
+    return [...base, ...cardio]
+  })
 
   const carouselItems = buildCarouselItems(exerciseOrder, sets, extraState)
   const hasMain = exerciseOrder.some((g) => g.kind === "main")
@@ -678,12 +704,13 @@ export default function LogSessionModal({
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
+        const rest = restAfter(carouselItems.find((item) => getItemKey(item) === key))
         hasAdvancedForRestRef.current = false
         timerTriggerIndexRef.current = currentSetIndex
-        setRestEndTime(Date.now() + REST_DURATION * 1000)
-        setRestSeconds(REST_DURATION)
+        setRestEndTime(Date.now() + rest * 1000)
+        setRestSeconds(rest)
         const body = nextItem ? getNextPreview(nextItem) : "Last set — great work"
-        const doSchedule = () => scheduleNotification(REST_DURATION * 1000, body)
+        const doSchedule = () => scheduleNotification(rest * 1000, body)
         if (typeof Notification !== "undefined") {
           if (Notification.permission === "granted") {
             doSchedule()
@@ -695,6 +722,13 @@ export default function LogSessionModal({
         }
       }
     }
+  }
+
+  function restAfter(item: CarouselItem | undefined): number {
+    if (!item) return REST_SECONDS.main
+    if (item.type === "main") return item.set.isWarmup ? REST_SECONDS.warmup : REST_SECONDS.main
+    const set = extraState[item.muscle]?.[item.exercise]?.[item.setIndex]
+    return set?.minutesStr != null ? REST_SECONDS.cardio : REST_SECONDS.accessory
   }
 
   function advanceToNextSet() {
@@ -857,6 +891,17 @@ export default function LogSessionModal({
     setCurrentSetIndex((p) => p + 1)
   }
 
+  /**
+   * Where the carousel lands after deleting the current set. Back on the set before it
+   * when that one is still to do — the set you were on before "Add set after" put you
+   * on the one now being removed — otherwise on the set that slides into its place.
+   */
+  function indexAfterDelete(prev: number): number {
+    const before = carouselItems[prev - 1]
+    if (before && !completedSets.has(getItemKey(before))) return prev - 1
+    return Math.max(0, Math.min(prev, carouselItems.length - 2))
+  }
+
   function deleteCurrentSet(globalIndex: number, setId: string) {
     if (sets.length <= 1) return
     setSets((prev) => prev.filter((_, i) => i !== globalIndex))
@@ -865,7 +910,7 @@ export default function LogSessionModal({
       next.delete(setId)
       return next
     })
-    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+    setCurrentSetIndex(indexAfterDelete)
   }
 
   function addExtraSetAfter(muscle: string, exercise: string, setIndex: number) {
@@ -909,7 +954,7 @@ export default function LogSessionModal({
       }
       return next
     })
-    setCurrentSetIndex((prev) => Math.max(0, Math.min(prev, carouselItems.length - 2)))
+    setCurrentSetIndex(indexAfterDelete)
   }
 
   function deleteSet(globalIndex: number, setId: string) {
@@ -1053,6 +1098,7 @@ export default function LogSessionModal({
   }
 
   function handleConfirm() {
+    const trainedGroups = selectedGroups.filter((g) => !isCardioMuscle(exerciseConfig, g))
     const extraWorkouts: ExtraWorkout[] = selectedGroups
       .filter((muscle) => extraState[muscle])
       .map((muscle) => ({
@@ -1086,9 +1132,12 @@ export default function LogSessionModal({
       confirmed: true,
       date: mode === "edit" ? session.date : new Date().toISOString(),
       coachNote,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       sets: sets.map(({ _kgStr: _, _repsStr: __, _rpeStr: ___, ...rest }) => rest),
       extraWorkouts: extraWorkouts.length > 0 ? extraWorkouts : undefined,
-      selectedMuscleGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
+      // Cardio rides along in selectedGroups so its section renders, but it is not a
+      // muscle trained: the logged bouts live in extraWorkouts, not the day's label.
+      selectedMuscleGroups: trainedGroups.length > 0 ? trainedGroups : undefined,
     }
     clearDraft()
     onConfirm(finalSession)

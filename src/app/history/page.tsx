@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Session, TrainingBlock, BlockPhase, UserProfile, TrainingDay } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal, loadTrainingDaysLocal } from "@/lib/storage"
-import { currentStretchSkips, getMainLiftShortLabel } from "@/lib/trainingMode"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal, loadTrainingDaysLocal, loadAll, loadProfile, loadTrainingDays } from "@/lib/storage"
+import { useOnboardingGuard } from "@/lib/useOnboardingGuard"
+import { currentStretchSkips, getMainLiftShortLabel, isLiftFocused } from "@/lib/trainingMode"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import ShareImageModal from "@/components/ShareImageModal"
@@ -32,14 +33,29 @@ export default function HistoryPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
   const [mounted, setMounted] = useState(false)
+  useOnboardingGuard()
 
   useEffect(() => {
+    let cancelled = false
+    // Local first so the list paints at once, then KV — on a fresh device nothing is
+    // cached until something loads it, and History should not have to wait for Home.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
     setSessions(loadSessionsLocal())
     setBlocks(loadBlocksLocal())
     setProfile(loadProfileLocal())
     setTrainingDays(loadTrainingDaysLocal())
-    loadExerciseConfig().then(setExerciseConfig)
     setMounted(true)
+    loadExerciseConfig().then((c) => { if (!cancelled) setExerciseConfig(c) })
+    loadTrainingDays().then((d) => { if (!cancelled) setTrainingDays(d) })
+    loadProfile().then((p) => { if (!cancelled && p) setProfile(p) })
+    loadAll().then(({ sessions: s, blocks: b }) => {
+      if (cancelled) return
+      setSessions(s)
+      setBlocks(b)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   if (!mounted) {
@@ -64,9 +80,12 @@ export default function HistoryPage() {
       .flatMap((b) => b.sessionIds)
   )
 
-  // Sessions logged without the main lift hold no blockId, so the block filters above
-  // can't recognise the current ones. Home still shows those; only older ones archive here.
-  const currentSkipIds = new Set(currentStretchSkips(sessions, blocks).map((s) => s.id))
+  // Off-block sessions hold no blockId, so the block filters above can't recognise the
+  // current ones. In lift-focused mode Home still shows those; only older ones archive
+  // here. Balanced mode's Home has no block stretch, so everything archives.
+  const currentSkipIds = new Set(
+    (profile && isLiftFocused(profile) ? currentStretchSkips(sessions, blocks) : []).map((s) => s.id)
+  )
 
   const archiveSessions = sessions
     .filter(

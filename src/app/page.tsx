@@ -184,6 +184,7 @@ export default function Page() {
   const [friendProfiles, setFriendProfiles] = useState<UserProfile[]>([])
   const [showHypePanel, setShowHypePanel] = useState(false)
   const [lastConfirmed, setLastConfirmed] = useState<Session | null>(null)
+  const [lastPR, setLastPR] = useState<{ e1rm: number; previous: number } | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
   const [messagesByFriend, setMessagesByFriend] = useState<Record<string, GymbroMessage[]>>({})
   const [msgPopupFriend, setMsgPopupFriend] = useState<UserPresence | null>(null)
@@ -343,6 +344,8 @@ export default function Page() {
     })
 
     return () => { cancelled = true }
+  // Load once per mount. The hook objects are fresh every render; listing them would re-run the whole load.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
   // Keep ref in sync so event listener always sees fresh sessions
@@ -511,6 +514,18 @@ export default function Page() {
   }
 
   function signalPresence(inSession: boolean) {
+    // Reflect it locally at once; the polled list would otherwise keep showing the old
+    // state (e.g. "lifting now" after confirming) until the next 15s poll.
+    if (profile) {
+      const me = profile.email.trim().toLowerCase()
+      setPresences((prev) =>
+        prev.map((p) =>
+          p.email.trim().toLowerCase() === me
+            ? { ...p, inSession, startedAt: inSession ? new Date().toISOString() : null }
+            : p
+        )
+      )
+    }
     fetch("/api/presence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -567,7 +582,16 @@ export default function Page() {
       }]
     }
 
-    const upcoming = createUpcomingSession(confirmed, finalBlocks, exerciseConfig, profile, trainingDays)
+    // Keep the day and extras already picked on the upcoming card; only the loads change.
+    const previous = sessions.find((s) => !s.confirmed)
+    const regenerated = createUpcomingSession(confirmed, finalBlocks, exerciseConfig, profile, trainingDays)
+    const upcoming: Session = previous
+      ? {
+          ...regenerated,
+          selectedTrainingDayId: previous.selectedTrainingDayId,
+          selectedMuscleGroups: previous.selectedMuscleGroups,
+        }
+      : regenerated
     const finalSessions = sortSessions([...confirmed, upcoming])
     saveAll(finalSessions, finalBlocks)
     setSessions(finalSessions)
@@ -673,7 +697,17 @@ export default function Page() {
     cancelIncompleteSessionReminder()
     signalPresence(false)
     setLastConfirmed(updatedSession)
-    setShowHypePanel(true)
+
+    // A new best e1RM is the moment the whole block exists for, so it gets called out.
+    const newBestE1RM = getBestE1RM(confirmedSessions)
+    const pr =
+      prevBestE1RM != null && newBestE1RM != null && newBestE1RM > prevBestE1RM
+        ? { e1rm: newBestE1RM, previous: prevBestE1RM }
+        : null
+    setLastPR(pr)
+    // With no gymbros the roast panel has nothing to offer but a skip button, so it only
+    // opens to celebrate a PR.
+    if (friendProfiles.length > 0 || pr) setShowHypePanel(true)
   }
 
   /** A skip or restore invalidates any draft still holding the old exercise list. */
@@ -801,19 +835,20 @@ export default function Page() {
     const remaining = sessions.filter((s) => s.confirmed && s.id !== session.id)
 
     const sessionBlockId = session.blockId
+    // Unlogging the session that just completed a block (nothing logged in any later
+    // block yet) rewinds into it: the empty follow-on blocks go and it reopens. Anything
+    // older only unlinks the session — later blocks hold real training and must survive.
+    const canRewind =
+      sessionBlockId !== undefined &&
+      blocks.every((b) => b.id <= sessionBlockId || b.sessionIds.length === 0)
     let newBlocks = sessionBlockId === undefined ? blocks : blocks
-      .filter((b) => {
-        if (sessionBlockId !== undefined && b.id > sessionBlockId) return false
-        return true
-      })
+      .filter((b) => !(canRewind && b.id > sessionBlockId))
       .map((b) => {
         if (b.id !== sessionBlockId) return b
-        return {
-          ...b,
-          sessionIds: b.sessionIds.filter((id) => id !== session.id),
-          status: "active" as const,
-          endDate: null,
-        }
+        const sessionIds = b.sessionIds.filter((id) => id !== session.id)
+        return canRewind
+          ? { ...b, sessionIds, status: "active" as const, endDate: null }
+          : { ...b, sessionIds }
       })
 
     if (sessionBlockId !== undefined && !getActiveBlock(newBlocks) && newBlocks.length > 0) {
@@ -1261,10 +1296,11 @@ export default function Page() {
           )}
 
           {/* Past block: only confirmed sessions */}
-          {viewingBlock !== activeBlock && !viewingUpcomingPhase && viewingBlockSessions.map((s) => (
+          {viewingBlock !== activeBlock && !viewingUpcomingPhase && viewingBlockSessions.map((s, i) => (
             <SessionCard
               key={s.id}
               session={s}
+              blockIndex={i + 1}
               onEdit={handleEditSession}
               onUnlog={handleUnlogSession}
               onShare={setShareSession}
@@ -1308,7 +1344,7 @@ export default function Page() {
       {/* Draft resume prompt */}
       {draftPrompt && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-          <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10">
+          <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10 max-h-[90dvh] overflow-y-auto">
             <p className="text-base font-semibold text-[#111111] mb-1">Resume session?</p>
             <p className="text-sm text-[#777777] mb-6">
               Draft saved {relativeTime(draftPrompt.draft.savedAt)} · {draftPrompt.draft.completedSets.length} set{draftPrompt.draft.completedSets.length !== 1 ? "s" : ""} done
@@ -1342,7 +1378,7 @@ export default function Page() {
       {/* Anchor weight setup / edit */}
       {anchorPrompt && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-          <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10">
+          <div className="bg-white w-full max-w-[393px] rounded-t-2xl px-6 pt-6 pb-10 max-h-[90dvh] overflow-y-auto">
             <p className="text-base font-semibold text-[#111111] mb-1">Set your anchor weight</p>
             <p className="text-sm text-[#777777] mb-6">
               Your anchor is the 1RM this cycle is built around. All block prescriptions are calculated as a percentage of this.
@@ -1363,7 +1399,7 @@ export default function Page() {
               disabled={isNaN(parseFloat(anchorInput)) || parseFloat(anchorInput) <= 0}
               className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 hover:bg-[#16304f] active:bg-[#0f2540] transition-colors disabled:opacity-40"
             >
-              Start Block 1: Accumulation
+              {getActiveBlock(blocks) ? "Update anchor" : "Start Block 1: Accumulation"}
             </button>
           </div>
         </div>
@@ -1373,6 +1409,8 @@ export default function Page() {
       {showHypePanel && (
         <HypePanelModal
           friends={friendProfiles}
+          pr={lastPR}
+          liftLabel={liftShort}
           onClose={() => setShowHypePanel(false)}
           onShareWorkout={
             lastConfirmed

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { useNativeInstallPrompt } from "@/lib/installPrompt"
 
@@ -153,16 +153,13 @@ interface InstallGuideModalProps {
 }
 
 export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps) {
-  const [platform, setPlatform] = useState<Platform>("other")
+  // Only ever mounted on the client, after the home page has loaded, so navigator is there.
+  const [platform] = useState<Platform>(() => (typeof navigator === "undefined" ? "other" : detectPlatform()))
   const { available: nativeInstall, promptInstall } = useNativeInstallPrompt()
   // The written steps are the fallback, not the pitch: when the browser can show the
   // real system dialog we lead with that and only unfold the steps if it goes unused.
   const [showSteps, setShowSteps] = useState(false)
   const [installing, setInstalling] = useState(false)
-
-  useEffect(() => {
-    setPlatform(detectPlatform())
-  }, [])
 
   function dismiss() {
     localStorage.setItem(STORAGE_KEY, "1")
@@ -187,7 +184,7 @@ export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps)
     // Desktop or unsupported — just skip
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-        <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl">
+        <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl max-h-[90dvh] overflow-y-auto">
           <p className="text-lg font-semibold text-[#111111] mb-2">open this on your phone</p>
           <p className="text-sm text-[#777777] mb-6">
             for the best experience — and so you can log sets in the gym — visit this on your phone and add it to your home screen.
@@ -205,7 +202,7 @@ export default function InstallGuideModal({ onDismiss }: InstallGuideModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-      <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl">
+      <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="mb-6">
           <p className="text-lg font-semibold text-[#111111] leading-snug mb-1">
