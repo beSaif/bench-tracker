@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type CSSProperties } from "react"
+import { haptic } from "@/lib/haptics"
 
 export interface ProgressDash {
   /** Stable identity — this is what the enter/exit animation tracks. */
@@ -174,7 +175,7 @@ export default function SessionProgressDashes({
             onKeyDown={(e) => dash.index !== null && handleKeyDown(e, dash.index)}
             onClick={() => {
               if (dash.index === null) return
-              navigator.vibrate?.([6])
+              haptic("tick")
               onSelect(dash.index)
             }}
           >

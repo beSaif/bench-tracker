@@ -9,6 +9,9 @@ import {
   MAIN_LIFT_LABEL,
 } from "@/lib/types"
 import { calcE1RM } from "@/lib/e1rm"
+import { getBestE1RM } from "@/lib/stats"
+import { haptic } from "@/lib/haptics"
+import DotsBuddy from "@/components/DotsBuddy"
 import { saveDraft, clearDraft, saveMiniPlayer } from "@/lib/storage"
 import type { SessionDraft } from "@/lib/types"
 import { MuscleGroupConfig, getMuscleLabel, getExercisesForMuscle, getSessionExercisesForMuscle, sortedMuscleGroups, sortedCardioGroups, isCardioMuscle, getDefaultSets, DEFAULT_CARDIO_MINUTES } from "@/lib/exerciseConfig"
@@ -509,6 +512,13 @@ export default function LogSessionModal({
   const [exerciseOrder, setExerciseOrder] = useState<ExerciseGroup[]>(
     () => initialDraft?.exerciseOrder ?? buildDefaultOrder(session, exerciseConfig, duplicateOfMainLift)
   )
+  // The best e1RM on record before this session, fixed for the life of the modal.
+  // A first-ever session has nothing to beat, so it never counts as a PR.
+  const [priorBestE1RM] = useState(() =>
+    getBestE1RM(previousSessions.filter((s) => s.id !== session.id))
+  )
+  /** e1RM of the set that just beat every previous best; shown on the rest screen. */
+  const [prE1RM, setPrE1RM] = useState<number | null>(null)
   const [showExercisesSheet, setShowExercisesSheet] = useState(false)
   const [exercisesSheetTab, setExercisesSheetTab] = useState<"current" | "add">("current")
   const [swapFromMuscle, setSwapFromMuscle] = useState<string | null>(null)
@@ -671,7 +681,7 @@ export default function LogSessionModal({
         done = true
         cancelNotification()
         playBeep()
-        navigator.vibrate?.([300, 100, 300])
+        haptic("alert")
         setRestEndTime(null)
         setCurrentSetIndex(Math.min(timerTriggerIndexRef.current + 1, carouselLengthRef.current - 1))
       }
@@ -695,14 +705,34 @@ export default function LogSessionModal({
     }
   }, [restEndTime])
 
+  /**
+   * Whether completing this set beats the best e1RM on record — counting the sets
+   * already done today, so a second, heavier PR set still gets its moment.
+   */
+  function isPRSet(key: string): number | null {
+    if (mode !== "log" || session.type === "Deload" || priorBestE1RM == null) return null
+    const set = sets.find((s) => s.id === key)
+    if (!set || set.isWarmup || set.e1rm == null) return null
+    const todayBest = sets
+      .filter((s) => s.id !== key && !s.isWarmup && completedSets.has(s.id))
+      .reduce((best, s) => Math.max(best, s.e1rm ?? 0), 0)
+    return set.e1rm > Math.max(priorBestE1RM, todayBest) ? set.e1rm : null
+  }
+
   function markSetDone(key: string) {
     if (completedSets.has(key)) {
       setCompletedSets((prev) => { const n = new Set(prev); n.delete(key); return n })
       setRestEndTime(null)
       setRestSeconds(0)
+      setPrE1RM(null)
       cancelNotification()
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
+      const pr = isPRSet(key)
+      setPrE1RM(pr)
+      haptic(pr != null ? "pr" : "success")
+      // A PR is worth seeing even if the timer was tucked away earlier.
+      if (pr != null) setTimerMinimized(false)
       if (mode !== "edit") {
         const rest = restAfter(carouselItems.find((item) => getItemKey(item) === key))
         hasAdvancedForRestRef.current = false
@@ -756,12 +786,12 @@ export default function LogSessionModal({
 
   function navigatePrev() {
     setCurrentSetIndex((p) => Math.max(p - 1, 0))
-    navigator.vibrate?.([8])
+    haptic("tick")
   }
 
   function navigateNext() {
     setCurrentSetIndex((p) => Math.min(p + 1, carouselItems.length - 1))
-    navigator.vibrate?.([8])
+    haptic("tick")
   }
 
   function updateSet(index: number, field: "kg" | "reps" | "rpe", raw: string) {
@@ -1658,6 +1688,19 @@ export default function LogSessionModal({
   if (restActive && !timerMinimized) {
     return (
       <div className="fixed inset-0 z-50 bg-[#1e3a5f] flex flex-col items-center justify-center">
+        <DotsBuddy
+          mood={prE1RM != null ? "happy" : "idle"}
+          reaction={prE1RM != null ? "celebrate" : "nod"}
+          colour="#ffffff"
+          size={prE1RM != null ? 56 : 40}
+          className="mb-5"
+          label={prE1RM != null ? "Buddy celebrating a new best" : "Buddy"}
+        />
+        {prE1RM != null && (
+          <p className="text-sm font-semibold text-white mb-3 animate-fade-up">
+            New best e1RM · {prE1RM}kg
+          </p>
+        )}
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
           Rest · {completedCount} / {carouselItems.length}
         </p>

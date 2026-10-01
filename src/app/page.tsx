@@ -37,6 +37,8 @@ import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
 import BalancedHome from "@/components/balanced/BalancedHome"
 import LayoffBanner from "@/components/LayoffBanner"
+import DotsBuddy, { type BuddyMood } from "@/components/DotsBuddy"
+import { haptic } from "@/lib/haptics"
 import WeightCard from "@/components/WeightCard"
 import WeightCheckInSheet from "@/components/WeightCheckInSheet"
 import WeightOptInSheet, { useWeightOptIn } from "@/components/WeightOptInSheet"
@@ -195,6 +197,8 @@ export default function Page() {
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   // Which layoff banner the user already dismissed, so it doesn't nag every load.
   const [layoffDismissed, setLayoffDismissed] = useState<string | null>(() => loadLayoffDismissLocal())
+  // Bumped on every tap of the header buddy, replaying its wiggle.
+  const [buddyPokes, setBuddyPokes] = useState(0)
   const presenceInitialisedRef = useRef(false)
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
@@ -974,6 +978,16 @@ export default function Page() {
   })()
   const firstName = profile.name.split(" ")[0]
 
+  // The header buddy mirrors where training stands: content once today's session is
+  // in, dozing after a week or more away, otherwise awake and waiting.
+  const lastSessionDate = confirmedSorted[0]?.date
+  const buddyMood: BuddyMood =
+    lastSessionDate && dateKey(new Date(lastSessionDate)) === dateKey()
+      ? "happy"
+      : layoff.tier !== "none"
+        ? "sleepy"
+        : "idle"
+
   // Anything already covering the screen. The weight sheets queue behind all of it —
   // slamming a weigh-in prompt over a session the user is mid-way through logging
   // would be worse than asking a minute later.
@@ -1050,6 +1064,29 @@ export default function Page() {
                 hello, {firstName}
               </h1>
             </div>
+            <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => {
+                haptic("tick")
+                setBuddyPokes((n) => n + 1)
+              }}
+              className="p-1 touch-manipulation"
+              aria-label={
+                buddyMood === "happy"
+                  ? "Buddy — session done today"
+                  : buddyMood === "sleepy"
+                    ? "Buddy — dozing, it's been a while"
+                    : "Buddy"
+              }
+            >
+              <DotsBuddy
+                mood={buddyMood}
+                reaction={buddyPokes > 0 ? "wiggle" : null}
+                reactionKey={buddyPokes}
+                size={28}
+                label=""
+              />
+            </button>
             <button
               onClick={() => setDrawerOpen(true)}
               className="p-1 -mr-1 text-[#555555] hover:text-[#111111] transition-colors shrink-0"
@@ -1061,6 +1098,7 @@ export default function Page() {
                 <rect y="12" width="20" height="2" rx="1" />
               </svg>
             </button>
+            </div>
           </div>
         </header>
 
