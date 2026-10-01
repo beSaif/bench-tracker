@@ -27,6 +27,8 @@ import {
 import { getBestE1RMForExercise, getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
 import { getBestE1RM } from "@/lib/stats"
 import { classifySet, reportSetMoment, type DotMoment } from "@/lib/buddy"
+import HapticTap from "@/components/HapticTap"
+import { afterHapticTap } from "@/lib/haptics"
 import {
   DndContext,
   closestCenter,
@@ -729,9 +731,10 @@ export default function LogSessionModal({
   }
 
   /**
-   * What a set just marked done means for Dot: a new best e1RM, a grinder, or just a
-   * set. A best has to beat everything before it, this session's earlier sets included,
-   * and Deload sets never count — the same rule the home screen's PR call-out uses.
+   * What a set just marked done means for the buzz and for Dot: a new best e1RM, a
+   * grinder, or just a set. A best has to beat everything before it, this session's
+   * earlier sets included, and Deload sets never count — the same rule the home
+   * screen's PR call-out uses.
    */
   function setMoment(item: CarouselItem | undefined): DotMoment {
     if (!item) return { kind: "set" }
@@ -758,9 +761,7 @@ export default function LogSessionModal({
         reps: set.reps,
         plannedReps: session.sets.find((s) => s.id === set.id)?.reps ?? null,
       })
-      return kind === "pr" && e1rm != null && bestBefore != null
-        ? { kind, e1rm, previous: bestBefore }
-        : { kind: kind === "pr" ? "set" : kind }
+      return { kind }
     }
 
     const all = extraState[item.muscle]?.[item.exercise] ?? []
@@ -776,10 +777,7 @@ export default function LogSessionModal({
       i !== item.setIndex && done(getItemKey({ ...item, setIndex: i })) ? e1rmOf(s) : null
     )
     const bestBefore = history != null ? maxOf([history, ...earlier]) : null
-    const kind = classifySet({ e1rm, bestBefore, rpe: null, reps: 0, plannedReps: null })
-    return kind === "pr" && e1rm != null && bestBefore != null
-      ? { kind, e1rm, previous: bestBefore, exercise: item.exercise }
-      : { kind: "set" }
+    return { kind: classifySet({ e1rm, bestBefore, rpe: null, reps: 0, plannedReps: null }) }
   }
 
   function restAfter(item: CarouselItem | undefined): number {
@@ -1885,14 +1883,15 @@ export default function LogSessionModal({
                       )}
 
                       <button
-                        onClick={() => markSetDone(item.set.id)}
-                        className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
+                        onClick={() => afterHapticTap(() => markSetDone(item.set.id))}
+                        className={`relative w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
                             ? "bg-[#1e3a5f]/10 text-[#1e3a5f] hover:bg-[#1e3a5f]/20 active:bg-[#1e3a5f]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
                         {isDone ? "✓ Done" : "Done"}
+                        <HapticTap />
                       </button>
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
                         <div className="flex items-center gap-3">
@@ -2041,14 +2040,15 @@ export default function LogSessionModal({
                         </div>
                       )}
                       <button
-                        onClick={() => markSetDone(key)}
-                        className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
+                        onClick={() => afterHapticTap(() => markSetDone(key))}
+                        className={`relative w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
                           isDone
                             ? "bg-[#1e3a5f]/10 text-[#1e3a5f] hover:bg-[#1e3a5f]/20 active:bg-[#1e3a5f]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
                         {isDone ? "✓ Done" : "Done"}
+                        <HapticTap />
                       </button>
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
                         <div className="flex items-center gap-3">

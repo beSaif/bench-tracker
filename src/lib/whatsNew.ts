@@ -21,7 +21,7 @@ export const WHATS_NEW: WhatsNewRelease[] = [
     items: [
       {
         title: "Meet Dot",
-        body: "A small navy blob now lives on your home screen and in the logger. It sits on top of your cards, hops along your progress as you finish sets, jumps when a set beats your best e1RM and looks worried after a grinder. It naps while you rest. Tap it for today's prescription and a cue. Your phone gives a small buzz for each of those moments. Dot and the haptics each have a switch in the menu.",
+        body: "A small navy blob now lives on your home screen and in the logger. It sits on top of your cards, gives a little hop where it stands when you finish a set and looks worried after a grinder. It naps on the rest timer, then goes back to where it was. Tap it for today's prescription and a cue. Your phone gives a small buzz for each set, a double for a grinder and a triple for a new best e1RM. Dot and the haptics each have a switch in the menu.",
       },
     ],
   },

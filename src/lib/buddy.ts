@@ -31,17 +31,11 @@ export function saveDotEnabled(on: boolean): void {
   window.dispatchEvent(new Event(DOT_CHANGE_EVENT))
 }
 
-/** A finished set, as Dot sees it. A new best outranks a grinder, which outranks a tick. */
-export type DotMoment =
-  | { kind: "set" }
-  | { kind: "heavy" }
-  | {
-      kind: "pr"
-      e1rm: number
-      previous: number
-      /** Named on the pill for an accessory; the main lift goes without saying. */
-      exercise?: string
-    }
+/**
+ * A finished set, as Dot sees it. A new best outranks a grinder, which outranks a tick.
+ * Dot meets a best like any other set; only the buzz tells them apart.
+ */
+export type DotMoment = { kind: "set" | "heavy" | "pr" }
 
 /**
  * Report a finished set: the phone buzzes now, inside the tap, and Dot reacts once the

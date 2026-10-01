@@ -8,6 +8,7 @@ import { loadProfile, wipeLocalUserData } from "@/lib/storage"
 import { useNativeInstallPrompt } from "@/lib/installPrompt"
 import { DOT_CHANGE_EVENT, loadDotEnabled, saveDotEnabled } from "@/lib/buddy"
 import { HAPTICS_CHANGE_EVENT, haptic, loadHapticsEnabled, saveHapticsEnabled } from "@/lib/haptics"
+import HapticTap from "@/components/HapticTap"
 
 interface NavDrawerProps {
   open: boolean
@@ -203,6 +204,7 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
             <SwitchRow
               label="Haptics"
               checked={hapticsOn}
+              tickOnTap={!hapticsOn}
               onChange={(on) => {
                 saveHapticsEnabled(on)
                 // A buzz on the way on says what the switch does.
@@ -248,10 +250,13 @@ function SwitchRow({
   label,
   checked,
   onChange,
+  tickOnTap,
 }: {
   label: string
   checked: boolean
   onChange: (on: boolean) => void
+  /** iPhone: whether this tap ticks, whatever the Haptics setting says. */
+  tickOnTap?: boolean
 }) {
   return (
     <button
@@ -259,7 +264,7 @@ function SwitchRow({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#333333] hover:bg-[#f5f5f5] transition-colors"
+      className="relative w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#333333] hover:bg-[#f5f5f5] transition-colors"
     >
       {label}
       <span
@@ -274,6 +279,7 @@ function SwitchRow({
           }`}
         />
       </span>
+      {tickOnTap != null && <HapticTap when={tickOnTap} />}
     </button>
   )
 }
