@@ -24,7 +24,9 @@ import {
   formatCardioSet,
   formatDerivedCardio,
 } from "@/lib/cardio"
-import { getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
+import { getBestE1RMForExercise, getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
+import { getBestE1RM } from "@/lib/stats"
+import { classifySet, reportSetMoment, type DotMoment } from "@/lib/buddy"
 import {
   DndContext,
   closestCenter,
@@ -704,7 +706,9 @@ export default function LogSessionModal({
     } else {
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
-        const rest = restAfter(carouselItems.find((item) => getItemKey(item) === key))
+        const item = carouselItems.find((i) => getItemKey(i) === key)
+        reportSetMoment(setMoment(item))
+        const rest = restAfter(item)
         hasAdvancedForRestRef.current = false
         timerTriggerIndexRef.current = currentSetIndex
         setRestEndTime(Date.now() + rest * 1000)
@@ -722,6 +726,60 @@ export default function LogSessionModal({
         }
       }
     }
+  }
+
+  /**
+   * What a set just marked done means for Dot: a new best e1RM, a grinder, or just a
+   * set. A best has to beat everything before it, this session's earlier sets included,
+   * and Deload sets never count — the same rule the home screen's PR call-out uses.
+   */
+  function setMoment(item: CarouselItem | undefined): DotMoment {
+    if (!item) return { kind: "set" }
+    const done = (k: string) => completedSets.has(k)
+    const maxOf = (values: (number | null)[]) => {
+      const nums = values.filter((v): v is number => v != null)
+      return nums.length > 0 ? Math.max(...nums) : null
+    }
+
+    if (item.type === "main") {
+      const set = item.set
+      if (set.isWarmup) return { kind: "set" }
+      const counts = session.type !== "Deload"
+      const e1rm = calcE1RM(set.kg, set.reps)
+      const history = getBestE1RM(previousSessions)
+      const earlier = sets
+        .filter((s) => s.id !== set.id && !s.isWarmup && done(s.id))
+        .map((s) => calcE1RM(s.kg, s.reps))
+      const bestBefore = counts && history != null ? maxOf([history, ...earlier]) : null
+      const kind = classifySet({
+        e1rm: counts ? e1rm : null,
+        bestBefore,
+        rpe: set.rpe,
+        reps: set.reps,
+        plannedReps: session.sets.find((s) => s.id === set.id)?.reps ?? null,
+      })
+      return kind === "pr" && e1rm != null && bestBefore != null
+        ? { kind, e1rm, previous: bestBefore }
+        : { kind: kind === "pr" ? "set" : kind }
+    }
+
+    const all = extraState[item.muscle]?.[item.exercise] ?? []
+    const e1rmOf = (s: EditableExtraSet | undefined) => {
+      if (!s || s.minutesStr != null) return null
+      const kg = parseFloat(s.kgStr)
+      const reps = parseInt(s.repsStr)
+      return kg > 0 && reps > 0 ? calcE1RM(kg, reps) : null
+    }
+    const e1rm = e1rmOf(all[item.setIndex])
+    const history = getBestE1RMForExercise(item.exercise, previousSessions)
+    const earlier = all.map((s, i) =>
+      i !== item.setIndex && done(getItemKey({ ...item, setIndex: i })) ? e1rmOf(s) : null
+    )
+    const bestBefore = history != null ? maxOf([history, ...earlier]) : null
+    const kind = classifySet({ e1rm, bestBefore, rpe: null, reps: 0, plannedReps: null })
+    return kind === "pr" && e1rm != null && bestBefore != null
+      ? { kind, e1rm, previous: bestBefore, exercise: item.exercise }
+      : { kind: "set" }
   }
 
   function restAfter(item: CarouselItem | undefined): number {
@@ -1661,7 +1719,15 @@ export default function LogSessionModal({
         <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
           Rest · {completedCount} / {carouselItems.length}
         </p>
-        <p className="text-[96px] font-bold tabular-nums leading-none text-white">
+        {/* Dot naps on the digits while you rest. The glyphs start ~12px below the box. */}
+        <p
+          data-ledge
+          data-ledge-home
+          data-ledge-rest
+          data-ledge-tone="dark"
+          data-ledge-inset="12"
+          className="text-[96px] font-bold tabular-nums leading-none text-white"
+        >
           {timerDisplay}
         </p>
         {nextItem ? (
@@ -1764,6 +1830,8 @@ export default function LogSessionModal({
                   const isWarmup = item.set.isWarmup
                   return (
                     <div
+                      data-ledge
+                      data-ledge-watch
                       className={`rounded-2xl border-2 p-5 transition-colors ${
                         isDone ? "border-[#1e3a5f]/30 bg-[#1e3a5f]/[0.03]" : "border-[#e8e8e8]"
                       }`}
@@ -1865,6 +1933,8 @@ export default function LogSessionModal({
                   const topSet = getTopSet(item.exercise, previousSessions)
                   return (
                     <div
+                      data-ledge
+                      data-ledge-watch
                       className={`rounded-2xl border-2 p-5 transition-colors ${
                         isDone ? "border-[#1e3a5f]/30 bg-[#1e3a5f]/[0.03]" : "border-[#e8e8e8]"
                       }`}
@@ -2033,7 +2103,7 @@ export default function LogSessionModal({
           {allDone && (
             <div className="flex-1 flex flex-col justify-center">
             <div className="w-full space-y-4">
-              <div className="text-center mb-2">
+              <div data-ledge data-ledge-home className="text-center mb-2">
                 <p className="text-sm font-semibold text-[#1e3a5f]">Session complete</p>
                 <p className="text-xs text-[#aaaaaa] mt-0.5">All sets done — add a note and confirm</p>
               </div>

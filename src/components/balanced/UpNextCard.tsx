@@ -99,7 +99,7 @@ export default function UpNextCard({
     : "+ Extras"
 
   return (
-    <section className="mb-3 rounded-2xl bg-[#1e3a5f] text-white overflow-hidden">
+    <section data-ledge data-ledge-home data-ledge-watch className="mb-3 rounded-2xl bg-[#1e3a5f] text-white overflow-hidden">
       <div className="px-4 pt-3.5 pb-4">
         <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-1.5">

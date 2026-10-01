@@ -362,7 +362,14 @@ export default function SessionCard({
   const cardBg = isUpcoming ? "bg-[#eff6ff]" : "bg-white"
 
   return (
-    <div className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}>
+    <div
+      // Dot stands on the coloured stripe along the top, feet at its bottom edge.
+      data-ledge
+      data-ledge-inset="4"
+      data-ledge-home={isUpcoming ? "" : undefined}
+      data-ledge-watch={isUpcoming ? "" : undefined}
+      className={`border rounded-xl mb-3 overflow-hidden ${cardBorder} ${cardBg}`}
+    >
       <div className={`h-1 ${isUpcoming ? "bg-[#1e3a5f]" : "bg-[#16a34a]"}`} />
 
       {isUpcoming ? (

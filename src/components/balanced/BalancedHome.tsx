@@ -83,7 +83,7 @@ export default function BalancedHome({
       />
 
       {recent.length > 0 && (
-        <section className="mt-5 rounded-xl bg-white border border-[#e8e8e8] overflow-hidden">
+        <section data-ledge className="mt-5 rounded-xl bg-white border border-[#e8e8e8] overflow-hidden">
           <div className="flex items-baseline justify-between gap-2 px-4 pt-3 pb-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
               Recent sessions

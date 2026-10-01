@@ -10,7 +10,7 @@ interface StatsGridProps {
 
 function HeroCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: "#eff6ff" }}>
+    <div data-ledge className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: "#eff6ff" }}>
       <span className="text-2xl font-bold leading-none" style={{ color: "#1e3a5f" }}>
         {value}
       </span>
@@ -31,7 +31,7 @@ function StatCell({
   bg: string
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: bg }}>
+    <div data-ledge className="flex flex-col items-center justify-center rounded-[10px] py-3 px-2 min-h-20 gap-1" style={{ backgroundColor: bg }}>
       <span className="text-xl font-semibold leading-none" style={{ color: "#111111" }}>
         {value}
       </span>

@@ -139,6 +139,12 @@ export const WEIGHTS_KEY = "lift-tracker-weights"
 export const PENDING_SYNC_KEY = "lift-tracker-pending-sync"
 /** The day the check-in prompt was last dismissed on this device, "YYYY-MM-DD". */
 export const WEIGH_IN_SKIP_KEY = "lift-tracker-weigh-in-skipped"
+/**
+ * Device preferences for Dot and its haptics, "off" when switched off. Absent means on.
+ * They belong to the phone, not the account, so signing out leaves them alone.
+ */
+export const DOT_KEY = "lift-tracker-dot"
+export const HAPTICS_KEY = "lift-tracker-haptics"
 
 export interface SessionDraft {
   sessionId: number

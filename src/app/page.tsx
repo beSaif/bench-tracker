@@ -37,6 +37,8 @@ import HypePanelModal from "@/components/HypePanelModal"
 import ShareImageModal from "@/components/ShareImageModal"
 import BalancedHome from "@/components/balanced/BalancedHome"
 import LayoffBanner from "@/components/LayoffBanner"
+import DotBuddy from "@/components/buddy/DotBuddy"
+import { buildDotCue } from "@/lib/buddy"
 import WeightCard from "@/components/WeightCard"
 import WeightCheckInSheet from "@/components/WeightCheckInSheet"
 import WeightOptInSheet, { useWeightOptIn } from "@/components/WeightOptInSheet"
@@ -46,6 +48,8 @@ import { suggestNextDay } from "@/lib/balance"
 import { relativeTime } from "@/lib/time"
 
 const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
+/** Days away after which Dot is found asleep when the app opens. */
+const DOT_ASLEEP_AFTER_DAYS = 5
 
 function getActiveBlock(blocks: TrainingBlock[]): TrainingBlock | undefined {
   return blocks.find((b) => b.status === "active")
@@ -986,6 +990,15 @@ export default function Page() {
     shareSession != null ||
     msgPopupFriend != null
 
+  // Dot's tap bubble talks about the next session; while logging, a tap only winks.
+  const dotCue =
+    loggingSession || editingSession
+      ? null
+      : buildDotCue(
+          upcoming,
+          liftFocused ? profile.mainLift : undefined,
+          trainingDays.find((d) => d.id === upcoming?.selectedTrainingDayId)?.name
+        )
   // Strict priority: install guide → what's new → opt-in → daily check-in. Each waits
   // on every higher-priority sheet, extending the `!installGuide.show` guard already
   // used for What's New rather than inventing a second mechanism.
@@ -996,6 +1009,10 @@ export default function Page() {
   return (
     <>
       <NavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <DotBuddy
+        cue={dotCue}
+        startAsleep={layoff.lastSessionDate != null && layoff.days >= DOT_ASLEEP_AFTER_DAYS}
+      />
 
       {installGuide.show && (
         <InstallGuideModal onDismiss={installGuide.dismiss} />
