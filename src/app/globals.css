@@ -44,6 +44,15 @@ html {
   color-scheme: light;
 }
 
+/* Native feel: the page never drifts sideways, never stretches past its top or
+   bottom edge, and never zooms. clip (not hidden) keeps position: sticky working.
+   pan-x pan-y leaves out pinch and double-tap zoom, and a child can't add them back. */
+html, body {
+  overflow-x: clip;
+  overscroll-behavior: none;
+  touch-action: pan-x pan-y;
+}
+
 body {
   background: #ffffff;
   color: #111111;
@@ -132,12 +141,6 @@ body {
   position: absolute; width: 5px; height: 5px; background: #93c5fd;
   border-radius: 0 50% 50% 50%; transform: rotate(45deg);
 }
-.dot-spark {
-  position: absolute; width: 4px; height: 4px; background: #60a5fa; border-radius: 1px;
-  animation: dot-spark 0.9s ease-out both;
-}
-.dot-spark-small { width: 3px; height: 3px; background: #1e3a5f; }
-.dot-body-dark ~ .dot-spark-small { background: #ffffff; }
 .dot-z {
   position: absolute; font: 700 9px/1 var(--font-sans); color: #1e3a5f; opacity: 0.55;
   animation: dot-z 2.4s ease-in-out infinite;
@@ -156,11 +159,6 @@ body {
 
 @keyframes dot-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.035, 0.965); } }
 @keyframes dot-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-@keyframes dot-spark {
-  0% { opacity: 0; transform: rotate(45deg) scale(0.2); }
-  30% { opacity: 1; transform: rotate(45deg) scale(1.2); }
-  100% { opacity: 0; transform: rotate(45deg) scale(0.6) translateY(-6px); }
-}
 @keyframes dot-z { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes dot-travel-0 {
   0%, 100% { transform: scale(1, 1); } 10% { transform: scale(1.15, 0.8); } 28% { transform: scale(0.88, 1.14); }
@@ -189,13 +187,14 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   /* Dot stays put; only its eyes change. */
-  .dot-anim, .dot-body, .dot-eye, .dot-spark, .dot-z { animation: none !important; transition: none; }
+  .dot-anim, .dot-body, .dot-eye, .dot-z { animation: none !important; transition: none; }
 }
 
 /* ---- iOS input zoom ------------------------------------------------------ */
-/* iOS Safari zooms the page when a field under 16px is focused. The viewport no
-   longer pins maximum-scale (that also blocked pinch zoom), so the small fields are
-   lifted to 16px on iOS only. Unlayered, so it wins over the Tailwind utilities. */
+/* iOS Safari zooms the page when a field under 16px is focused. maximum-scale=1 in
+   the viewport stops that on current iOS; the small fields are still lifted to 16px
+   on iOS only, for the versions that zoom anyway. Unlayered, so it wins over the
+   Tailwind utilities. */
 @supports (-webkit-touch-callout: none) {
   input.text-xs, input.text-sm, input[class*="text-[1"],
   textarea.text-xs, textarea.text-sm, textarea[class*="text-[1"],

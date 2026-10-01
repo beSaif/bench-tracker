@@ -9,6 +9,7 @@ import {
   type DotMoment,
 } from "@/lib/buddy"
 import { haptic } from "@/lib/haptics"
+import HapticTap from "@/components/HapticTap"
 
 /**
  * Dot: a small blob that lives in a layer above the whole screen and stands on
@@ -20,18 +21,21 @@ import { haptic } from "@/lib/haptics"
  * the element leaves the screen or a sheet covers it, Dot hops to one you can see, and
  * fades out when there is none. Taps pass through everything but Dot itself.
  *
+ * A logged set never sends Dot anywhere: it reacts where it stands. It only moves when
+ * its ledge goes away (the rest timer covers the screen) or when it wanders.
+ *
+ * It is cheap while still: the frame loop only runs during a hop or a scroll, a slow
+ * tick handles the rest, and nothing starts until the page has settled after loading.
+ *
  * Ledge attributes, all optional beyond `data-ledge`:
- * - `data-ledge-home`: where Dot goes back to after a moment (the progress dashes, the
- *   up-next card).
- * - `data-ledge-road`: Dot walks along it — its feet go at the end of the last
- *   `data-ledge-mark` child, or at the start while there is none.
+ * - `data-ledge-home`: preferred when Dot has to move (the up-next card, the rest timer).
  * - `data-ledge-watch`: it looks down at what is below while standing there.
  * - `data-ledge-rest`: it naps there (the rest timer).
  * - `data-ledge-tone="dark"`: the surface behind it is dark, so it turns white.
  * - `data-ledge-inset="8"`: its feet go this many px below the element's top edge.
  */
 
-type Mood = "idle" | "happy" | "proud" | "concerned" | "sleepy" | "curious" | "wink"
+type Mood = "idle" | "happy" | "concerned" | "sleepy" | "curious" | "wink"
 type Anim = "none" | "travel" | "hop" | "wiggle" | "sink"
 type Tone = "light" | "dark"
 
@@ -49,7 +53,10 @@ const REST_NAP_DELAY_MS = 1500
 const LOST_GRACE_MS = 350
 const CHECK_MS = 250
 const SPOT_CHECK_MS = 1000
-const PILL_MS = 2400
+/** Keep the frame loop going this long after the last scroll, for momentum scrolling. */
+const SCROLL_TAIL_MS = 300
+/** Wait for the page to settle after loading before Dot looks for a ledge. */
+const START_AFTER_MS = 1200
 const BUBBLE_MS = 3000
 
 /** What is under Dot's footprint that it must never stand in front of. */
@@ -61,8 +68,6 @@ interface Perch {
   el: HTMLElement
   /** Dot's left edge, from the element's left edge. */
   dx: number
-  /** Dot's own PR pill: always there while it lasts, so never checked for cover. */
-  own?: boolean
 }
 
 interface Hop {
@@ -173,17 +178,6 @@ function pickSpot(el: HTMLElement, preferred?: number): number | null {
   return null
 }
 
-/**
- * A road ledge (the progress dashes) wants Dot's right edge at the end of its last
- * mark, or Dot at the start of the road while nothing is marked yet.
- */
-function markLeft(el: HTMLElement): number | undefined {
-  if (!el.hasAttribute("data-ledge-road")) return undefined
-  const marks = el.querySelectorAll<HTMLElement>("[data-ledge-mark]")
-  const last = marks[marks.length - 1]
-  return last ? last.getBoundingClientRect().right - W : el.getBoundingClientRect().left
-}
-
 function toneOf(el: HTMLElement): Tone {
   return el.dataset.ledgeTone === "dark" ? "dark" : "light"
 }
@@ -196,30 +190,23 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
   const [lookDown, setLookDown] = useState(false)
   const [anim, setAnim] = useState<{ name: Anim; n: number; ms?: number }>({ name: "none", n: 0 })
   const [tone, setTone] = useState<Tone>("light")
-  const [pill, setPill] = useState<{
-    e1rm: number
-    delta: number
-    exercise?: string
-    tone: Tone
-    top: number
-  } | null>(null)
   const [bubble, setBubble] = useState<{ cue: DotCue; left: number; top: number; above: boolean; tail: number } | null>(null)
 
   const dotRef = useRef<HTMLButtonElement>(null)
-  const pillRef = useRef<HTMLDivElement>(null)
   const cueRef = useRef(cue)
   const startAsleepRef = useRef(startAsleep)
   // Everything the frame loop and the timers read. Kept out of React state so moving
   // Dot never re-renders the page.
   const brain = useRef({
     perch: null as Perch | null,
+    /** Where Dot stood before the rest timer covered it, to go back to afterwards. */
+    beforeRest: null as Perch | null,
     hop: null as Hop | null,
     pos: null as { x: number; y: number } | null,
     mood: "idle" as Mood,
     busyUntil: 0,
     lastTouch: 0,
     lostSince: null as number | null,
-    lastCheck: 0,
     lastSpotCheck: 0,
     lastSearch: 0,
     deepSleep: false,
@@ -230,6 +217,8 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     timers: new Set<ReturnType<typeof setTimeout>>(),
     moodTimer: null as ReturnType<typeof setTimeout> | null,
     animN: 0,
+    /** Run the frame loop for a while: a hop started or the page scrolled. */
+    kick: () => {},
   })
 
   useEffect(() => {
@@ -291,13 +280,17 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
   }
 
   /** Put Dot on `el` at `left`, hopping there from wherever it is now. */
-  const hopTo = (el: HTMLElement, left: number, own = false) => {
+  const hopTo = (el: HTMLElement, left: number) => {
     const b = brain.current
     const r = el.getBoundingClientRect()
     const toX = left
     const toY = feetOf(el, r) - H
     const from = b.pos ?? { x: toX, y: toY - 40 }
-    b.perch = { el, dx: left - r.left, own }
+    if (el.hasAttribute("data-ledge-rest") && b.perch && !b.perch.el.hasAttribute("data-ledge-rest")) {
+      b.beforeRest = b.perch
+    }
+    b.perch = { el, dx: left - r.left }
+    b.kick()
     b.restNap = false
     setTone(toneOf(el))
     setLookDown(false)
@@ -305,6 +298,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     if (b.reduced || dist < 2) {
       b.hop = null
       b.pos = { x: toX, y: toY }
+      if (dotRef.current) dotRef.current.style.transform = `translate3d(${toX}px, ${toY}px, 0)`
       land()
       return
     }
@@ -347,6 +341,18 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
   const relocate = (): boolean => {
     const b = brain.current
     const current = b.perch?.el
+    // Rest is over: back to where Dot stood before it, if that spot is still there.
+    const back = b.beforeRest
+    if (back && !current?.hasAttribute("data-ledge-rest")) b.beforeRest = null
+    else if (back && back.el !== current && ledgeUsable(back.el, back.dx, b.safeTop)) {
+      b.beforeRest = null
+      const left = back.el.getBoundingClientRect().left + back.dx
+      if (spotFree(back.el, left)) {
+        hopTo(back.el, left)
+        if (b.mood === "sleepy" && !b.deepSleep) wake()
+        return true
+      }
+    }
     const ledges = usableLedges().filter((el) => el !== current)
     const y = b.pos?.y ?? window.innerHeight / 2
     const byDistance = (a: HTMLElement, c: HTMLElement) =>
@@ -358,7 +364,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     ]
     for (const el of pool) {
       const r = el.getBoundingClientRect()
-      const preferred = markLeft(el) ?? (el.hasAttribute("data-ledge-home") ? r.right - W - 36 : b.pos?.x)
+      const preferred = el.hasAttribute("data-ledge-home") ? r.right - W - 36 : b.pos?.x
       const left = pickSpot(el, preferred)
       if (left == null) continue
       const appearing = !b.perch
@@ -382,7 +388,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     return false
   }
 
-  // ---- the frame loop: follow the perch, fly the hop, notice a lost ledge ---
+  // ---- following the perch: frames while moving, a slow tick while still ---
 
   useEffect(() => {
     if (!enabled) return
@@ -395,21 +401,10 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     b.safeTop = parseFloat(getComputedStyle(probe).paddingTop) || 0
     probe.remove()
 
-    let raf = 0
-    const step = (t: number) => {
-      raf = requestAnimationFrame(step)
+    /** Put Dot where its perch is now, or along its hop. */
+    const follow = (t: number) => {
       const perch = b.perch
-      if (!perch) {
-        if (t - b.lastSearch > 500) {
-          b.lastSearch = t
-          relocate()
-        }
-        return
-      }
-      if (!perch.el.isConnected) {
-        if (!relocate()) b.pos = null
-        return
-      }
+      if (!perch || !perch.el.isConnected) return
       const r = perch.el.getBoundingClientRect()
       const target = { x: r.left + perch.dx, y: feetOf(perch.el, r) - H }
       let { x, y } = target
@@ -429,35 +424,78 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
         b.pos = { x, y }
         if (dotRef.current) dotRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
       }
-      if (hop || perch.own) return
+    }
 
-      if (t - b.lastCheck > CHECK_MS) {
-        b.lastCheck = t
-        if (!ledgeUsable(perch.el, perch.dx, b.safeTop)) {
-          b.lostSince ??= t
-          if (t - b.lostSince > LOST_GRACE_MS) {
-            b.lostSince = null
-            relocate()
-          }
-          return
+    // Frames only while something moves: a hop, or the page under Dot scrolling.
+    let raf = 0
+    let activeUntil = 0
+    const frame = (t: number) => {
+      raf = 0
+      follow(t)
+      if (b.hop || performance.now() < activeUntil) raf = requestAnimationFrame(frame)
+    }
+    b.kick = () => {
+      activeUntil = performance.now() + SCROLL_TAIL_MS
+      if (!raf) raf = requestAnimationFrame(frame)
+    }
+    const onScroll = () => b.kick()
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true })
+    window.addEventListener("resize", onScroll, { passive: true })
+
+    // The slow tick: find a ledge, notice a lost one, step aside, and catch layout shifts.
+    const check = () => {
+      const t = performance.now()
+      const perch = b.perch
+      if (!perch) {
+        if (t - b.lastSearch > 500) {
+          b.lastSearch = t
+          relocate()
         }
-        b.lostSince = null
+        return
       }
+      if (!perch.el.isConnected) {
+        if (!relocate()) b.pos = null
+        return
+      }
+      if (b.hop) return
+      const before = b.pos
+      follow(t)
+      // The ledge moved without a scroll (a card above it grew): glide along with it.
+      if (b.pos !== before) b.kick()
+      if (!ledgeUsable(perch.el, perch.dx, b.safeTop)) {
+        b.lostSince ??= t
+        if (t - b.lostSince > LOST_GRACE_MS) {
+          b.lostSince = null
+          relocate()
+        }
+        return
+      }
+      b.lostSince = null
       // The page can change under Dot (a card expands, a label appears). Step aside.
       if (t - b.lastSpotCheck > SPOT_CHECK_MS) {
         b.lastSpotCheck = t
-        if (!spotFree(perch.el, r.left + perch.dx)) {
-          const left = pickSpot(perch.el, r.left + perch.dx)
-          if (left != null) hopTo(perch.el, left)
+        const left = perch.el.getBoundingClientRect().left + perch.dx
+        if (!spotFree(perch.el, left)) {
+          const next = pickSpot(perch.el, left)
+          if (next != null) hopTo(perch.el, next)
           else relocate()
         }
       }
     }
-    raf = requestAnimationFrame(step)
+    let tick: ReturnType<typeof setInterval> | undefined
+    const start = setTimeout(() => {
+      check()
+      tick = setInterval(check, CHECK_MS)
+    }, START_AFTER_MS)
 
     const timers = b.timers
     return () => {
+      clearTimeout(start)
+      clearInterval(tick)
       cancelAnimationFrame(raf)
+      window.removeEventListener("scroll", onScroll, true)
+      window.removeEventListener("resize", onScroll)
+      b.kick = () => {}
       timers.forEach((t) => clearTimeout(t))
       timers.clear()
       if (b.moodTimer) clearTimeout(b.moodTimer)
@@ -479,7 +517,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
 
     const wander = () => {
       const now = Date.now()
-      if (b.reduced || !b.perch || b.perch.own || b.hop || now < b.busyUntil) return
+      if (b.reduced || !b.perch || b.hop || now < b.busyUntil) return
       if (b.mood === "sleepy") return
       if (now - b.lastTouch > NAP_AFTER_MS) {
         setMood("sleepy")
@@ -551,66 +589,24 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
       later(() => react(moment), 60)
     }
 
+    // Dot reacts where it stands; a set never sends it to the progress row. It only
+    // moves if its ledge just went away, as when the rest timer covers the screen, and
+    // then by the same rule as for any lost ledge (the rest timer is a home ledge).
     const react = (m: DotMoment) => {
       b.deepSleep = false
       b.restNap = false
-      if (!b.perch) relocate()
+      if (!b.perch || !ledgeUsable(b.perch.el, b.perch.dx, b.safeTop)) relocate()
       if (!b.perch) return
-
-      if (m.kind === "pr") {
-        b.busyUntil = Date.now() + PILL_MS + 800
-        setMood("proud", PILL_MS)
-        // Under the home ledge when that is near the top (the progress dashes), else
-        // high on the screen (the rest timer sits in the middle).
-        const home = homeOrCurrent()
-        const below = home.getBoundingClientRect().bottom + 14
-        setPill({
-          e1rm: m.e1rm,
-          delta: Math.round((m.e1rm - m.previous) * 10) / 10,
-          exercise: m.exercise,
-          tone: toneOf(home),
-          top: below + 34 < window.innerHeight / 2 ? below : b.safeTop + 64,
-        })
-        later(() => {
-          setPill(null)
-          relocate()
-        }, PILL_MS)
-        return
-      }
-
       b.busyUntil = Date.now() + 1200
-      const home = homeOrCurrent()
-      const preferred = markLeft(home)
-      const curLeft = b.perch.el.getBoundingClientRect().left + b.perch.dx
-      const moving = home !== b.perch.el || (preferred != null && Math.abs(preferred - curLeft) > 4)
-      const left = moving ? pickSpot(home, preferred ?? curLeft) : null
       if (m.kind === "heavy") setMood("concerned", 1500)
       else setMood("happy", 900)
-      if (left != null) hopTo(home, left)
-      else play(m.kind === "heavy" ? "sink" : "hop")
-    }
-
-    /** The visible home ledge (the dashes, the rest timer), else where Dot already is. */
-    const homeOrCurrent = (): HTMLElement => {
-      const home = Array.from(document.querySelectorAll<HTMLElement>("[data-ledge-home]")).find((el) =>
-        ledgeUsable(el, null, b.safeTop)
-      )
-      return home ?? b.perch!.el
+      if (!b.hop) play(m.kind === "heavy" ? "sink" : "hop")
     }
 
     window.addEventListener(DOT_MOMENT_EVENT, onMoment)
     return () => window.removeEventListener(DOT_MOMENT_EVENT, onMoment)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled])
-
-  // The pill is a ledge too, for as long as it is up: Dot jumps onto it.
-  useEffect(() => {
-    const el = pillRef.current
-    if (!pill || !el) return
-    const r = el.getBoundingClientRect()
-    hopTo(el, r.left + r.width / 2 - W / 2, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pill])
 
   if (!enabled) return null
 
@@ -650,27 +646,6 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
 
   return (
     <div data-dot aria-hidden="true" className="fixed inset-0 z-[55] pointer-events-none overflow-hidden">
-      {pill && (
-        <div
-          ref={pillRef}
-          data-ledge-tone={pill.tone}
-          style={{ top: pill.top }}
-          className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-2 h-[34px] px-4 rounded-full text-xs font-semibold whitespace-nowrap animate-fade-up ${
-            pill.tone === "dark"
-              ? "bg-white text-[#1e3a5f] shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
-              : "bg-[#1e3a5f] text-white shadow-[0_8px_20px_rgba(30,58,95,0.25)]"
-          }`}
-        >
-          <span className="opacity-70">{pill.exercise ? `Best e1RM · ${pill.exercise}` : "New best e1RM"}</span>
-          <span className="tabular-nums">{pill.e1rm}kg</span>
-          {pill.delta > 0 && (
-            <span className={`text-[11px] tabular-nums ${pill.tone === "dark" ? "text-[#3b82f6]" : "text-[#93c5fd]"}`}>
-              +{pill.delta}
-            </span>
-          )}
-        </div>
-      )}
-
       {bubble && (
         <div
           className="absolute w-[240px] rounded-[14px] bg-white border border-[#e8e8e8] px-3 py-2.5 shadow-[0_10px_24px_rgba(17,24,39,0.12)] flex flex-col gap-0.5 animate-fade-in"
@@ -714,14 +689,6 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
             ))}
           </div>
           {mood === "concerned" && <span className="dot-sweat" style={{ left: 31, top: 1 }} />}
-          {mood === "proud" && (
-            <>
-              <span className="dot-spark" style={{ left: -10, top: 2 }} />
-              <span className="dot-spark" style={{ left: 35, top: -4, animationDelay: "80ms" }} />
-              <span className="dot-spark dot-spark-small" style={{ left: -2, top: -12, animationDelay: "140ms" }} />
-              <span className="dot-spark dot-spark-small" style={{ left: 29, top: -15, animationDelay: "60ms" }} />
-            </>
-          )}
           {mood === "sleepy" && (
             <>
               <span className="dot-z" style={{ left: 32, top: -6 }}>z</span>
@@ -729,6 +696,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
             </>
           )}
         </div>
+        <HapticTap />
       </button>
     </div>
   )
@@ -750,8 +718,6 @@ function eyeShapes(mood: Mood, look: number, lookDown: boolean): [Eye, Eye] {
   switch (mood) {
     case "happy":
       return [arc(6, 9), arc(16, 9)]
-    case "proud":
-      return [arc(6, 8), arc(16, 8)]
     case "concerned":
       return [oval(8, 10, 4, 5), oval(18, 10, 4, 5)]
     case "sleepy":

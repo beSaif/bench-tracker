@@ -135,15 +135,12 @@ export default function SessionProgressDashes({
   if (rendered.length === 0) return null
 
   return (
-    // Dot walks along this row: it is its home ledge in the logger, and its feet go
-    // at the end of the last finished set.
+    // Dot may stand on this row like on any card, but it does not follow the sets.
     <div
       className="flex items-center h-5 w-full"
       role="group"
       aria-label="Session progress"
       data-ledge
-      data-ledge-home
-      data-ledge-road
       data-ledge-inset="8"
     >
       {rendered.map((dash, i) => {
@@ -168,7 +165,6 @@ export default function SessionProgressDashes({
             aria-label={dash.label}
             aria-current={isCurrent ? "step" : undefined}
             data-dash-index={dash.index ?? undefined}
-            data-ledge-mark={dash.done && dash.phase !== "out" ? "" : undefined}
             tabIndex={isCurrent ? 0 : -1}
             disabled={!interactive}
             style={style}

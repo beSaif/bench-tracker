@@ -10,16 +10,23 @@ import { HAPTICS_KEY } from "./types"
  * Anywhere else both routes do nothing, which is the intended fallback: a haptic is
  * never the only signal of anything.
  *
+ * On iOS 26.5 and later a switch toggled from script no longer ticks (WebKit bug
+ * 309082): only a real finger landing on the switch's label does. So a button that
+ * should be felt on an iPhone wears a <HapticTap /> — an invisible label over the
+ * button that the tap lands on — and that tap is the first tick. The extra ticks of
+ * a heavy set or a best still go through script, which older iOS versions play.
+ *
  * Call it from the tap that caused the moment, not from an effect: iOS only plays the
  * switch's tap inside a user gesture.
  */
 export type HapticKind = "set" | "heavy" | "pr" | "tap"
 
+// Shorter than about 20 ms and many Android motors never spin up enough to be felt.
 const PATTERNS: Record<HapticKind, number[]> = {
-  set: [12],
-  heavy: [25, 90, 25],
-  pr: [15, 70, 15, 70, 45],
-  tap: [8],
+  set: [22],
+  heavy: [30, 90, 30],
+  pr: [22, 70, 22, 70, 45],
+  tap: [15],
 }
 
 /** Gap between the iPhone's ticks when a pattern has more than one pulse. */
@@ -29,6 +36,8 @@ const IOS_TICK_GAP_MS: Record<HapticKind, number> = { set: 0, heavy: 120, pr: 90
 const MIN_GAP_MS = 600
 
 let lastAt = 0
+/** When a real tap last landed on a <HapticTap /> label, which played the first tick. */
+let tappedAt = -Infinity
 
 export const HAPTICS_CHANGE_EVENT = "haptics-change"
 
@@ -62,8 +71,55 @@ export function haptic(kind: HapticKind): void {
     return
   }
   const ticks = Math.ceil(pattern.length / 2)
-  iosTick()
+  // The tap that brought us here already ticked if it landed on a HapticTap label.
+  if (performance.now() - tappedAt > 300) iosTick()
   for (let i = 1; i < ticks; i++) setTimeout(iosTick, i * IOS_TICK_GAP_MS[kind])
+}
+
+/**
+ * Whether this is an iPhone that ticks a switch: Safari on a touch screen that knows
+ * the `switch` attribute and has no Vibration API. An iPad has nothing to tick, and
+ * iOS 17 knows `switch` but never ticks it (17 is long out of support, so it is not
+ * worth telling apart from the user agent, which a home-screen app freezes anyway).
+ */
+export function canTickSwitch(): boolean {
+  if (typeof window === "undefined") return false
+  tickSwitch ??= detectTickSwitch()
+  return tickSwitch
+}
+
+let tickSwitch: boolean | undefined
+
+function detectTickSwitch(): boolean {
+  if (typeof navigator.vibrate === "function" || navigator.maxTouchPoints === 0) return false
+  if (/iPad|Macintosh/.test(navigator.userAgent)) return false
+  try {
+    return "switch" in document.createElement("input")
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Run a button's work after its HapticTap has ticked. The tick is the label's default
+ * action, which the browser runs only once the click has finished dispatching; if the
+ * handler re-renders the button away first (Done turns the logger into the rest
+ * timer), the label is gone and nothing ticks. So on an iPhone the work waits a task.
+ */
+export function afterHapticTap(fn: () => void): void {
+  if (canTickSwitch()) setTimeout(fn, 0)
+  else fn()
+}
+
+/**
+ * A real tap just landed on a HapticTap label. Returns whether the switch may toggle,
+ * which is what plays the tick: not while haptics are switched off, unless `force`
+ * says otherwise.
+ */
+export function noteHapticTap(force?: boolean): boolean {
+  if (!(force ?? loadHapticsEnabled())) return false
+  tappedAt = performance.now()
+  return true
 }
 
 /** One system tap on iOS 18+: a throwaway switch, toggled through its label. */
