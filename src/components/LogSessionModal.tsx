@@ -26,7 +26,7 @@ import {
 } from "@/lib/cardio"
 import { getBestE1RMForExercise, getLastSetsForExercise, getTopSet } from "@/lib/exerciseHistory"
 import { getBestE1RM } from "@/lib/stats"
-import { classifySet, reportSetMoment, type DotMoment } from "@/lib/buddy"
+import { buzzSetMoment, classifySet, reportSetMoment, type DotMoment } from "@/lib/buddy"
 import HapticTap from "@/components/HapticTap"
 import { afterHapticTap } from "@/lib/haptics"
 import {
@@ -57,6 +57,9 @@ const REST_SECONDS = {
   accessory: 90,
   cardio: 60,
 } as const
+
+/** How long the Done that finishes an exercise pops before the rest timer takes over. */
+const DONE_POP_MS = 220
 
 const KG_VALUES = Array.from(
   { length: Math.floor((300 - 20) / 2.5) + 1 },
@@ -602,6 +605,12 @@ export default function LogSessionModal({
 
   const notifIdRef = useRef<string | null>(null)
   const hasAdvancedForRestRef = useRef(false)
+  /** The Done that just finished an exercise, popping before the logger moves on. */
+  const [poppingKey, setPoppingKey] = useState<string | null>(null)
+  const popTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (popTimerRef.current) clearTimeout(popTimerRef.current)
+  }, [])
   const timerTriggerIndexRef = useRef<number>(0)
 
   function handleMinimize() {
@@ -699,7 +708,42 @@ export default function LogSessionModal({
     }
   }, [restEndTime])
 
-  function markSetDone(key: string) {
+  /** Whether marking `key` done finishes its exercise: every other set of it is done. */
+  function finishesExercise(key: string): boolean {
+    const item = carouselItems.find((i) => getItemKey(i) === key)
+    if (!item) return false
+    const sameExercise = (i: CarouselItem) =>
+      item.type === "main"
+        ? i.type === "main"
+        : i.type === "extra" && i.muscle === item.muscle && i.exercise === item.exercise
+    return carouselItems.every(
+      (i) => !sameExercise(i) || getItemKey(i) === key || completedSets.has(getItemKey(i))
+    )
+  }
+
+  /**
+   * The Done button. The set that finishes an exercise buzzes harder and pops (a squash
+   * and a brand-blue flash) for a moment before the logger moves on to the rest timer.
+   * On an iPhone a web app's haptic has one strength, so the extra weight has to be
+   * seen. Any other Done moves on at once.
+   */
+  function tapDone(key: string) {
+    if (poppingKey) return
+    if (mode === "edit" || completedSets.has(key) || !finishesExercise(key)) {
+      afterHapticTap(() => markSetDone(key))
+      return
+    }
+    // The buzz plays now, under the finger; the screen changes once the pop has played.
+    buzzSetMoment(setMoment(carouselItems.find((i) => getItemKey(i) === key)), true)
+    setPoppingKey(key)
+    popTimerRef.current = setTimeout(() => {
+      popTimerRef.current = null
+      setPoppingKey(null)
+      markSetDone(key, true)
+    }, DONE_POP_MS)
+  }
+
+  function markSetDone(key: string, buzzed = false) {
     if (completedSets.has(key)) {
       setCompletedSets((prev) => { const n = new Set(prev); n.delete(key); return n })
       setRestEndTime(null)
@@ -709,7 +753,7 @@ export default function LogSessionModal({
       setCompletedSets((prev) => new Set([...prev, key]))
       if (mode !== "edit") {
         const item = carouselItems.find((i) => getItemKey(i) === key)
-        reportSetMoment(setMoment(item))
+        reportSetMoment(setMoment(item), { finishesExercise: finishesExercise(key), buzzed })
         const rest = restAfter(item)
         hasAdvancedForRestRef.current = false
         timerTriggerIndexRef.current = currentSetIndex
@@ -1883,14 +1927,16 @@ export default function LogSessionModal({
                       )}
 
                       <button
-                        onClick={() => afterHapticTap(() => markSetDone(item.set.id))}
-                        className={`relative w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
-                          isDone
+                        onClick={() => tapDone(item.set.id)}
+                        className={`relative w-full rounded-xl py-3.5 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-[0.97] ${
+                          poppingKey === item.set.id
+                            ? "bg-[#1e3a5f] text-white done-pop"
+                            : isDone
                             ? "bg-[#1e3a5f]/10 text-[#1e3a5f] hover:bg-[#1e3a5f]/20 active:bg-[#1e3a5f]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
-                        {isDone ? "✓ Done" : "Done"}
+                        {isDone || poppingKey === item.set.id ? "✓ Done" : "Done"}
                         <HapticTap />
                       </button>
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">
@@ -2040,14 +2086,16 @@ export default function LogSessionModal({
                         </div>
                       )}
                       <button
-                        onClick={() => afterHapticTap(() => markSetDone(key))}
-                        className={`relative w-full rounded-xl py-3.5 text-sm font-semibold transition-colors ${
-                          isDone
+                        onClick={() => tapDone(key)}
+                        className={`relative w-full rounded-xl py-3.5 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-[0.97] ${
+                          poppingKey === key
+                            ? "bg-[#1e3a5f] text-white done-pop"
+                            : isDone
                             ? "bg-[#1e3a5f]/10 text-[#1e3a5f] hover:bg-[#1e3a5f]/20 active:bg-[#1e3a5f]/30"
                             : "bg-[#111111] text-white hover:bg-[#333333] active:bg-[#000000]"
                         }`}
                       >
-                        {isDone ? "✓ Done" : "Done"}
+                        {isDone || poppingKey === key ? "✓ Done" : "Done"}
                         <HapticTap />
                       </button>
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#f0f0f0]">

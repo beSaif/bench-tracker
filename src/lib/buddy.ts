@@ -38,11 +38,23 @@ export function saveDotEnabled(on: boolean): void {
 export type DotMoment = { kind: "set" | "heavy" | "pr" }
 
 /**
- * Report a finished set: the phone buzzes now, inside the tap, and Dot reacts once the
- * screen has caught up. Call it from the Done handler.
+ * The buzz for a finished set. The last set of an exercise buzzes harder, unless it is
+ * a best, whose own buzz says more. Call it inside the tap.
  */
-export function reportSetMoment(moment: DotMoment): void {
-  haptic(moment.kind)
+export function buzzSetMoment(moment: DotMoment, finishesExercise = false): void {
+  haptic(finishesExercise && moment.kind !== "pr" ? "exercise" : moment.kind)
+}
+
+/**
+ * Report a finished set: the phone buzzes now, inside the tap, and Dot reacts once the
+ * screen has caught up. Call it from the Done handler. `buzzed` says the tap already
+ * played the buzz through buzzSetMoment and the report is only for Dot.
+ */
+export function reportSetMoment(
+  moment: DotMoment,
+  { finishesExercise = false, buzzed = false }: { finishesExercise?: boolean; buzzed?: boolean } = {}
+): void {
+  if (!buzzed) buzzSetMoment(moment, finishesExercise)
   window.dispatchEvent(new CustomEvent<DotMoment>(DOT_MOMENT_EVENT, { detail: moment }))
 }
 

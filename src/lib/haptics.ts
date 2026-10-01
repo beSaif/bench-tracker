@@ -1,7 +1,7 @@
 import { HAPTICS_KEY } from "./types"
 
 /**
- * The four buzzes the app makes for Dot's moments, on both phones.
+ * The five buzzes the app makes for Dot's moments, on both phones.
  *
  * Android (Chrome or the installed app) has the Vibration API and plays the patterns
  * as written: on, off, on, in milliseconds. Safari has no Vibration API, but from
@@ -19,18 +19,21 @@ import { HAPTICS_KEY } from "./types"
  * Call it from the tap that caused the moment, not from an effect: iOS only plays the
  * switch's tap inside a user gesture.
  */
-export type HapticKind = "set" | "heavy" | "pr" | "tap"
+export type HapticKind = "set" | "exercise" | "heavy" | "pr" | "tap"
 
 // Shorter than about 20 ms and many Android motors never spin up enough to be felt.
+// An Android motor has one strength, so a harder buzz is a longer one: the set that
+// finishes an exercise lands about three times as long as an ordinary set.
 const PATTERNS: Record<HapticKind, number[]> = {
   set: [22],
+  exercise: [65],
   heavy: [30, 90, 30],
   pr: [22, 70, 22, 70, 45],
   tap: [15],
 }
 
 /** Gap between the iPhone's ticks when a pattern has more than one pulse. */
-const IOS_TICK_GAP_MS: Record<HapticKind, number> = { set: 0, heavy: 120, pr: 90, tap: 0 }
+const IOS_TICK_GAP_MS: Record<HapticKind, number> = { set: 0, exercise: 0, heavy: 120, pr: 90, tap: 0 }
 
 /** Two moments this close together would blur into one buzz, so the second is dropped. */
 const MIN_GAP_MS = 600
