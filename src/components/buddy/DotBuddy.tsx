@@ -24,8 +24,15 @@ import HapticTap from "@/components/HapticTap"
  * A logged set never sends Dot anywhere: it reacts where it stands. It only moves when
  * its ledge goes away (the rest timer covers the screen) or when it wanders.
  *
- * It is cheap while still: the frame loop only runs during a hop or a scroll, a slow
- * tick handles the rest, and nothing starts until the page has settled after loading.
+ * When its ledge scrolls with the page (the home screen), the layer is part of the page
+ * rather than pinned to the screen, so the browser scrolls Dot along with the card in
+ * the same frame. Following the card from scroll events instead lags it by a frame or
+ * more on an iPhone, where the page scrolls off the main thread, and Dot shakes. On a
+ * ledge pinned to the screen (the logger, the rest timer) the layer is pinned too.
+ *
+ * It is cheap while still: the frame loop only runs during a hop or while a pinned
+ * ledge's page scrolls, a slow tick handles the rest, and nothing starts until the page
+ * has settled after loading.
  *
  * Ledge attributes, all optional beyond `data-ledge`:
  * - `data-ledge-home`: preferred when Dot has to move (the up-next card, the rest timer).
@@ -68,6 +75,8 @@ interface Perch {
   el: HTMLElement
   /** Dot's left edge, from the element's left edge. */
   dx: number
+  /** The element scrolls with the page, so Dot's layer rides in the page too. */
+  inPage: boolean
 }
 
 interface Hop {
@@ -182,6 +191,24 @@ function toneOf(el: HTMLElement): Tone {
   return el.dataset.ledgeTone === "dark" ? "dark" : "light"
 }
 
+/**
+ * Whether `el` moves only when the page itself scrolls: nothing between it and the page
+ * is fixed, sticky or a scroll box of its own. Dot can then ride in the page with it.
+ */
+function scrollsWithPage(el: HTMLElement): boolean {
+  for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
+    const cs = getComputedStyle(n)
+    if (cs.position === "fixed" || cs.position === "sticky") return false
+    if (n !== el && /auto|scroll/.test(cs.overflowY)) return false
+  }
+  return true
+}
+
+/** The page's scroll offset when `inPage`, else none: what turns screen into layer coordinates. */
+function layerOffset(inPage: boolean): { x: number; y: number } {
+  return inPage ? { x: window.scrollX, y: window.scrollY } : { x: 0, y: 0 }
+}
+
 export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
   const [enabled, setEnabled] = useState(false)
   const [shown, setShown] = useState(false)
@@ -193,6 +220,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
   const [bubble, setBubble] = useState<{ cue: DotCue; left: number; top: number; above: boolean; tail: number } | null>(null)
 
   const dotRef = useRef<HTMLButtonElement>(null)
+  const layerRef = useRef<HTMLDivElement>(null)
   const cueRef = useRef(cue)
   const startAsleepRef = useRef(startAsleep)
   // Everything the frame loop and the timers read. Kept out of React state so moving
@@ -202,7 +230,10 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     /** Where Dot stood before the rest timer covered it, to go back to afterwards. */
     beforeRest: null as Perch | null,
     hop: null as Hop | null,
+    /** Where Dot is drawn, in the layer's coordinates (see `inPage`). */
     pos: null as { x: number; y: number } | null,
+    /** The layer rides in the page (page coordinates) rather than pinned to the screen. */
+    inPage: false,
     mood: "idle" as Mood,
     busyUntil: 0,
     lastTouch: 0,
@@ -279,17 +310,57 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     if (b.mood === "sleepy") setMood("idle")
   }
 
+  /** Draw Dot at `x`, `y` in the layer's coordinates. */
+  const place = (x: number, y: number) => {
+    brain.current.pos = { x, y }
+    if (dotRef.current) dotRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
+  }
+
+  /** Where Dot is on the screen now, whichever way its layer is attached. */
+  const screenPos = (): { x: number; y: number } | null => {
+    const b = brain.current
+    if (!b.pos) return null
+    const o = layerOffset(b.inPage)
+    return { x: b.pos.x - o.x, y: b.pos.y - o.y }
+  }
+
+  /**
+   * Attach the layer to the page or pin it to the screen, keeping Dot where it is on
+   * screen. The page version is zero-height so it never makes the page any longer.
+   */
+  const attachLayer = (inPage: boolean) => {
+    const b = brain.current
+    if (b.inPage === inPage) return
+    const at = screenPos()
+    b.inPage = inPage
+    const layer = layerRef.current
+    if (layer) {
+      layer.style.position = inPage ? "absolute" : ""
+      layer.style.bottom = inPage ? "auto" : ""
+      layer.style.height = inPage ? "0" : ""
+      layer.style.overflow = inPage ? "visible" : ""
+    }
+    if (at) {
+      const o = layerOffset(inPage)
+      place(at.x + o.x, at.y + o.y)
+    }
+  }
+
   /** Put Dot on `el` at `left`, hopping there from wherever it is now. */
   const hopTo = (el: HTMLElement, left: number) => {
     const b = brain.current
     const r = el.getBoundingClientRect()
-    const toX = left
-    const toY = feetOf(el, r) - H
+    const inPage = scrollsWithPage(el)
+    attachLayer(inPage)
+    // Everything below is in the layer's coordinates.
+    const o = layerOffset(inPage)
+    const toX = left + o.x
+    const toY = feetOf(el, r) - H + o.y
     const from = b.pos ?? { x: toX, y: toY - 40 }
     if (el.hasAttribute("data-ledge-rest") && b.perch && !b.perch.el.hasAttribute("data-ledge-rest")) {
       b.beforeRest = b.perch
     }
-    b.perch = { el, dx: left - r.left }
+    b.perch = { el, dx: left - r.left, inPage }
     b.kick()
     b.restNap = false
     setTone(toneOf(el))
@@ -297,8 +368,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     const dist = Math.hypot(toX - from.x, toY - from.y)
     if (b.reduced || dist < 2) {
       b.hop = null
-      b.pos = { x: toX, y: toY }
-      if (dotRef.current) dotRef.current.style.transform = `translate3d(${toX}px, ${toY}px, 0)`
+      place(toX, toY)
       land()
       return
     }
@@ -354,7 +424,8 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
       }
     }
     const ledges = usableLedges().filter((el) => el !== current)
-    const y = b.pos?.y ?? window.innerHeight / 2
+    const at = screenPos()
+    const y = at?.y ?? window.innerHeight / 2
     const byDistance = (a: HTMLElement, c: HTMLElement) =>
       Math.abs(a.getBoundingClientRect().top - y) - Math.abs(c.getBoundingClientRect().top - y)
     // Home first; anywhere else if home has no free spot.
@@ -364,7 +435,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     ]
     for (const el of pool) {
       const r = el.getBoundingClientRect()
-      const preferred = el.hasAttribute("data-ledge-home") ? r.right - W - 36 : b.pos?.x
+      const preferred = el.hasAttribute("data-ledge-home") ? r.right - W - 36 : at?.x
       const left = pickSpot(el, preferred)
       if (left == null) continue
       const appearing = !b.perch
@@ -405,8 +476,10 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
     const follow = (t: number) => {
       const perch = b.perch
       if (!perch || !perch.el.isConnected) return
+      // In page coordinates this target holds still while the page scrolls.
       const r = perch.el.getBoundingClientRect()
-      const target = { x: r.left + perch.dx, y: feetOf(perch.el, r) - H }
+      const o = layerOffset(perch.inPage)
+      const target = { x: r.left + perch.dx + o.x, y: feetOf(perch.el, r) - H + o.y }
       let { x, y } = target
       const hop = b.hop
       if (hop) {
@@ -420,13 +493,11 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
         }
       }
       const prev = b.pos
-      if (!prev || Math.abs(prev.x - x) > 0.1 || Math.abs(prev.y - y) > 0.1) {
-        b.pos = { x, y }
-        if (dotRef.current) dotRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
-      }
+      if (!prev || Math.abs(prev.x - x) > 0.1 || Math.abs(prev.y - y) > 0.1) place(x, y)
     }
 
-    // Frames only while something moves: a hop, or the page under Dot scrolling.
+    // Frames only while something moves: a hop, or the page under a pinned Dot scrolling.
+    // Riding in the page, Dot needs nothing on scroll: the browser moves it with the card.
     let raf = 0
     let activeUntil = 0
     const frame = (t: number) => {
@@ -438,9 +509,12 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
       activeUntil = performance.now() + SCROLL_TAIL_MS
       if (!raf) raf = requestAnimationFrame(frame)
     }
-    const onScroll = () => b.kick()
+    const onScroll = () => {
+      if (!b.inPage) b.kick()
+    }
+    const onResize = () => b.kick()
     window.addEventListener("scroll", onScroll, { capture: true, passive: true })
-    window.addEventListener("resize", onScroll, { passive: true })
+    window.addEventListener("resize", onResize, { passive: true })
 
     // The slow tick: find a ledge, notice a lost one, step aside, and catch layout shifts.
     const check = () => {
@@ -494,7 +568,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
       clearInterval(tick)
       cancelAnimationFrame(raf)
       window.removeEventListener("scroll", onScroll, true)
-      window.removeEventListener("resize", onScroll)
+      window.removeEventListener("resize", onResize)
       b.kick = () => {}
       timers.forEach((t) => clearTimeout(t))
       timers.clear()
@@ -502,6 +576,8 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
       b.perch = null
       b.hop = null
       b.pos = null
+      // The layer unmounts with Dot switched off and comes back pinned.
+      b.inPage = false
       b.firstPerch = true
     }
     // The loop reads everything through refs; it only restarts when Dot is switched.
@@ -628,9 +704,10 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
       setBubble(null)
       return
     }
+    // The bubble shares Dot's layer, so it is placed in the layer's coordinates too.
     const width = 240
     const left = clamp(b.pos.x + W / 2 - width / 2, 12, window.innerWidth - width - 12)
-    const above = b.pos.y > 150
+    const above = (screenPos()?.y ?? 0) > 150
     setBubble({
       cue: c,
       left,
@@ -645,7 +722,7 @@ export default function DotBuddy({ cue = null, startAsleep = false }: Props) {
   const animClass = anim.name === "none" ? "" : `dot-${anim.name}-${anim.n % 2}`
 
   return (
-    <div data-dot aria-hidden="true" className="fixed inset-0 z-[55] pointer-events-none overflow-hidden">
+    <div ref={layerRef} data-dot aria-hidden="true" className="fixed inset-0 z-[55] pointer-events-none overflow-hidden">
       {bubble && (
         <div
           className="absolute w-[240px] rounded-[14px] bg-white border border-[#e8e8e8] px-3 py-2.5 shadow-[0_10px_24px_rgba(17,24,39,0.12)] flex flex-col gap-0.5 animate-fade-in"

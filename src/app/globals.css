@@ -190,6 +190,22 @@ body {
   .dot-anim, .dot-body, .dot-eye, .dot-z { animation: none !important; transition: none; }
 }
 
+/* ---- Done pop ------------------------------------------------------------- */
+
+/* The logger's Done on the set that finishes an exercise: it squashes, springs back
+   past full size, and a ring of brand blue flashes out from it. */
+.done-pop { animation: done-pop 220ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes done-pop {
+  0% { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(30, 58, 95, 0.45); }
+  55% { transform: scale(1.03); }
+  100% { transform: scale(1); box-shadow: 0 0 0 12px rgba(30, 58, 95, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No squash; the button still turns blue. */
+  .done-pop { animation: none; }
+}
+
 /* ---- iOS input zoom ------------------------------------------------------ */
 /* iOS Safari zooms the page when a field under 16px is focused. maximum-scale=1 in
    the viewport stops that on current iOS; the small fields are still lifted to 16px

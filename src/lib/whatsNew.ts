@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 6,
+    items: [
+      {
+        title: "Finishing an exercise lands harder",
+        body: "The Done on the last set of an exercise now pops and flashes before the rest timer, and on Android it buzzes about three times as long as an ordinary set. Dot also stays planted on its card while you scroll instead of shaking.",
+      },
+    ],
+  },
+  {
     version: 5,
     items: [
       {
