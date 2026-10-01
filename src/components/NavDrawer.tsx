@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { loadProfile, wipeLocalUserData } from "@/lib/storage"
 import { useNativeInstallPrompt } from "@/lib/installPrompt"
+import { DOT_CHANGE_EVENT, loadDotEnabled, saveDotEnabled } from "@/lib/buddy"
+import { HAPTICS_CHANGE_EVENT, haptic, loadHapticsEnabled, saveHapticsEnabled } from "@/lib/haptics"
 
 interface NavDrawerProps {
   open: boolean
@@ -24,6 +26,23 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
   // owes the user a standing way in — the home-screen sheet is dismissed for good
   // after one tap. Absent once installed, and on browsers with no such API.
   const { available: canInstall, promptInstall } = useNativeInstallPrompt()
+  // Device switches, read after mount for the same reason as weighInDaily.
+  const [dotOn, setDotOn] = useState(true)
+  const [hapticsOn, setHapticsOn] = useState(true)
+
+  useEffect(() => {
+    const sync = () => {
+      setDotOn(loadDotEnabled())
+      setHapticsOn(loadHapticsEnabled())
+    }
+    sync()
+    window.addEventListener(DOT_CHANGE_EVENT, sync)
+    window.addEventListener(HAPTICS_CHANGE_EVENT, sync)
+    return () => {
+      window.removeEventListener(DOT_CHANGE_EVENT, sync)
+      window.removeEventListener(HAPTICS_CHANGE_EVENT, sync)
+    }
+  }, [])
 
   useEffect(() => {
     fetch("/api/friends/requests")
@@ -173,6 +192,26 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
           </nav>
 
           <div className="mt-8 pt-4 border-t border-[#f0f0f0]">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1 px-3">
+              Dot
+            </p>
+            <SwitchRow
+              label="Show Dot"
+              checked={dotOn}
+              onChange={(on) => saveDotEnabled(on)}
+            />
+            <SwitchRow
+              label="Haptics"
+              checked={hapticsOn}
+              onChange={(on) => {
+                saveHapticsEnabled(on)
+                // A buzz on the way on says what the switch does.
+                if (on) haptic("tap")
+              }}
+            />
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-[#f0f0f0]">
             {canInstall && (
               <button
                 onClick={() => { promptInstall().then((accepted) => { if (accepted) onClose() }) }}
@@ -202,5 +241,39 @@ export default function NavDrawer({ open, onClose }: NavDrawerProps) {
         </div>
       </div>
     </>
+  )
+}
+
+function SwitchRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (on: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#333333] hover:bg-[#f5f5f5] transition-colors"
+    >
+      {label}
+      <span
+        aria-hidden="true"
+        className={`relative w-9 h-5 rounded-full shrink-0 transition-colors duration-200 ${
+          checked ? "bg-[#1e3a5f]" : "bg-[#d4d4d4]"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            checked ? "translate-x-4" : ""
+          }`}
+        />
+      </span>
+    </button>
   )
 }

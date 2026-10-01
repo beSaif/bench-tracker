@@ -98,6 +98,100 @@ body {
   }
 }
 
+/* ---- Dot ------------------------------------------------------------------ */
+
+/* The companion in components/buddy/DotBuddy.tsx. 30×26, drawn from boxes so it
+   stays crisp at any zoom. The wrapper squashes from its feet; the body breathes. */
+.dot-anim { position: relative; width: 30px; height: 26px; transform-origin: 50% 100%; }
+.dot-shadow {
+  position: absolute; left: 5px; right: 5px; bottom: -2px; height: 4px;
+  border-radius: 50%; background: rgba(17, 17, 17, 0.14);
+}
+.dot-shadow-dark { background: rgba(0, 0, 0, 0.3); }
+.dot-body {
+  position: absolute; inset: 0;
+  background: #1e3a5f;
+  border-radius: 50% 50% 42% 42% / 60% 60% 40% 40%;
+  transform-origin: 50% 100%;
+  animation: dot-breathe 3.4s ease-in-out infinite;
+  --dot-ink: #ffffff;
+}
+.dot-body-dark { background: #ffffff; --dot-ink: #1e3a5f; }
+.dot-eye {
+  position: absolute; background: var(--dot-ink); border-radius: 3px;
+  animation: dot-blink 5.2s infinite;
+  transition: left 0.25s ease, top 0.25s ease;
+}
+.dot-arc {
+  position: absolute; box-sizing: border-box;
+  border: 2px solid var(--dot-ink); border-bottom: 0; border-radius: 8px 8px 0 0;
+}
+.dot-line { position: absolute; background: var(--dot-ink); border-radius: 2px; }
+.dot-brow { position: absolute; width: 6px; height: 1.5px; background: var(--dot-ink); border-radius: 2px; }
+.dot-sweat {
+  position: absolute; width: 5px; height: 5px; background: #93c5fd;
+  border-radius: 0 50% 50% 50%; transform: rotate(45deg);
+}
+.dot-spark {
+  position: absolute; width: 4px; height: 4px; background: #60a5fa; border-radius: 1px;
+  animation: dot-spark 0.9s ease-out both;
+}
+.dot-spark-small { width: 3px; height: 3px; background: #1e3a5f; }
+.dot-body-dark ~ .dot-spark-small { background: #ffffff; }
+.dot-z {
+  position: absolute; font: 700 9px/1 var(--font-sans); color: #1e3a5f; opacity: 0.55;
+  animation: dot-z 2.4s ease-in-out infinite;
+}
+.dot-body-dark ~ .dot-z { color: #ffffff; }
+
+/* Two copies of each so the same reaction twice in a row restarts the animation. */
+.dot-travel-0 { animation: dot-travel-0 650ms ease-in-out; }
+.dot-travel-1 { animation: dot-travel-1 650ms ease-in-out; }
+.dot-hop-0 { animation: dot-hop-0 0.64s cubic-bezier(0.3, 0.7, 0.4, 1); }
+.dot-hop-1 { animation: dot-hop-1 0.64s cubic-bezier(0.3, 0.7, 0.4, 1); }
+.dot-wiggle-0 { animation: dot-wiggle-0 0.5s ease; }
+.dot-wiggle-1 { animation: dot-wiggle-1 0.5s ease; }
+.dot-sink-0 { animation: dot-sink-0 1.2s ease; }
+.dot-sink-1 { animation: dot-sink-1 1.2s ease; }
+
+@keyframes dot-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.035, 0.965); } }
+@keyframes dot-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes dot-spark {
+  0% { opacity: 0; transform: rotate(45deg) scale(0.2); }
+  30% { opacity: 1; transform: rotate(45deg) scale(1.2); }
+  100% { opacity: 0; transform: rotate(45deg) scale(0.6) translateY(-6px); }
+}
+@keyframes dot-z { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes dot-travel-0 {
+  0%, 100% { transform: scale(1, 1); } 10% { transform: scale(1.15, 0.8); } 28% { transform: scale(0.88, 1.14); }
+  80% { transform: scale(0.92, 1.08); } 92% { transform: scale(1.15, 0.82); }
+}
+@keyframes dot-travel-1 {
+  0%, 100% { transform: scale(1, 1); } 10% { transform: scale(1.15, 0.8); } 28% { transform: scale(0.88, 1.14); }
+  80% { transform: scale(0.92, 1.08); } 92% { transform: scale(1.15, 0.82); }
+}
+@keyframes dot-hop-0 {
+  0%, 100% { transform: translateY(0) scale(1, 1); } 12% { transform: translateY(0) scale(1.12, 0.84); }
+  40% { transform: translateY(-10px) scale(0.9, 1.12); } 78% { transform: translateY(0) scale(1.14, 0.84); }
+}
+@keyframes dot-hop-1 {
+  0%, 100% { transform: translateY(0) scale(1, 1); } 12% { transform: translateY(0) scale(1.12, 0.84); }
+  40% { transform: translateY(-10px) scale(0.9, 1.12); } 78% { transform: translateY(0) scale(1.14, 0.84); }
+}
+@keyframes dot-wiggle-0 {
+  0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 55% { transform: rotate(9deg); } 80% { transform: rotate(-4deg); }
+}
+@keyframes dot-wiggle-1 {
+  0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 55% { transform: rotate(9deg); } 80% { transform: rotate(-4deg); }
+}
+@keyframes dot-sink-0 { 0%, 100% { transform: scale(1, 1); } 20%, 70% { transform: scale(1.1, 0.84); } }
+@keyframes dot-sink-1 { 0%, 100% { transform: scale(1, 1); } 20%, 70% { transform: scale(1.1, 0.84); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Dot stays put; only its eyes change. */
+  .dot-anim, .dot-body, .dot-eye, .dot-spark, .dot-z { animation: none !important; transition: none; }
+}
+
 /* ---- iOS input zoom ------------------------------------------------------ */
 /* iOS Safari zooms the page when a field under 16px is focused. The viewport no
    longer pins maximum-scale (that also blocked pinch zoom), so the small fields are

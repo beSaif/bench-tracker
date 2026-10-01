@@ -135,7 +135,17 @@ export default function SessionProgressDashes({
   if (rendered.length === 0) return null
 
   return (
-    <div className="flex items-center h-5 w-full" role="group" aria-label="Session progress">
+    // Dot walks along this row: it is its home ledge in the logger, and its feet go
+    // at the end of the last finished set.
+    <div
+      className="flex items-center h-5 w-full"
+      role="group"
+      aria-label="Session progress"
+      data-ledge
+      data-ledge-home
+      data-ledge-road
+      data-ledge-inset="8"
+    >
       {rendered.map((dash, i) => {
         const startsGroup = i > 0 && dash.groupKey !== rendered[i - 1].groupKey
         const isCurrent = dash.index !== null && dash.index === currentIndex
@@ -158,6 +168,7 @@ export default function SessionProgressDashes({
             aria-label={dash.label}
             aria-current={isCurrent ? "step" : undefined}
             data-dash-index={dash.index ?? undefined}
+            data-ledge-mark={dash.done && dash.phase !== "out" ? "" : undefined}
             tabIndex={isCurrent ? 0 : -1}
             disabled={!interactive}
             style={style}

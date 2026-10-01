@@ -59,7 +59,7 @@ export default function MuscleRecoveryBars({ sessions, exerciseConfig, trainingD
     : `${stale} of ${rows.length} need work`
 
   return (
-    <section className="mb-3 px-4 py-3 rounded-xl bg-white border border-[#e8e8e8]">
+    <section data-ledge className="mb-3 px-4 py-3 rounded-xl bg-white border border-[#e8e8e8]">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}

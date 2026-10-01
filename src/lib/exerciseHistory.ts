@@ -1,4 +1,5 @@
 import { ExtraSet, Session, isCardioSet } from "./types"
+import { calcE1RM } from "./e1rm"
 
 /**
  * Looking up what an exercise was last loaded with — shared by the logger, which
@@ -86,6 +87,29 @@ export function getLastSetsForExercise(
  * For a cardio exercise "heaviest" is longest: every bout is 0kg, so ranking by load
  * would just return the first one.
  */
+/**
+ * The best e1RM this exercise has ever been logged at, matched the same way as the
+ * "last time" lookups. Cardio and bodyweight sets have no e1RM and are skipped; null
+ * when there is nothing to beat yet.
+ */
+export function getBestE1RMForExercise(exerciseName: string, history: Session[]): number | null {
+  const target = normalize(exerciseName)
+  let best: number | null = null
+  for (const session of history) {
+    for (const workout of session.extraWorkouts ?? []) {
+      for (const exercise of workout.exercises) {
+        if (exercise.name !== exerciseName && normalize(exercise.name) !== target) continue
+        for (const set of exercise.sets) {
+          if (isCardioSet(set) || set.kg <= 0) continue
+          const e1rm = calcE1RM(set.kg, set.reps)
+          if (e1rm != null && (best == null || e1rm > best)) best = e1rm
+        }
+      }
+    }
+  }
+  return best
+}
+
 export function getTopSet(exerciseName: string, history: Session[]): ExtraSet | null {
   const found = findLastSessionWithExercise(exerciseName, history)
   if (!found) return null
