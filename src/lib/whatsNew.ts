@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 7,
+    items: [
+      {
+        title: "Rest stays out of your way",
+        body: "The rest timer no longer takes over the screen. It runs in the navy bar at the top of the logger, which moves straight on to your next set so you can check the weight while you rest. Tap Skip rest in the bar to end it early.",
+      },
+    ],
+  },
+  {
     version: 6,
     items: [
       {
