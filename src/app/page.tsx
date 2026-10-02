@@ -42,7 +42,7 @@ import { buildDotCue } from "@/lib/buddy"
 import WeightCard from "@/components/WeightCard"
 import WeightCheckInSheet from "@/components/WeightCheckInSheet"
 import WeightOptInSheet, { useWeightOptIn } from "@/components/WeightOptInSheet"
-import { bwForSession, dateKey, todaysEntry, upsertEntry } from "@/lib/weight"
+import { bwForSession, dateKey, upsertEntry, weighInDue } from "@/lib/weight"
 import { getBestE1RM, getBestWeight, getLatestBW } from "@/lib/stats"
 import { suggestNextDay } from "@/lib/balance"
 import { relativeTime } from "@/lib/time"
@@ -203,8 +203,11 @@ export default function Page() {
   const [viewingBlockId, setViewingBlockId] = useState<number | null>(null)
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const [weights, setWeights] = useState<WeightEntry[]>([])
-  /** The day the check-in sheet is logging, or null when it is closed. */
-  const [checkInDay, setCheckInDay] = useState<string | null>(null)
+  /**
+   * The open check-in sheet, or null when it is closed. `prompted` means the weekly
+   * prompt opened it rather than the +, so closing it skips the week.
+   */
+  const [checkIn, setCheckIn] = useState<{ day: string; prompted: boolean } | null>(null)
   const installGuide = useInstallGuide()
   const whatsNew = useWhatsNew()
   const weightOptIn = useWeightOptIn(setProfile)
@@ -266,14 +269,15 @@ export default function Page() {
       whatsNew.trigger()
       weightOptIn.trigger(p)
 
-      // Prompt for today's weight off the local log so someone who already weighed in
-      // never sees a flash of the sheet while KV catches up. "skip today" is honoured
-      // for the rest of the day, otherwise navigating home → history → home re-asks.
+      // Weekly prompt, decided off the local log so someone who already weighed in
+      // never sees a flash of the sheet while KV catches up. It only asks when the
+      // newest weigh-in is a week old, and "skip this week" holds for a week; every
+      // other day is logged by hand from the + on the weight card.
       if (p.weighInDaily) {
         const local = loadWeightsLocal()
         setWeights(local)
         const today = dateKey()
-        if (!todaysEntry(local) && loadWeighInSkipLocal() !== today) setCheckInDay(today)
+        if (weighInDue(local, today, loadWeighInSkipLocal())) setCheckIn({ day: today, prompted: true })
       }
 
       if (cachedProfile) {
@@ -292,7 +296,13 @@ export default function Page() {
       }
 
       loadWeights().then((data) => {
-        if (!cancelled) setWeights(data)
+        if (cancelled) return
+        setWeights(data)
+        // A new device has no local log, so the prompt above may have opened before
+        // KV said there was a recent weigh-in. Withdraw it rather than ask twice a week.
+        if (!weighInDue(data, dateKey(), loadWeighInSkipLocal())) {
+          setCheckIn((c) => (c?.prompted ? null : c))
+        }
       })
 
       // Async load from KV
@@ -609,16 +619,21 @@ export default function Page() {
     // Local-first: this cannot fail, so an offline weigh-in still counts. saveWeights
     // also pins profile.bw to the newest reading, both locally and in KV.
     saveWeights(next)
-    setCheckInDay(null)
+    setCheckIn(null)
     setProfile((p) => {
       const newest = next[next.length - 1]
       return p && newest && p.bw !== newest.kg ? { ...p, bw: newest.kg } : p
     })
   }
 
-  function handleSkipWeighIn() {
-    saveWeighInSkipLocal(dateKey())
-    setCheckInDay(null)
+  function handleCloseWeighIn() {
+    // Only the weekly prompt records a skip; backing out of a manual log changes nothing.
+    if (checkIn?.prompted) saveWeighInSkipLocal(dateKey())
+    setCheckIn(null)
+  }
+
+  function openManualWeighIn() {
+    setCheckIn({ day: dateKey(), prompted: false })
   }
 
   function handleConfirmSession(incoming: Session) {
@@ -999,12 +1014,12 @@ export default function Page() {
           liftFocused ? profile.mainLift : undefined,
           trainingDays.find((d) => d.id === upcoming?.selectedTrainingDayId)?.name
         )
-  // Strict priority: install guide → what's new → opt-in → daily check-in. Each waits
+  // Strict priority: install guide → what's new → opt-in → weekly check-in. Each waits
   // on every higher-priority sheet, extending the `!installGuide.show` guard already
   // used for What's New rather than inventing a second mechanism.
   const showWeightOptIn = weightOptIn.show && !installGuide.show && !whatsNew.show && !overlayOpen
   const showCheckIn =
-    checkInDay != null && !installGuide.show && !whatsNew.show && !weightOptIn.show && !overlayOpen
+    checkIn != null && !installGuide.show && !whatsNew.show && !weightOptIn.show && !overlayOpen
 
   return (
     <>
@@ -1023,7 +1038,7 @@ export default function Page() {
         <WhatsNewModal releases={whatsNew.releases} onDismiss={whatsNew.dismiss} />
       )}
 
-      {/* One-time ask for users who predate daily check-ins. New users answer it in onboarding. */}
+      {/* One-time ask for users who predate weight check-ins. New users answer it in onboarding. */}
       {showWeightOptIn && (
         <WeightOptInSheet
           saving={weightOptIn.saving}
@@ -1032,21 +1047,21 @@ export default function Page() {
           // user on an empty card — that first entry is what makes everything else work.
           onAccept={() => {
             weightOptIn.answer(profile, true).then((p) => {
-              if (p) setCheckInDay(dateKey())
+              if (p) openManualWeighIn()
             })
           }}
           onDecline={() => weightOptIn.answer(profile, false)}
         />
       )}
 
-      {showCheckIn && checkInDay && (
+      {showCheckIn && checkIn && (
         <WeightCheckInSheet
           entries={weights}
-          date={checkInDay}
+          date={checkIn.day}
           fallbackKg={weights[weights.length - 1]?.kg ?? profile.bw}
           onSave={handleSaveWeight}
-          onClose={handleSkipWeighIn}
-          skippable
+          onClose={handleCloseWeighIn}
+          skippable={checkIn.prompted}
         />
       )}
 
@@ -1133,7 +1148,7 @@ export default function Page() {
         {/* Bodyweight trend. Above the mode split so one insertion serves both modes —
             bodyweight is not a lift-focused or Balanced concern, it's just yours. */}
         {profile.weighInDaily && (
-          <WeightCard entries={weights} onCheckIn={() => setCheckInDay(dateKey())} />
+          <WeightCard entries={weights} onLog={openManualWeighIn} />
         )}
 
         {/* Balanced mode: the next session, how balanced the training is, recent ones */}

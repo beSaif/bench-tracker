@@ -3,12 +3,12 @@
 import Link from "next/link"
 import WeightSparkline from "@/components/WeightSparkline"
 import { WeightEntry } from "@/lib/types"
-import { delta, describeDay, latestEntry, recentEntries, streak } from "@/lib/weight"
+import { delta, describeDay, latestEntry, recentEntries } from "@/lib/weight"
 
 interface Props {
   entries: WeightEntry[]
-  /** Opens the check-in sheet from the empty state, so day one isn't a dead card. */
-  onCheckIn: () => void
+  /** Opens the check-in sheet for today. The app only asks weekly; this is every other day. */
+  onLog: () => void
 }
 
 interface Pill {
@@ -38,65 +38,73 @@ function pillFor(d: number | null, entryCount: number): Pill {
     : { text, className: "bg-[#f3faf4] text-[#16a34a]" }
 }
 
-export default function WeightCard({ entries, onCheckIn }: Props) {
+function PlusButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Log weight"
+      className="w-9 h-9 shrink-0 rounded-full bg-[#1e3a5f] text-white flex items-center justify-center active:bg-[#0f2540] transition-colors"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" aria-hidden="true">
+        <path d="M8 2.5v11M2.5 8h11" />
+      </svg>
+    </button>
+  )
+}
+
+/**
+ * One compact row: the latest reading, a 30-day sparkline, the weekly delta, and a +
+ * to log by hand. The row links to /weight for the full chart; the + is a sibling of
+ * that link rather than inside it, so tapping it never navigates.
+ */
+export default function WeightCard({ entries, onLog }: Props) {
   const latest = latestEntry(entries)
 
   if (!latest) {
     return (
-      <button
-        onClick={onCheckIn}
-        className="w-full mb-3 px-4 py-3.5 rounded-xl bg-white border border-[#e8e8e8] text-left active:bg-[#fafafa] transition-colors"
-      >
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] mb-1.5">
-          Bodyweight
-        </p>
-        <p className="text-sm text-[#777777]">
-          log your first weigh-in — it takes one tap
-        </p>
-      </button>
+      <div className="mb-3 flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl bg-white border border-[#e8e8e8]">
+        <button onClick={onLog} className="flex-1 min-w-0 text-left">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
+            Bodyweight
+          </p>
+          <p className="text-sm text-[#777777] truncate">log your first weigh-in</p>
+        </button>
+        <PlusButton onClick={onLog} />
+      </div>
     )
   }
 
   const d7 = delta(entries, 7)
   const pill = pillFor(d7, entries.length)
-  const s = streak(entries)
   const window = recentEntries(entries, 30)
 
   return (
-    <Link
-      href="/weight"
-      className="block mb-3 px-4 py-3.5 rounded-xl bg-white border border-[#e8e8e8] active:bg-[#fafafa] transition-colors"
-    >
-      <div className="flex items-baseline justify-between mb-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-          Bodyweight
-        </p>
-        <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${pill.className}`}>
+    <div className="mb-3 flex items-center gap-2 pl-4 pr-2 py-2 rounded-xl bg-white border border-[#e8e8e8]">
+      <Link
+        href="/weight"
+        className="flex-1 min-w-0 flex items-center gap-3 rounded-lg active:opacity-70 transition-opacity"
+      >
+        <div className="shrink-0">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] leading-tight">
+            Bodyweight
+          </p>
+          <p className="flex items-baseline gap-1 leading-tight">
+            <span className="text-lg font-bold text-[#111111] tabular-nums">
+              {latest.kg.toFixed(1)}
+            </span>
+            <span className="text-[10px] font-semibold text-[#aaaaaa]">kg</span>
+            <span className="text-[10px] text-[#aaaaaa] ml-0.5">{describeDay(latest.date)}</span>
+          </p>
+        </div>
+        <div className="flex-1 min-w-0">
+          {window.length >= 2 && <WeightSparkline entries={window} className="w-full h-5" />}
+        </div>
+        <span className={`shrink-0 text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${pill.className}`}>
           {pill.text}
         </span>
-      </div>
-
-      <div className="flex items-baseline gap-1.5 mb-3">
-        <span className="text-3xl font-bold text-[#111111] leading-none tabular-nums">
-          {latest.kg.toFixed(1)}
-        </span>
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa]">
-          kg
-        </span>
-        <span className="ml-auto text-[11px] text-[#777777] tabular-nums">
-          {s.current > 1 ? `${s.current} day streak` : describeDay(latest.date)}
-        </span>
-      </div>
-
-      {window.length >= 2 && (
-        <>
-          <WeightSparkline entries={window} className="w-full h-7" />
-          <div className="flex justify-between mt-1.5">
-            <span className="text-[9px] text-[#cccccc]">30 days ago</span>
-            <span className="text-[9px] text-[#cccccc]">now</span>
-          </div>
-        </>
-      )}
-    </Link>
+      </Link>
+      <PlusButton onClick={onLog} />
+    </div>
   )
 }

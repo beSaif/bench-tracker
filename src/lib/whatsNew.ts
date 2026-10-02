@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 8,
+    items: [
+      {
+        title: "Weigh-ins, once a week",
+        body: "The app now asks for your bodyweight once a week instead of every day, and the reminder follows suit. Want to log more often? Tap the + on the bodyweight card any day. The card itself is now a single slim row; tap it for the full chart.",
+      },
+    ],
+  },
+  {
     version: 7,
     items: [
       {

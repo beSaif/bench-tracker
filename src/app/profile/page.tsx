@@ -255,15 +255,15 @@ export default function ProfilePage() {
 
         <div className="flex items-center justify-between">
           <div className="flex-1 pr-3">
-            <p className="text-sm text-[#111111]">Daily check-in</p>
+            <p className="text-sm text-[#111111]">Weekly check-in</p>
             <p className="text-xs text-[#999999] mt-0.5">
-              one number when you open the app. turning this off keeps your history.
+              we ask once a week; log any other day with the +. turning this off keeps your history.
             </p>
           </div>
           <button
             role="switch"
             aria-checked={weighInDaily}
-            aria-label="Daily weight check-in"
+            aria-label="Weekly weight check-in"
             onClick={() => setWeighInDaily((v) => !v)}
             className={`relative w-11 h-6 shrink-0 rounded-full transition-colors ${
               weighInDaily ? "bg-[#1e3a5f]" : "bg-[#d8d8d8]"
