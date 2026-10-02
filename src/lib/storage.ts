@@ -1,5 +1,5 @@
-import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, WHATS_NEW_SEEN_KEY, PENDING_SYNC_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
-import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig } from "./exerciseConfig"
+import { Session, TrainingBlock, STORAGE_KEY, BLOCKS_KEY, SessionDraft, DRAFT_KEY, EXERCISES_KEY, PROFILE_KEY, PRESENCES_KEY, FRIENDS_KEY, TRAINING_DAYS_KEY, LAYOFF_DISMISS_KEY, EXERCISES_MIGRATION_KEY, WEIGHTS_KEY, WEIGH_IN_SKIP_KEY, WHATS_NEW_SEEN_KEY, PENDING_SYNC_KEY, ROUTINE_UNDO_KEY, UserProfile, UserPresence, TrainingDay, WeightEntry } from "./types"
+import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS, EXERCISE_CONFIG_MIGRATION, migrateExerciseConfig, retireReplacedGroups } from "./exerciseConfig"
 import { PersonSummary } from "./routines"
 
 type StoredData = { sessions: Session[]; blocks: TrainingBlock[] }
@@ -338,6 +338,7 @@ export function wipeLocalUserData(): void {
   localStorage.removeItem(FRIEND_LAST_ACTIVE_KEY)
   localStorage.removeItem(WHATS_NEW_SEEN_KEY)
   localStorage.removeItem(PENDING_SYNC_KEY)
+  localStorage.removeItem(ROUTINE_UNDO_KEY)
 }
 
 /**
@@ -492,6 +493,67 @@ async function pushExerciseConfig(config: MuscleGroupConfig[]): Promise<MuscleGr
     return data.config as MuscleGroupConfig[]
   }
   return config
+}
+
+/** How long "undo" is offered after a plan is applied. Past this the old routine is history. */
+const ROUTINE_UNDO_DAYS = 7
+
+export interface RoutineSnapshot {
+  config: MuscleGroupConfig[]
+  days: TrainingDay[]
+  savedAt: string
+}
+
+/**
+ * Replace the routine with a plan's, keeping what it replaced so it can be undone.
+ * Only one step back is kept: applying a second plan makes the first the undo point.
+ */
+export function applyRoutinePlan(
+  next: { config: MuscleGroupConfig[]; days: TrainingDay[] },
+  previous: { config: MuscleGroupConfig[]; days: TrainingDay[] }
+): void {
+  const snapshot: RoutineSnapshot = { ...previous, savedAt: new Date().toISOString() }
+  try {
+    localStorage.setItem(ROUTINE_UNDO_KEY, JSON.stringify(snapshot))
+  } catch {
+    // Private mode / quota: the plan still applies, there is just no undo.
+  }
+  saveExerciseConfig(next.config)
+  saveTrainingDays(next.days)
+}
+
+export function loadRoutineSnapshot(): RoutineSnapshot | null {
+  try {
+    const raw = localStorage.getItem(ROUTINE_UNDO_KEY)
+    const snap = raw ? (JSON.parse(raw) as RoutineSnapshot) : null
+    if (!snap || !Array.isArray(snap.config) || !Array.isArray(snap.days)) return null
+    const age = Date.now() - new Date(snap.savedAt).getTime()
+    return age >= 0 && age < ROUTINE_UNDO_DAYS * 86_400_000 ? snap : null
+  } catch {
+    return null
+  }
+}
+
+export function clearRoutineSnapshot(): void {
+  try {
+    localStorage.removeItem(ROUTINE_UNDO_KEY)
+  } catch {
+    // nothing to clear
+  }
+}
+
+/**
+ * Put the routine back to how it was before the last plan. Groups the plan added are
+ * retired rather than dropped, since sessions logged since may name them.
+ */
+export function undoRoutinePlan(current: MuscleGroupConfig[]): { config: MuscleGroupConfig[]; days: TrainingDay[] } | null {
+  const snap = loadRoutineSnapshot()
+  if (!snap) return null
+  const config = retireReplacedGroups(snap.config, current)
+  saveExerciseConfig(config)
+  saveTrainingDays(snap.days)
+  clearRoutineSnapshot()
+  return { config, days: snap.days }
 }
 
 /** Save sessions + blocks to localStorage (sync) and KV (async, best-effort). */

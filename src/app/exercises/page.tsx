@@ -11,6 +11,7 @@ import {
 } from "@/lib/exerciseConfig"
 import { TrainingDay } from "@/lib/types"
 import TrainingModeSelector from "@/components/TrainingModeSelector"
+import DotFace from "@/components/buddy/DotFace"
 import {
   loadExerciseConfigLocal,
   loadExerciseConfig,
@@ -248,6 +249,23 @@ export default function ExercisesPage() {
             {stopping ? "Stopping…" : "Stop training under them"}
           </button>
         </div>
+      )}
+
+      {/* ─── Planner ─── */}
+      {!locked && (
+        <Link
+          href="/plan"
+          className="flex items-center gap-3 bg-white border border-[#e8e8e8] rounded-xl px-4 py-3.5 mb-6 hover:border-[#1e3a5f] transition-colors"
+        >
+          <DotFace />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[#111111]">Plan with Dot</p>
+            <p className="text-[11px] text-[#aaaaaa] mt-0.5">
+              A new split from a few questions, or paste one from your own AI.
+            </p>
+          </div>
+          <Chevron />
+        </Link>
       )}
 
       {/* ─── Training Focus ─── */}
