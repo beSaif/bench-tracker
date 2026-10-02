@@ -274,9 +274,9 @@ export async function loadWeights(): Promise<WeightEntry[]> {
 }
 
 /**
- * "skip today" on the check-in prompt, so it stops nagging for the rest of the day
- * without switching the feature off. Date-keyed, so it expires by itself at midnight —
- * the same trick `loadLayoffDismissLocal` uses to make a dismissal stick but not stick
+ * "skip this week" on the check-in prompt, so it stops nagging without switching the
+ * feature off. Stores the day it was skipped; `weighInDue` keeps the prompt quiet for a
+ * week from then, so it expires by itself — the same trick `loadLayoffDismissLocal` uses to make a dismissal stick but not stick
  * forever. Device-local on purpose: skipping on your phone shouldn't skip on your laptop.
  */
 export function loadWeighInSkipLocal(): string | null {

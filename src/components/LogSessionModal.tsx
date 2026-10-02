@@ -504,7 +504,6 @@ export default function LogSessionModal({
   })
   const [restSeconds, setRestSeconds] = useState(0)
   const restActive = restEndTime !== null
-  const [timerMinimized, setTimerMinimized] = useState(false)
   const [extraState, setExtraState] = useState<ExtraWorkoutState>(
     () =>
       initialDraft?.extraState ??
@@ -599,19 +598,13 @@ export default function LogSessionModal({
     return s ? sum + parseFloat(s.kgStr) * parseInt(s.repsStr) : sum
   }, 0)
 
-  // Keep a ref so the interval callback always sees the current length
-  const carouselLengthRef = useRef(carouselItems.length)
-  carouselLengthRef.current = carouselItems.length
-
   const notifIdRef = useRef<string | null>(null)
-  const hasAdvancedForRestRef = useRef(false)
   /** The Done that just finished an exercise, popping before the logger moves on. */
   const [poppingKey, setPoppingKey] = useState<string | null>(null)
   const popTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => {
     if (popTimerRef.current) clearTimeout(popTimerRef.current)
   }, [])
-  const timerTriggerIndexRef = useRef<number>(0)
 
   function handleMinimize() {
     saveDraft({
@@ -686,7 +679,6 @@ export default function LogSessionModal({
         playBeep()
         navigator.vibrate?.([300, 100, 300])
         setRestEndTime(null)
-        setCurrentSetIndex(Math.min(timerTriggerIndexRef.current + 1, carouselLengthRef.current - 1))
       }
     }
 
@@ -755,10 +747,9 @@ export default function LogSessionModal({
         const item = carouselItems.find((i) => getItemKey(i) === key)
         reportSetMoment(setMoment(item), { finishesExercise: finishesExercise(key), buzzed })
         const rest = restAfter(item)
-        hasAdvancedForRestRef.current = false
-        timerTriggerIndexRef.current = currentSetIndex
         setRestEndTime(Date.now() + rest * 1000)
         setRestSeconds(rest)
+        advanceToNextSet()
         const body = nextItem ? getNextPreview(nextItem) : "Last set — great work"
         const doSchedule = () => scheduleNotification(rest * 1000, body)
         if (typeof Notification !== "undefined") {
@@ -831,9 +822,8 @@ export default function LogSessionModal({
     return set?.minutesStr != null ? REST_SECONDS.cardio : REST_SECONDS.accessory
   }
 
+  /** Rest runs in the banner, so the logger moves on to the next open set right away. */
   function advanceToNextSet() {
-    if (hasAdvancedForRestRef.current) return
-    hasAdvancedForRestRef.current = true
     setCurrentSetIndex((prev) => {
       for (let i = prev + 1; i < carouselItems.length; i++) {
         if (!completedSets.has(getItemKey(carouselItems[i]))) return i
@@ -846,12 +836,6 @@ export default function LogSessionModal({
     cancelNotification()
     setRestEndTime(null)
     setRestSeconds(0)
-    advanceToNextSet()
-  }
-
-  function hideTimer() {
-    setTimerMinimized(true)
-    advanceToNextSet()
   }
 
   function navigatePrev() {
@@ -1754,63 +1738,19 @@ export default function LogSessionModal({
     )
   }
 
-  // Full-screen rest timer
-  if (restActive && !timerMinimized) {
-    return (
-      <div className="fixed inset-0 z-50 bg-[#1e3a5f] flex flex-col items-center justify-center">
-        <p className="text-[11px] uppercase tracking-[0.25em] font-medium text-white/50 mb-4">
-          Rest · {completedCount} / {carouselItems.length}
-        </p>
-        {/* Dot naps on the digits while you rest. The glyphs start ~12px below the box. */}
-        <p
-          data-ledge
-          data-ledge-home
-          data-ledge-rest
-          data-ledge-tone="dark"
-          data-ledge-inset="12"
-          className="text-[96px] font-bold tabular-nums leading-none text-white"
-        >
-          {timerDisplay}
-        </p>
-        {nextItem ? (
-          <p className="mt-6 text-sm text-white/50">
-            Next: {getNextPreview(nextItem)}
-          </p>
-        ) : (
-          <p className="mt-6 text-sm text-white/50">Last set — great work</p>
-        )}
-        <div className="mt-10 flex flex-col items-center gap-3">
+  return (
+    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 pt-[env(safe-area-inset-top)] ${restActive ? "bg-[#eff6ff]" : "bg-white"}`}>
+      {restActive && (
+        <div className="w-full bg-[#1e3a5f] flex items-center justify-between px-5 py-3 shrink-0">
+          <span className="text-white/50 text-xs uppercase tracking-widest">Resting</span>
+          <span className="text-white font-bold tabular-nums text-lg">{timerDisplay}</span>
           <button
             onClick={dismissRest}
-            className="px-8 py-3 rounded-full border border-white/25 text-white/75
-                       text-sm font-semibold hover:bg-white/10 active:bg-white/20 transition-colors"
+            className="text-white/60 text-xs font-semibold hover:text-white/80 active:text-white transition-colors"
           >
             Skip rest
           </button>
-          <button
-            onClick={hideTimer}
-            className="text-white/40 text-xs font-medium hover:text-white/60 active:text-white/80 transition-colors"
-          >
-            Hide timer
-          </button>
         </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-300 pt-[env(safe-area-inset-top)] ${restActive && timerMinimized ? "bg-[#eff6ff]" : "bg-white"}`}>
-      {restActive && timerMinimized && (
-        <button
-          onClick={() => setTimerMinimized(false)}
-          className="w-full bg-[#1e3a5f] flex items-center justify-between px-5 py-3
-                     shrink-0 active:opacity-80 transition-opacity"
-          aria-label="Restore timer"
-        >
-          <span className="text-white/50 text-xs uppercase tracking-widest">Resting</span>
-          <span className="text-white font-bold tabular-nums text-lg">{timerDisplay}</span>
-          <span className="text-white/40 text-xs">tap to expand</span>
-        </button>
       )}
       <div className="mx-auto w-full max-w-[393px] px-4 flex flex-col flex-1 min-h-0 relative">
 

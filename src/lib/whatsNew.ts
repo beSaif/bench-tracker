@@ -17,11 +17,29 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
-    version: 7,
+    version: 9,
     items: [
       {
         title: "Plan your routine with Dot",
         body: "Open Routine and tap Plan with Dot. Answer five quick questions (days a week, session length, equipment, goal, experience) and Dot drafts your training days, muscle groups and exercises. Or copy a prompt into ChatGPT, Claude or Gemini, plan it there and paste the reply back. You see exactly what changes before anything is saved, your history stays with every exercise you keep, and you can undo the switch for a week.",
+      },
+    ],
+  },
+  {
+    version: 8,
+    items: [
+      {
+        title: "Weigh-ins, once a week",
+        body: "The app now asks for your bodyweight once a week instead of every day, and the reminder follows suit. Want to log more often? Tap the + on the bodyweight card any day. The card itself is now a single slim row; tap it for the full chart.",
+      },
+    ],
+  },
+  {
+    version: 7,
+    items: [
+      {
+        title: "Rest stays out of your way",
+        body: "The rest timer no longer takes over the screen. It runs in the navy bar at the top of the logger, which moves straight on to your next set so you can check the weight while you rest. Tap Skip rest in the bar to end it early.",
       },
     ],
   },

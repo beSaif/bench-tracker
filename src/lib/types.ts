@@ -94,7 +94,7 @@ export interface UserProfile {
   anchor?: number
   target?: number
   /**
-   * Daily bodyweight check-ins. Absent means the user has never been asked — which is
+   * Bodyweight check-ins (asked weekly; the name predates that). Absent means the user has never been asked — which is
    * what makes the one-time opt-in prompt fire — so this stays tri-state on purpose.
    */
   weighInDaily?: boolean

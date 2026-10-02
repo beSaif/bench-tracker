@@ -22,22 +22,22 @@ import HapticTap from "@/components/HapticTap"
  * fades out when there is none. Taps pass through everything but Dot itself.
  *
  * A logged set never sends Dot anywhere: it reacts where it stands. It only moves when
- * its ledge goes away (the rest timer covers the screen) or when it wanders.
+ * its ledge goes away (a sheet covers it) or when it wanders.
  *
  * When its ledge scrolls with the page (the home screen), the layer is part of the page
  * rather than pinned to the screen, so the browser scrolls Dot along with the card in
  * the same frame. Following the card from scroll events instead lags it by a frame or
  * more on an iPhone, where the page scrolls off the main thread, and Dot shakes. On a
- * ledge pinned to the screen (the logger, the rest timer) the layer is pinned too.
+ * ledge pinned to the screen (the logger) the layer is pinned too.
  *
  * It is cheap while still: the frame loop only runs during a hop or while a pinned
  * ledge's page scrolls, a slow tick handles the rest, and nothing starts until the page
  * has settled after loading.
  *
  * Ledge attributes, all optional beyond `data-ledge`:
- * - `data-ledge-home`: preferred when Dot has to move (the up-next card, the rest timer).
+ * - `data-ledge-home`: preferred when Dot has to move (the up-next card, the logger).
  * - `data-ledge-watch`: it looks down at what is below while standing there.
- * - `data-ledge-rest`: it naps there (the rest timer).
+ * - `data-ledge-rest`: it naps there, then goes back to where it stood before.
  * - `data-ledge-tone="dark"`: the surface behind it is dark, so it turns white.
  * - `data-ledge-inset="8"`: its feet go this many px below the element's top edge.
  */
