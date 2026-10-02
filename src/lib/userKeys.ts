@@ -82,6 +82,11 @@ export function athletesKey(email: string): string {
   return `user:${normalize(email)}:athletes`
 }
 
+/** How many routine plans Dot has made for this user on a UTC day, "YYYY-MM-DD". */
+export function planUsesKey(email: string, day: string): string {
+  return `user:${normalize(email)}:plan-uses:${day}`
+}
+
 export const LEGACY_SESSIONS_KEY = "bench-tracker-sessions"
 export const LEGACY_EXERCISES_KEY = "bench-tracker-exercises"
 

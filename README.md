@@ -55,6 +55,33 @@ The job asks "did you log today" in each user's own calendar day. The browser re
 IANA timezone when it registers a push subscription; users who registered before that
 existed are treated as UTC until their next visit.
 
+## Routine planner
+
+`/plan` (linked from the Routine page as "Plan with Dot") replaces the user's training
+days, muscle groups and exercises with a plan written by an LLM. Two ways in, one import
+path (`src/lib/routinePlan.ts`): the plan is parsed and validated, laid over the current
+routine so kept groups, days and exercises keep their ids and history, previewed with a
+summary of what changes, and only saved when applied. Groups the plan drops are retired,
+not deleted, and the previous routine is kept on the device for a week so the switch can
+be undone.
+
+- **Plan with Dot**: five tap-to-answer questions, then one call to `/api/plan`, which
+  plans from the stored routine with any OpenAI-compatible chat API. Each user gets 5
+  plans a day (tweaks included); a reply that can't be read gets one free repair attempt.
+  Only the routine and the answers are sent, never the user's name, email or sessions.
+- **Use your own AI**: copies a prompt carrying the routine and the format rules (shared
+  with Dot, in `src/lib/planPrompt.ts`) for the user's own chatbot, and reads the reply
+  pasted back, prose, code fences and curly quotes included.
+
+| Variable | Purpose |
+| --- | --- |
+| `PLANNER_API_KEY` | Turns Dot's planner on. Without it only the copy-and-paste path is offered. A free [Groq](https://console.groq.com) key works with the defaults. |
+| `PLANNER_BASE_URL` | Optional. Any OpenAI-compatible endpoint; defaults to `https://api.groq.com/openai/v1`. |
+| `PLANNER_MODEL` | Optional. Defaults to `openai/gpt-oss-120b`. |
+
+Don't point it at Google's free Gemini tier: its terms only allow paid use for apps
+serving users in the EEA, Switzerland or the UK.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

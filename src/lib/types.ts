@@ -139,6 +139,8 @@ export const WEIGHTS_KEY = "lift-tracker-weights"
 export const PENDING_SYNC_KEY = "lift-tracker-pending-sync"
 /** The day the check-in prompt was last dismissed on this device, "YYYY-MM-DD". */
 export const WEIGH_IN_SKIP_KEY = "lift-tracker-weigh-in-skipped"
+/** The routine as it was before the last plan was applied, so the import can be undone. */
+export const ROUTINE_UNDO_KEY = "lift-tracker-routine-undo"
 /**
  * Device preferences for Dot and its haptics, "off" when switched off. Absent means on.
  * They belong to the phone, not the account, so signing out leaves them alone.

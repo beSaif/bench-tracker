@@ -17,6 +17,15 @@ export interface WhatsNewRelease {
  */
 export const WHATS_NEW: WhatsNewRelease[] = [
   {
+    version: 9,
+    items: [
+      {
+        title: "Plan your routine with Dot",
+        body: "Open Routine and tap Plan with Dot. Answer five quick questions (days a week, session length, equipment, goal, experience) and Dot drafts your training days, muscle groups and exercises. Or copy a prompt into ChatGPT, Claude or Gemini, plan it there and paste the reply back. You see exactly what changes before anything is saved, your history stays with every exercise you keep, and you can undo the switch for a week.",
+      },
+    ],
+  },
+  {
     version: 8,
     items: [
       {

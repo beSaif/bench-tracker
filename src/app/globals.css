@@ -156,6 +156,8 @@ body {
 .dot-wiggle-1 { animation: dot-wiggle-1 0.5s ease; }
 .dot-sink-0 { animation: dot-sink-0 1.2s ease; }
 .dot-sink-1 { animation: dot-sink-1 1.2s ease; }
+/* Dot working on something (the routine planner): small hops until it is done. */
+.dot-think { animation: dot-hop-0 0.9s cubic-bezier(0.3, 0.7, 0.4, 1) infinite; }
 
 @keyframes dot-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.035, 0.965); } }
 @keyframes dot-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
