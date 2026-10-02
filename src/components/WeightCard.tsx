@@ -7,6 +7,8 @@ import { delta, describeDay, latestEntry, recentEntries } from "@/lib/weight"
 
 interface Props {
   entries: WeightEntry[]
+  /** The log hasn't arrived yet: hold the row's space instead of claiming it's empty. */
+  loading?: boolean
   /** Opens the check-in sheet for today. The app only asks weekly; this is every other day. */
   onLog: () => void
 }
@@ -58,8 +60,27 @@ function PlusButton({ onClick }: { onClick: () => void }) {
  * to log by hand. The row links to /weight for the full chart; the + is a sibling of
  * that link rather than inside it, so tapping it never navigates.
  */
-export default function WeightCard({ entries, onLog }: Props) {
+export default function WeightCard({ entries, loading = false, onLog }: Props) {
   const latest = latestEntry(entries)
+
+  if (loading && !latest) {
+    return (
+      <div className="mb-3 flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl bg-white border border-[#e8e8e8]">
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#aaaaaa] leading-tight">
+            Bodyweight
+          </p>
+          {/* Same type as the real reading, so the row doesn't change height when it lands. */}
+          <p className="leading-tight">
+            <span className="text-lg font-bold tabular-nums text-transparent rounded bg-[#f0f0f0] animate-pulse">
+              00.0 kg
+            </span>
+          </p>
+        </div>
+        <PlusButton onClick={onLog} />
+      </div>
+    )
+  }
 
   if (!latest) {
     return (

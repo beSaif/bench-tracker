@@ -204,6 +204,12 @@ export default function Page() {
   const [viewingUpcomingPhase, setViewingUpcomingPhase] = useState<BlockPhase | null>(null)
   const [weights, setWeights] = useState<WeightEntry[]>([])
   /**
+   * False until there is a weight log worth drawing: the local copy if it has entries,
+   * otherwise KV's answer. Until then the card shows a placeholder, not "log your first
+   * weigh-in" for someone whose history simply hasn't arrived yet.
+   */
+  const [weightsReady, setWeightsReady] = useState(false)
+  /**
    * The open check-in sheet, or null when it is closed. `prompted` means the weekly
    * prompt opened it rather than the +, so closing it skips the week.
    */
@@ -255,6 +261,10 @@ export default function Page() {
       if (localBlocks.length > 0) setBlocks(localBlocks)
       setExerciseConfig(localConfig)
       setTrainingDays(localDays)
+      // Same fast path for the weight card, so it opens on the real numbers.
+      const localWeights = loadWeightsLocal()
+      setWeights(localWeights)
+      if (localWeights.length > 0) setWeightsReady(true)
       setMounted(true)
     }
 
@@ -269,16 +279,21 @@ export default function Page() {
       whatsNew.trigger()
       weightOptIn.trigger(p)
 
-      // Weekly prompt, decided off the local log so someone who already weighed in
-      // never sees a flash of the sheet while KV catches up. It only asks when the
-      // newest weigh-in is a week old, and "skip this week" holds for a week; every
-      // other day is logged by hand from the + on the weight card.
-      if (p.weighInDaily) {
-        const local = loadWeightsLocal()
-        setWeights(local)
+      // Weekly prompt: asks only when the newest weigh-in is a week old, and "skip
+      // this week" holds for a week; every other day is logged by hand from the + on
+      // the weight card. Decided off the local log when there is one, so it opens
+      // without waiting on KV. An empty local log (a new device) proves nothing, so
+      // that case waits for KV below rather than flashing a sheet it may withdraw.
+      const localWeights = loadWeightsLocal()
+      setWeights(localWeights)
+      if (localWeights.length > 0) setWeightsReady(true)
+      const askWeighIn = (entries: WeightEntry[]) => {
         const today = dateKey()
-        if (weighInDue(local, today, loadWeighInSkipLocal())) setCheckIn({ day: today, prompted: true })
+        if (p.weighInDaily && weighInDue(entries, today, loadWeighInSkipLocal())) {
+          setCheckIn({ day: today, prompted: true })
+        }
       }
+      if (localWeights.length > 0) askWeighIn(localWeights)
 
       if (cachedProfile) {
         // Already mounted from cache — just kick off the background KV sync
@@ -298,11 +313,8 @@ export default function Page() {
       loadWeights().then((data) => {
         if (cancelled) return
         setWeights(data)
-        // A new device has no local log, so the prompt above may have opened before
-        // KV said there was a recent weigh-in. Withdraw it rather than ask twice a week.
-        if (!weighInDue(data, dateKey(), loadWeighInSkipLocal())) {
-          setCheckIn((c) => (c?.prompted ? null : c))
-        }
+        setWeightsReady(true)
+        if (localWeights.length === 0) askWeighIn(data)
       })
 
       // Async load from KV
@@ -1148,7 +1160,7 @@ export default function Page() {
         {/* Bodyweight trend. Above the mode split so one insertion serves both modes —
             bodyweight is not a lift-focused or Balanced concern, it's just yours. */}
         {profile.weighInDaily && (
-          <WeightCard entries={weights} onLog={openManualWeighIn} />
+          <WeightCard entries={weights} loading={!weightsReady} onLog={openManualWeighIn} />
         )}
 
         {/* Balanced mode: the next session, how balanced the training is, recent ones */}
