@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { DrumRollPicker } from "@/components/DrumRollPicker"
 import { WeightEntry } from "@/lib/types"
-import { dateKey, describeDay, entryFor, streak } from "@/lib/weight"
+import { dateKey, describeDay, entryFor, latestEntry } from "@/lib/weight"
 
 // Two drums rather than one: 0.1kg precision over a sane bodyweight range is ~1650
 // values, and the picker renders every item. Whole kg plus a decimal drum keeps the
@@ -19,7 +19,7 @@ interface Props {
   fallbackKg: number
   onSave: (date: string, kg: number) => void
   onClose: () => void
-  /** "skip today" is only offered for the daily prompt, not when editing a past day. */
+  /** "skip this week" is only offered for the weekly prompt, not for a manual log. */
   skippable?: boolean
 }
 
@@ -40,20 +40,15 @@ export default function WeightCheckInSheet({
   )
   const [decimal, setDecimal] = useState(() => Math.round((seed - Math.floor(seed)) * 10))
 
-  const s = streak(entries)
+  const latest = latestEntry(entries)
   const kg = Math.round((whole + decimal / 10) * 10) / 10
 
-  // The nudge, in order of what is actually worth saying. Never scold a missed day —
-  // the point is to get today logged, not to litigate yesterday.
+  // The nudge: what the number replaces, or the last one to compare against.
   const nudge = existing
     ? `logged ${describeDay(day)} — this replaces it`
-    : s.current > 1
-      ? `${s.current} days in a row${s.loggedToday ? "" : " — keep it going"}`
-      : s.missedYesterday
-        ? "missed yesterday — no big deal, pick it back up"
-        : entries.length === 0
-          ? "first one. from here it's a trend."
-          : "one number, that's it"
+    : latest
+      ? `last one: ${latest.kg.toFixed(1)}kg, ${describeDay(latest.date)}`
+      : "first one. from here it's a trend."
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
@@ -94,7 +89,7 @@ export default function WeightCheckInSheet({
           {existing ? "update" : "log it"}
         </button>
         <button onClick={onClose} className="w-full text-sm text-[#aaaaaa] py-3 mt-1">
-          {skippable ? "skip today" : "cancel"}
+          {skippable ? "skip this week" : "cancel"}
         </button>
       </div>
     </div>

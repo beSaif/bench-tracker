@@ -254,10 +254,10 @@ export default function OnboardingPage() {
                   )}
                 </span>
                 <span className="flex-1">
-                  <span className="block text-sm text-[#111111]">check in daily</span>
+                  <span className="block text-sm text-[#111111]">check in weekly</span>
                   <span className="block text-xs text-[#999999] mt-0.5">
-                    we&apos;ll ask for this number once a day and chart the trend. change it
-                    anytime.
+                    we&apos;ll ask for this number once a week and chart the trend. log more
+                    often anytime.
                   </span>
                 </span>
               </button>

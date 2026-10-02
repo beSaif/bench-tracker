@@ -130,10 +130,11 @@ export default function GymbrosTimeline({
   }
 
   return (
-    <div className="mb-5">
+    <div className="mb-4">
       <p className="text-[10px] uppercase tracking-widest font-medium text-[#aaaaaa] mb-2">gymbros</p>
 
-      <div className="relative h-[88px] w-full">
+      {/* Tall enough for an avatar (40px) and its two label lines, and no more. */}
+      <div className="relative h-[68px] w-full">
         {/* Rail */}
         <div className="absolute left-0 right-0 top-[20px] h-px bg-[#e8e8e8]" />
 

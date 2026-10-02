@@ -1,6 +1,6 @@
 import { Session, UserProfile, WeightEntry } from "./types"
 import { getMainLiftShortLabel, isLiftFocused } from "./trainingMode"
-import { daysBetween, streak } from "./weight"
+import { daysBetween, weighInDue, WEIGH_IN_INTERVAL_DAYS } from "./weight"
 import { LAYOFF_NUDGE_DAYS, LAYOFF_RESTART_DAYS } from "./layoff"
 
 /**
@@ -13,8 +13,6 @@ import { LAYOFF_NUDGE_DAYS, LAYOFF_RESTART_DAYS } from "./layoff"
  * the weigh-in log is already keyed by local date for exactly that reason.
  */
 
-/** Below this a streak is too young to be worth defending out loud. */
-export const STREAK_MENTION_MIN = 3
 /** Days without a confirmed session before the first training nudge goes out. */
 export const NUDGE_AFTER_DAYS = 2
 /** Once nudged, stay quiet this long before saying it again. */
@@ -85,8 +83,10 @@ export function lastSessionDay(sessions: Session[], tz?: string): string | null 
 }
 
 /**
- * The daily weigh-in nudge. Silent for anyone who has not opted into check-ins, and
- * silent once today's reading is in — the point is the missing entry, not the clock.
+ * The weekly weigh-in nudge. Silent for anyone who has not opted into check-ins, and
+ * silent while the newest reading is under a week old — the point is the missing entry,
+ * not the clock. Once sent, it waits a full week before going out again, so a user who
+ * ignores it hears about it once a week rather than every morning.
  */
 function weighInReminder(
   profile: UserProfile | null,
@@ -95,33 +95,19 @@ function weighInReminder(
   today: string
 ): ReminderDecision | null {
   if (profile?.weighInDaily !== true) return null
-  // Already sent today: the job re-running must not produce a second buzz.
-  if (state.lastWeighInPush === today) return null
+  if (!weighInDue(weights, today)) return null
+  // Already sent this week: the job re-running, or the user ignoring it, must not
+  // turn back into a daily buzz.
+  if (state.lastWeighInPush && daysBetween(state.lastWeighInPush, today) < WEIGH_IN_INTERVAL_DAYS) {
+    return null
+  }
 
-  const { current, loggedToday, missedYesterday } = streak(weights, today)
-  if (loggedToday) return null
-
-  const push: ReminderPush =
-    current >= STREAK_MENTION_MIN
-      ? {
-          title: `${current}-day weigh-in streak`,
-          body: `Step on the scale and make it ${current + 1}.`,
-          tag: "weigh-in-reminder",
-          url: "/weight",
-        }
-      : missedYesterday && current === 0
-        ? {
-            title: "Streak broke yesterday",
-            body: "Weigh in this morning and start the next one.",
-            tag: "weigh-in-reminder",
-            url: "/weight",
-          }
-        : {
-            title: "Morning weigh-in",
-            body: "Scale first, breakfast after — same time, same conditions.",
-            tag: "weigh-in-reminder",
-            url: "/weight",
-          }
+  const push: ReminderPush = {
+    title: "Weekly weigh-in",
+    body: "Scale first, breakfast after — same time, same conditions.",
+    tag: "weigh-in-reminder",
+    url: "/weight",
+  }
 
   return { kind: "weigh-in", push, stateUpdate: { lastWeighInPush: today } }
 }

@@ -2,10 +2,10 @@ import { WeightEntry } from "./types"
 
 /**
  * Bodyweight check-ins are a calendar-day series, not a timestamp series: "did I log
- * today?" and "how long is my streak?" are questions about the user's own local days.
+ * today?" and "is the weekly weigh-in due?" are questions about the user's own local days.
  * So every date here is a local "YYYY-MM-DD" key, and all day arithmetic goes through
  * the Date constructor rather than adding 86400000 — an hour of DST would otherwise
- * drop or duplicate a day and silently break a streak.
+ * drop or duplicate a day and shift when the weekly prompt comes due.
  */
 
 /** The local calendar date of `d` as "YYYY-MM-DD". Never use toISOString(), that is UTC. */
@@ -89,36 +89,6 @@ export function totalDelta(entries: WeightEntry[]): number | null {
   return round1(sorted[sorted.length - 1].kg - sorted[0].kg)
 }
 
-export interface Streak {
-  /** Consecutive days logged, counting back from today (or yesterday if today is blank). */
-  current: number
-  loggedToday: boolean
-  /** A streak was running and yesterday broke it. */
-  missedYesterday: boolean
-}
-
-/**
- * Walk back day by day from today. Today being blank does not end a streak — the user
- * may simply not have weighed in yet — so the count then starts at yesterday and the
- * caller nudges rather than scolds.
- */
-export function streak(entries: WeightEntry[], today: string = dateKey()): Streak {
-  const dates = new Set(entries.map((e) => e.date))
-  const loggedToday = dates.has(today)
-
-  let cursor = loggedToday ? today : addDays(today, -1)
-  let current = 0
-  while (dates.has(cursor)) {
-    current += 1
-    cursor = addDays(cursor, -1)
-  }
-
-  const yesterday = addDays(today, -1)
-  const missedYesterday = !dates.has(yesterday) && entries.length > 0
-
-  return { current, loggedToday, missedYesterday }
-}
-
 /**
  * Trailing average over `window` calendar days (not over `window` entries), so a week
  * with three weigh-ins averages those three rather than reaching back a fortnight.
@@ -150,6 +120,25 @@ export function recentEntries(entries: WeightEntry[], days: number): WeightEntry
   if (!newest) return []
   const from = addDays(dateKey(), -(days - 1))
   return sorted.filter((e) => e.date >= from)
+}
+
+/** How often the app asks for a weigh-in. Anything in between is logged by hand. */
+export const WEIGH_IN_INTERVAL_DAYS = 7
+
+/**
+ * Whether the weekly prompt should ask today. Quiet while the newest weigh-in is under
+ * a week old — a manual log from the + button counts — and for a week after the user
+ * last skipped it, so "not this week" means the whole week rather than until midnight.
+ */
+export function weighInDue(
+  entries: WeightEntry[],
+  today: string = dateKey(),
+  skippedOn: string | null = null,
+): boolean {
+  const latest = latestEntry(entries)
+  if (latest && daysBetween(latest.date, today) < WEIGH_IN_INTERVAL_DAYS) return false
+  if (skippedOn && daysBetween(skippedOn, today) < WEIGH_IN_INTERVAL_DAYS) return false
+  return true
 }
 
 export interface Projection {

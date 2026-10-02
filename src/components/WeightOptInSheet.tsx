@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * The one-time "do you want this?" for users who already had an account when daily
+ * The one-time "do you want this?" for users who already had an account when weight
  * check-ins shipped. New users get the same question inside onboarding instead, so
  * this never fires for them.
  */
@@ -22,11 +22,11 @@ export default function WeightOptInSheet({ saving, error, onAccept, onDecline }:
       <div className="w-full max-w-[430px] bg-white rounded-t-2xl px-6 pt-6 pb-10 shadow-2xl max-h-[90dvh] overflow-y-auto">
         <div className="mb-6">
           <p className="text-lg font-semibold text-[#111111] leading-snug mb-1">
-            want to check in your weight daily?
+            want to check in your weight weekly?
           </p>
           <p className="text-sm text-[#777777]">
-            one number when you open the app. strength is relative to bodyweight — tracking
-            it daily is how you find out whether you&apos;re actually gaining, or just
+            one number, once a week — log more often with the + whenever you like. strength is
+            relative to bodyweight; tracking it is how you find out whether you&apos;re actually gaining, or just
             heavier.
           </p>
         </div>
@@ -38,7 +38,7 @@ export default function WeightOptInSheet({ saving, error, onAccept, onDecline }:
           disabled={saving}
           className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors disabled:opacity-40"
         >
-          {saving ? "saving…" : "yeah, ask me daily"}
+          {saving ? "saving…" : "yeah, ask me weekly"}
         </button>
         <button
           onClick={onDecline}
