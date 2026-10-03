@@ -3,7 +3,7 @@
 import { TrainingBlock, BlockPhase } from "@/lib/types"
 import { getBlockLength, PHASE_SESSION_TYPE, PHASE_LABEL } from "@/lib/prescription"
 
-const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string; bg: string }> = {
+export const PHASE_STYLE: Record<BlockPhase, { bar: string; label: string; meta: string; bg: string }> = {
   accumulation: {
     bar: "bg-[#2d6a2d]",
     label: "text-[#2d6a2d]",

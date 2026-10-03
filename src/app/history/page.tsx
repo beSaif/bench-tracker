@@ -2,13 +2,20 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Session, TrainingBlock, BlockPhase, UserProfile, TrainingDay } from "@/lib/types"
-import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal, loadTrainingDaysLocal, loadAll, loadProfile, loadTrainingDays } from "@/lib/storage"
+import { Session, TrainingBlock, BlockPhase, UserProfile, TrainingDay, WeightEntry } from "@/lib/types"
+import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLocal, loadTrainingDaysLocal, loadAll, loadProfile, loadTrainingDays, loadWeights, loadWeightsLocal } from "@/lib/storage"
 import { useOnboardingGuard } from "@/lib/useOnboardingGuard"
-import { currentStretchSkips, getMainLiftShortLabel, isLiftFocused } from "@/lib/trainingMode"
+import { currentStretchSkips, getMainLiftLabel, getMainLiftShortLabel, isLiftFocused } from "@/lib/trainingMode"
+import { getBestWeight } from "@/lib/stats"
+import { cycleNumbers, completedCycles, PHASE_SHORT, summarizeBlock, summarizeCycle } from "@/lib/blockSummary"
+import { getBlockLength } from "@/lib/prescription"
+import { formatDay } from "@/lib/weight"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import ShareImageModal from "@/components/ShareImageModal"
+import { RecapSheetFor, RecapTarget } from "@/components/BlockRecap"
+import RecapShareModal from "@/components/RecapShareModal"
+import { PHASE_STYLE } from "@/components/BlockHeader"
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
@@ -32,6 +39,10 @@ export default function HistoryPage() {
   const [trainingDays, setTrainingDays] = useState<TrainingDay[]>(DEFAULT_TRAINING_DAYS)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
+  const [weights, setWeights] = useState<WeightEntry[]>([])
+  const [tab, setTab] = useState<"sessions" | "blocks">("sessions")
+  const [recap, setRecap] = useState<RecapTarget | null>(null)
+  const [shareRecap, setShareRecap] = useState<RecapTarget | null>(null)
   const [mounted, setMounted] = useState(false)
   useOnboardingGuard()
 
@@ -44,7 +55,9 @@ export default function HistoryPage() {
     setBlocks(loadBlocksLocal())
     setProfile(loadProfileLocal())
     setTrainingDays(loadTrainingDaysLocal())
+    setWeights(loadWeightsLocal())
     setMounted(true)
+    loadWeights().then((w) => { if (!cancelled) setWeights(w) })
     loadExerciseConfig().then((c) => { if (!cancelled) setExerciseConfig(c) })
     loadTrainingDays().then((d) => { if (!cancelled) setTrainingDays(d) })
     loadProfile().then((p) => { if (!cancelled && p) setProfile(p) })
@@ -97,6 +110,31 @@ export default function HistoryPage() {
     )
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
 
+  // Blocks, grouped by cycle, newest first. Only shown once there's a finished block to recap.
+  const cycles = cycleNumbers(blocks)
+  const doneCycles = new Set(completedCycles(blocks))
+  const cycleGroups = [...new Set(cycles.values())]
+    .sort((a, b) => b - a)
+    .map((cycle) => ({
+      cycle,
+      complete: doneCycles.has(cycle),
+      blocks: blocks
+        .filter((b) => cycles.get(b.id) === cycle)
+        .sort((a, b) => b.id - a.id),
+    }))
+  const hasBlockRecaps = blocks.some((b) => b.status === "completed")
+  const showing = hasBlockRecaps ? tab : "sessions"
+
+  const blockFor = (t: RecapTarget | null) => {
+    const b = t?.kind === "block" ? blocks.find((x) => x.id === t.blockId) : undefined
+    return b ? summarizeBlock(b, blocks, sessions, weights) : null
+  }
+  const cycleFor = (t: RecapTarget | null) =>
+    t?.kind === "cycle" ? summarizeCycle(t.cycle, blocks, sessions, weights) : null
+  const shareBlock = blockFor(shareRecap)
+  const shareCycle = cycleFor(shareRecap)
+  const liftShort = getMainLiftShortLabel(profile)
+
   return (
     <main className="mx-auto w-full max-w-[393px] px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6">
       <header className="mb-6">
@@ -112,10 +150,90 @@ export default function HistoryPage() {
           </Link>
           <h1 className="text-2xl font-semibold text-[#111111] tracking-tight">History</h1>
         </div>
-        <p className="text-sm text-[#777777] ml-8">{archiveSessions.length} session{archiveSessions.length !== 1 ? "s" : ""}</p>
+        <p className="text-sm text-[#777777] ml-8">
+          {showing === "sessions"
+            ? `${archiveSessions.length} session${archiveSessions.length !== 1 ? "s" : ""}`
+            : `${blocks.filter((b) => b.status === "completed").length} finished blocks · ${doneCycles.size} full cycle${doneCycles.size !== 1 ? "s" : ""}`}
+        </p>
       </header>
 
-      {archiveSessions.length === 0 ? (
+      {hasBlockRecaps && (
+        <div className="flex gap-1.5 mb-4">
+          {(["sessions", "blocks"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${
+                showing === t ? "bg-[#111111] text-white" : "bg-[#f5f5f5] text-[#777777] hover:bg-[#ebebeb]"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showing === "blocks" ? (
+        cycleGroups.map((g) => (
+          <section key={g.cycle} className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-[#111111]">Cycle {g.cycle}</h2>
+              {g.complete ? (
+                <button
+                  onClick={() => setRecap({ kind: "cycle", cycle: g.cycle })}
+                  className="text-xs font-semibold text-[#1e3a5f] bg-[#eff6ff] rounded-full px-3 py-1 active:opacity-70"
+                >
+                  Cycle recap ›
+                </button>
+              ) : (
+                <span className="text-xs text-[#aaaaaa]">in progress</span>
+              )}
+            </div>
+            {g.blocks.map((b) => {
+              const style = PHASE_STYLE[b.phase] ?? PHASE_STYLE.accumulation
+              const summary = summarizeBlock(b, blocks, sessions, weights)
+              const total = getBlockLength(b)
+              if (!summary) {
+                return (
+                  <div key={b.id} className={`${style.bg} rounded-xl px-4 py-3 mb-2 flex items-center justify-between opacity-60`}>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-1.5 h-4 rounded-full ${style.bar}`} />
+                      <span className={`text-sm font-semibold ${style.label}`}>{PHASE_SHORT[b.phase]}</span>
+                    </span>
+                    <span className={`text-xs ${style.meta}`}>
+                      {b.status === "active" ? `now · ${b.sessionIds.length}/${total}` : b.status === "interrupted" ? "paused" : "no dated sessions"}
+                    </span>
+                  </div>
+                )
+              }
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => setRecap({ kind: "block", blockId: b.id })}
+                  className={`${style.bg} w-full text-left rounded-xl px-4 py-3 mb-2 active:opacity-70`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span className={`w-1.5 h-4 rounded-full ${style.bar}`} />
+                      <span className={`text-sm font-semibold ${style.label}`}>✓ {summary.phaseLabel}</span>
+                      <span className={`text-xs ${style.meta}`}>· {b.anchorWeight}kg</span>
+                    </span>
+                    <span className={`text-xs font-semibold ${style.label}`}>
+                      {summary.e1rmChange != null && summary.sessions > 1
+                        ? `e1RM ${summary.e1rmChange > 0 ? "+" : ""}${summary.e1rmChange}kg`
+                        : `${summary.end.kg}kg × ${summary.end.reps}`}
+                      <span className="opacity-50"> ›</span>
+                    </span>
+                  </div>
+                  <p className={`text-xs mt-1 ml-3.5 ${style.meta}`}>
+                    {formatDay(summary.startDate)} → {formatDay(summary.endDate)} · {summary.sessions}/{summary.plannedSessions} session{summary.plannedSessions !== 1 ? "s" : ""} · {summary.days} day{summary.days !== 1 ? "s" : ""}
+                  </p>
+                </button>
+              )
+            })}
+          </section>
+        ))
+      ) : archiveSessions.length === 0 ? (
         <p className="text-sm text-[#aaaaaa] text-center mt-16">No archived sessions yet</p>
       ) : (
         archiveSessions.map((s) => (
@@ -128,6 +246,44 @@ export default function HistoryPage() {
             mainLiftShortLabel={getMainLiftShortLabel(profile)}
           />
         ))
+      )}
+
+      {recap && (
+        <RecapSheetFor
+          target={recap}
+          block={blockFor(recap)}
+          cycle={cycleFor(recap)}
+          liftLabel={liftShort}
+          goal={profile?.target ?? null}
+          justFinished={false}
+          onClose={() => setRecap(null)}
+          onShare={() => {
+            setShareRecap(recap)
+            setRecap(null)
+          }}
+          onOpenBlock={(blockId) => setRecap({ kind: "block", blockId })}
+        />
+      )}
+
+      {shareBlock && (
+        <RecapShareModal
+          kind="block"
+          summary={shareBlock}
+          liftLabel={getMainLiftLabel(profile)}
+          target={profile?.target ?? null}
+          bestWeight={getBestWeight(sessions)}
+          onClose={() => setShareRecap(null)}
+        />
+      )}
+      {shareCycle && (
+        <RecapShareModal
+          kind="cycle"
+          summary={shareCycle}
+          liftLabel={getMainLiftLabel(profile)}
+          target={profile?.target ?? null}
+          bestWeight={getBestWeight(sessions)}
+          onClose={() => setShareRecap(null)}
+        />
       )}
 
       {shareSession && profile && (
