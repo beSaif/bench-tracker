@@ -34,9 +34,9 @@ import WhatsNewModal, { useWhatsNew } from "@/components/WhatsNewModal"
 import GymbrosTimeline from "@/components/GymbrosTimeline"
 import FriendMessagePopup from "@/components/FriendMessagePopup"
 import HypePanelModal from "@/components/HypePanelModal"
-import { BlockRecapCard, RecapSheetFor, RecapTarget } from "@/components/BlockRecap"
+import CycleRecapSheet from "@/components/CycleRecap"
 import RecapShareModal from "@/components/RecapShareModal"
-import { cycleNumbers, summarizeBlock, summarizeCycle } from "@/lib/blockSummary"
+import { cycleNumbers, summarizeCycle } from "@/lib/blockSummary"
 import ShareImageModal from "@/components/ShareImageModal"
 import BalancedHome from "@/components/balanced/BalancedHome"
 import LayoffBanner from "@/components/LayoffBanner"
@@ -192,10 +192,10 @@ export default function Page() {
   const [showHypePanel, setShowHypePanel] = useState(false)
   const [lastConfirmed, setLastConfirmed] = useState<Session | null>(null)
   const [lastPR, setLastPR] = useState<{ e1rm: number; previous: number } | null>(null)
-  // What the last confirmed session closed (a block, or a whole cycle when it was the
-  // Deload), for the one-time recap. The hype panel waits behind it and its share sheet.
-  const [recapTarget, setRecapTarget] = useState<RecapTarget | null>(null)
-  const [shareRecap, setShareRecap] = useState<RecapTarget | null>(null)
+  // The cycle the Deload just closed, for its one-time recap. The hype panel waits behind
+  // it and its share sheet.
+  const [recapCycle, setRecapCycle] = useState<number | null>(null)
+  const [shareCycle, setShareCycle] = useState<number | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
   const [messagesByFriend, setMessagesByFriend] = useState<Record<string, GymbroMessage[]>>({})
   const [msgPopupFriend, setMsgPopupFriend] = useState<UserPresence | null>(null)
@@ -682,7 +682,7 @@ export default function Page() {
     const advancesBlock = isLiftFocused(profile) && !updatedSession.skippedMainLift
     const activeBlock = advancesBlock ? getActiveBlock(currentBlocks) : undefined
     let finalBlocks = currentBlocks
-    let closed: RecapTarget | null = null
+    let closedCycle: number | null = null
 
     if (activeBlock) {
       const updatedBlockSessionIds = [...activeBlock.sessionIds, updatedSession.id]
@@ -695,7 +695,9 @@ export default function Page() {
           status: "completed",
           endDate: updatedSession.date ?? null,
         }
-        closed = { kind: "block", blockId: completedBlock.id }
+        if (completedBlock.phase === "deload") {
+          closedCycle = cycleNumbers(currentBlocks).get(completedBlock.id) ?? null
+        }
 
         // Re-acclimation finishes by resuming the interrupted block it was rebuilding
         // toward, rather than advancing into a fresh phase.
@@ -737,10 +739,8 @@ export default function Page() {
     cancelIncompleteSessionReminder()
     signalPresence(false)
     setLastConfirmed(updatedSession)
-    // The Deload is one session: its moment is the end of the cycle, so that's the recap.
-    const closedBlock = closed ? finalBlocks.find((b) => b.id === closed.blockId) : undefined
-    const closedCycle = closedBlock?.phase === "deload" ? cycleNumbers(finalBlocks).get(closedBlock.id) : undefined
-    setRecapTarget(closedCycle !== undefined ? { kind: "cycle", cycle: closedCycle } : closed)
+    // Only the Deload gets a recap: it closes the cycle, so it recaps all four blocks.
+    setRecapCycle(closedCycle)
 
     // A new best e1RM is the moment the whole block exists for, so it gets called out.
     const newBestE1RM = getBestE1RM(confirmedSessions)
@@ -976,20 +976,10 @@ export default function Page() {
     .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
 
   // A finished block shows its recap in place of the progress header when browsed.
-  const viewingRecap =
-    viewingBlock && viewingBlock !== activeBlock ? summarizeBlock(viewingBlock, blocks, sessions, weights) : null
-  const blockRecapFor = (t: RecapTarget | null) => {
-    const b = t?.kind === "block" ? blocks.find((x) => x.id === t.blockId) : undefined
-    return b ? summarizeBlock(b, blocks, sessions, weights) : null
-  }
-  const cycleRecapFor = (t: RecapTarget | null) =>
-    t?.kind === "cycle" ? summarizeCycle(t.cycle, blocks, sessions, weights) : null
-  const recapBlockSummary = blockRecapFor(recapTarget)
-  const recapCycleSummary = cycleRecapFor(recapTarget)
-  const recapOpen = recapBlockSummary != null || recapCycleSummary != null
-  const shareBlockSummary = blockRecapFor(shareRecap)
-  const shareCycleSummary = cycleRecapFor(shareRecap)
-  const shareOpen = shareBlockSummary != null || shareCycleSummary != null
+  const recapSummary = recapCycle != null ? summarizeCycle(recapCycle, blocks, sessions, weights) : null
+  const shareSummary = shareCycle != null ? summarizeCycle(shareCycle, blocks, sessions, weights) : null
+  const recapOpen = recapSummary != null
+  const shareOpen = shareSummary != null
 
   const blockIndexMap = new Map<number, number>()
   if (activeBlock) {
@@ -1246,14 +1236,7 @@ export default function Page() {
 
         {/* Block view */}
         <div className="mb-4">
-          {viewingBlock && !viewingUpcomingPhase && viewingRecap && (
-            <BlockRecapCard
-              summary={viewingRecap}
-              liftLabel={liftShort}
-              onShare={() => setShareRecap({ kind: "block", blockId: viewingRecap.block.id })}
-            />
-          )}
-          {viewingBlock && !viewingUpcomingPhase && !viewingRecap && (
+          {viewingBlock && !viewingUpcomingPhase && (
             <BlockHeader
               block={viewingBlock}
               confirmedCount={viewingBlock === activeBlock ? activeBlockSessions.length : viewingBlockSessions.length}
@@ -1488,45 +1471,33 @@ export default function Page() {
       )}
 
       {/* End-of-block recap, straight after the session that closed it */}
-      {recapTarget && recapOpen && (
-        <RecapSheetFor
-          target={recapTarget}
-          block={recapBlockSummary}
-          cycle={recapCycleSummary}
+      {/* End-of-cycle recap, once, straight after the Deload is logged */}
+      {recapSummary && (
+        <CycleRecapSheet
+          summary={recapSummary}
           liftLabel={liftShort}
-          goal={profile.target ?? null}
+          target={profile.target ?? null}
           justFinished
-          onClose={() => setRecapTarget(null)}
+          onClose={() => setRecapCycle(null)}
           onShare={() => {
-            setShareRecap(recapTarget)
-            setRecapTarget(null)
+            setShareCycle(recapCycle)
+            setRecapCycle(null)
           }}
         />
       )}
 
-      {/* Share image of a block or cycle recap */}
-      {shareBlockSummary && (
+      {/* Share image of the cycle recap */}
+      {shareSummary && (
         <RecapShareModal
-          kind="block"
-          summary={shareBlockSummary}
+          summary={shareSummary}
           liftLabel={liftLabel}
           target={profile.target ?? null}
           bestWeight={bestWeight}
-          onClose={() => setShareRecap(null)}
-        />
-      )}
-      {shareCycleSummary && (
-        <RecapShareModal
-          kind="cycle"
-          summary={shareCycleSummary}
-          liftLabel={liftLabel}
-          target={profile.target ?? null}
-          bestWeight={bestWeight}
-          onClose={() => setShareRecap(null)}
+          onClose={() => setShareCycle(null)}
         />
       )}
 
-      {/* Hype panel after session confirm (and after the block recap, when there is one) */}
+      {/* Hype panel after session confirm (and after the cycle recap, when there is one) */}
       {showHypePanel && !recapOpen && !shareOpen && (
         <HypePanelModal
           friends={friendProfiles}

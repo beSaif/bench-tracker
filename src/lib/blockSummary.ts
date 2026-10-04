@@ -1,7 +1,5 @@
 import { BlockPhase, Session, TrainingBlock, WeightEntry } from "./types"
 import { calcE1RM } from "./e1rm"
-import { getBlockLength } from "./prescription"
-import { sessionWork } from "./stats"
 import { bwForSession, dateKey, daysBetween, round1 } from "./weight"
 
 /** What the athlete calls each phase: the session types on the timeline, not the textbook names. */
@@ -43,10 +41,9 @@ export interface BlockEndpoint {
   bw: number | null
 }
 
+/** One block of a cycle, as its recap row shows it. */
 export interface BlockSummary {
   block: TrainingBlock
-  /** The cycle the block belongs to, so the recap can say "Cycle 2 · Volume". */
-  cycle: number
   phaseLabel: string
   /** Local date keys of the first and last session filed under the block. */
   startDate: string
@@ -54,30 +51,11 @@ export interface BlockSummary {
   /** Calendar days from the first session to the last, both included. */
   days: number
   sessions: number
-  plannedSessions: number
-  /** Sessions logged without the main lift while this block was carrying the load. */
-  skipped: number
+  /** Top set of the block's first and last session. */
   start: BlockEndpoint
   end: BlockEndpoint
   /** end.e1rm − start.e1rm, when both exist. */
   e1rmChange: number | null
-  /** Best e1RM set anywhere in the block. */
-  bestE1RM: number | null
-  /** True when bestE1RM beat every session logged before the block started. */
-  isPR: boolean
-  workingSets: number
-  /** Main-lift tonnage, working sets only. */
-  volume: number
-  /** Every exercise in the block's sessions, accessories included. */
-  totalSets: number
-  avgRPE: number | null
-  /** Average RPE of the first and last session, for the fatigue read. */
-  rpeStart: number | null
-  rpeEnd: number | null
-  /** What the block handed on to: the block after it, or the one it resumed. */
-  next: { phase: BlockPhase; phaseLabel: string; anchor: number; sessions: number; resumed: boolean } | null
-  /** A short note when something needs flagging; null when the block went to plan. */
-  coachNote: string | null
 }
 
 function chrono(a: Session, b: Session): number {
@@ -122,102 +100,28 @@ function endpoint(session: Session, weights: WeightEntry[]): BlockEndpoint {
 }
 
 /**
- * One short line, and only when there's something to act on: the anchor moving or
- * not, or fatigue. A block that went to plan needs no commentary.
+ * One completed block, for its row in the cycle recap. Null for a block that isn't
+ * completed or has no dated sessions to measure.
  */
-function buildCoachNote(s: Omit<BlockSummary, "coachNote">): string | null {
-  const { block, next, avgRPE, rpeEnd } = s
-  if (block.phase === "realization" && next) {
-    if (next.anchor > block.anchorWeight) return `Anchor up to ${next.anchor}kg.`
-    if (rpeEnd == null) return `No RPE on the single, so the anchor stays at ${next.anchor}kg.`
-    return `Single was above RPE 7.5, so the anchor stays at ${next.anchor}kg.`
-  }
-  if (block.phase === "deload" || block.phase === "reacclimation") return null
-  if (rpeEnd != null && rpeEnd >= 9) return `Last session averaged RPE ${rpeEnd}. Watch fatigue.`
-  if (avgRPE != null && avgRPE >= 9) return `RPE averaged ${avgRPE}. Watch fatigue.`
-  return null
-}
-
-/**
- * Everything the end-of-block recap shows. Null for a block that isn't completed or
- * has no dated sessions to measure (a block completed before dates were stored).
- */
-export function summarizeBlock(
-  block: TrainingBlock,
-  blocks: TrainingBlock[],
-  sessions: Session[],
-  weights: WeightEntry[] = []
-): BlockSummary | null {
+function summarizeBlock(block: TrainingBlock, sessions: Session[], weights: WeightEntry[]): BlockSummary | null {
   if (block.status !== "completed") return null
   const ids = new Set(block.sessionIds)
   const own = sessions.filter((s) => s.confirmed && s.date && ids.has(s.id)).sort(chrono)
   if (own.length === 0) return null
 
-  const first = own[0]
-  const last = own[own.length - 1]
-  const start = endpoint(first, weights)
-  const end = endpoint(last, weights)
-
-  // Skipped-lift sessions carry no blockId. Count the ones logged after the previous
-  // block's last session and up to this block's last: the stretch this block held the load.
-  const sorted = [...blocks].sort((a, b) => a.id - b.id)
-  const idx = sorted.findIndex((b) => b.id === block.id)
-  const prevIds = new Set(sorted.slice(0, idx).flatMap((b) => b.sessionIds))
-  const prevLast = sessions
-    .filter((s) => s.confirmed && s.date && prevIds.has(s.id))
-    .reduce((max, s) => Math.max(max, new Date(s.date!).getTime()), -Infinity)
-  const lastTime = new Date(last.date!).getTime()
-  const skipped = sessions.filter((s) => {
-    if (!s.confirmed || !s.date || !s.skippedMainLift) return false
-    const t = new Date(s.date).getTime()
-    return t > prevLast && t <= lastTime
-  }).length
-  const cycle = cycleNumbers(blocks).get(block.id) ?? 1
-
-  const bestE1RM = bestE1RMOf(own)
-  const firstTime = new Date(first.date!).getTime()
-  const priorBest = bestE1RMOf(
-    sessions.filter((s) => s.confirmed && s.date && s.type !== "Deload" && new Date(s.date).getTime() < firstTime)
-  )
-  const sets = own.flatMap(working)
-
-  const nextBlock =
-    block.phase === "reacclimation" && block.resumeBlockId !== undefined
-      ? sorted.find((b) => b.id === block.resumeBlockId)
-      : sorted.find((b) => b.id > block.id && b.phase !== "reacclimation")
-
-  const base: Omit<BlockSummary, "coachNote"> = {
+  const start = endpoint(own[0], weights)
+  const end = endpoint(own[own.length - 1], weights)
+  return {
     block,
-    cycle,
     phaseLabel: PHASE_SHORT[block.phase],
     startDate: start.date,
     endDate: end.date,
     days: daysBetween(start.date, end.date) + 1,
     sessions: own.length,
-    plannedSessions: getBlockLength(block),
-    skipped,
     start,
     end,
     e1rmChange: start.e1rm != null && end.e1rm != null ? round1(end.e1rm - start.e1rm) : null,
-    bestE1RM,
-    isPR: bestE1RM != null && priorBest != null && block.phase !== "deload" && bestE1RM > priorBest,
-    workingSets: sets.length,
-    volume: Math.round(sets.reduce((sum, s) => sum + s.kg * s.reps, 0)),
-    totalSets: own.reduce((sum, s) => sum + sessionWork(s).sets, 0),
-    avgRPE: avgRPEOf(own),
-    rpeStart: avgRPEOf([first]),
-    rpeEnd: avgRPEOf([last]),
-    next: nextBlock
-      ? {
-          phase: nextBlock.phase,
-          phaseLabel: PHASE_SHORT[nextBlock.phase],
-          anchor: nextBlock.anchorWeight,
-          sessions: getBlockLength(nextBlock),
-          resumed: nextBlock.id === block.resumeBlockId,
-        }
-      : null,
   }
-  return { ...base, coachNote: buildCoachNote(base) }
 }
 
 export interface CycleSummary {
@@ -270,7 +174,7 @@ export function summarizeCycle(
   if (!deload || deload.status !== "completed") return null
 
   const summaries = inCycle
-    .map((b) => summarizeBlock(b, blocks, sessions, weights))
+    .map((b) => summarizeBlock(b, sessions, weights))
     .filter((s): s is BlockSummary => s != null)
     .sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : a.block.id - b.block.id))
   const ids = new Set(inCycle.flatMap((b) => b.sessionIds))

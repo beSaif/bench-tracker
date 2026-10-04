@@ -7,15 +7,13 @@ import { loadSessionsLocal, loadBlocksLocal, loadExerciseConfig, loadProfileLoca
 import { useOnboardingGuard } from "@/lib/useOnboardingGuard"
 import { currentStretchSkips, getMainLiftLabel, getMainLiftShortLabel, isLiftFocused } from "@/lib/trainingMode"
 import { getBestWeight } from "@/lib/stats"
-import { cycleNumbers, completedCycles, PHASE_SHORT, summarizeBlock, summarizeCycle } from "@/lib/blockSummary"
-import { getBlockLength } from "@/lib/prescription"
+import { completedCycles, CycleSummary, summarizeCycle } from "@/lib/blockSummary"
 import { formatDay } from "@/lib/weight"
 import { MuscleGroupConfig, DEFAULT_MUSCLE_GROUPS, DEFAULT_TRAINING_DAYS } from "@/lib/exerciseConfig"
 import SessionCard from "@/components/SessionCard"
 import ShareImageModal from "@/components/ShareImageModal"
-import { RecapSheetFor, RecapTarget } from "@/components/BlockRecap"
+import CycleRecapSheet from "@/components/CycleRecap"
 import RecapShareModal from "@/components/RecapShareModal"
-import { PHASE_STYLE } from "@/components/BlockHeader"
 
 const BLOCK_PHASE_ORDER: BlockPhase[] = ["accumulation", "transmutation", "realization", "deload"]
 
@@ -40,9 +38,9 @@ export default function HistoryPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [shareSession, setShareSession] = useState<Session | null>(null)
   const [weights, setWeights] = useState<WeightEntry[]>([])
-  const [tab, setTab] = useState<"sessions" | "blocks">("sessions")
-  const [recap, setRecap] = useState<RecapTarget | null>(null)
-  const [shareRecap, setShareRecap] = useState<RecapTarget | null>(null)
+  const [tab, setTab] = useState<"sessions" | "cycles">("sessions")
+  const [recapCycle, setRecapCycle] = useState<number | null>(null)
+  const [shareCycle, setShareCycle] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   useOnboardingGuard()
 
@@ -110,29 +108,13 @@ export default function HistoryPage() {
     )
     .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
 
-  // Blocks, grouped by cycle, newest first. Only shown once there's a finished block to recap.
-  const cycles = cycleNumbers(blocks)
-  const doneCycles = new Set(completedCycles(blocks))
-  const cycleGroups = [...new Set(cycles.values())]
-    .sort((a, b) => b - a)
-    .map((cycle) => ({
-      cycle,
-      complete: doneCycles.has(cycle),
-      blocks: blocks
-        .filter((b) => cycles.get(b.id) === cycle)
-        .sort((a, b) => b.id - a.id),
-    }))
-  const hasBlockRecaps = blocks.some((b) => b.status === "completed")
-  const showing = hasBlockRecaps ? tab : "sessions"
-
-  const blockFor = (t: RecapTarget | null) => {
-    const b = t?.kind === "block" ? blocks.find((x) => x.id === t.blockId) : undefined
-    return b ? summarizeBlock(b, blocks, sessions, weights) : null
-  }
-  const cycleFor = (t: RecapTarget | null) =>
-    t?.kind === "cycle" ? summarizeCycle(t.cycle, blocks, sessions, weights) : null
-  const shareBlock = blockFor(shareRecap)
-  const shareCycle = cycleFor(shareRecap)
+  // Finished cycles, newest first. The tab only appears once a Deload has closed one.
+  const cycleSummaries = completedCycles(blocks)
+    .map((c) => summarizeCycle(c, blocks, sessions, weights))
+    .filter((c): c is CycleSummary => c != null)
+  const showing = cycleSummaries.length > 0 ? tab : "sessions"
+  const recapSummary = cycleSummaries.find((c) => c.cycle === recapCycle) ?? null
+  const shareSummary = cycleSummaries.find((c) => c.cycle === shareCycle) ?? null
   const liftShort = getMainLiftShortLabel(profile)
 
   return (
@@ -153,13 +135,13 @@ export default function HistoryPage() {
         <p className="text-sm text-[#777777] ml-8">
           {showing === "sessions"
             ? `${archiveSessions.length} session${archiveSessions.length !== 1 ? "s" : ""}`
-            : `${blocks.filter((b) => b.status === "completed").length} blocks done`}
+            : `${cycleSummaries.length} cycle${cycleSummaries.length !== 1 ? "s" : ""}`}
         </p>
       </header>
 
-      {hasBlockRecaps && (
+      {cycleSummaries.length > 0 && (
         <div className="flex gap-1.5 mb-4">
-          {(["sessions", "blocks"] as const).map((t) => (
+          {(["sessions", "cycles"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -173,67 +155,27 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {showing === "blocks" ? (
-        cycleGroups.map((g) => (
-          <section key={g.cycle} className="mb-6">
-            <div className="flex items-baseline justify-between mb-1">
-              <h2 className="text-sm font-semibold text-[#111111]">Cycle {g.cycle}</h2>
-              {g.complete ? (
-                <button
-                  onClick={() => setRecap({ kind: "cycle", cycle: g.cycle })}
-                  className="text-xs font-semibold text-[#1e3a5f] active:opacity-60"
-                >
-                  Recap ›
-                </button>
-              ) : (
-                <span className="text-xs text-[#aaaaaa]">in progress</span>
-              )}
-            </div>
-            <div className="border-t border-[#e8e8e8] divide-y divide-[#f0f0f0]">
-              {g.blocks.map((b) => {
-                const style = PHASE_STYLE[b.phase] ?? PHASE_STYLE.accumulation
-                const summary = summarizeBlock(b, blocks, sessions, weights)
-                const name = (
-                  <span className="flex items-center gap-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${style.bar}`} />
-                    <span className="text-sm text-[#111111]">{PHASE_SHORT[b.phase]}</span>
-                    <span className="text-xs text-[#aaaaaa]">{b.anchorWeight}kg</span>
-                  </span>
-                )
-                if (!summary) {
-                  return (
-                    <div key={b.id} className="flex items-center justify-between py-3">
-                      {name}
-                      <span className="text-xs text-[#aaaaaa]">
-                        {b.status === "active" ? `now · ${b.sessionIds.length}/${getBlockLength(b)}` : b.status === "interrupted" ? "paused" : "—"}
-                      </span>
-                    </div>
-                  )
-                }
-                return (
-                  <button
-                    key={b.id}
-                    onClick={() => setRecap({ kind: "block", blockId: b.id })}
-                    className="w-full flex items-center justify-between py-3 text-left active:opacity-60"
-                  >
-                    {name}
-                    <span className="text-xs text-[#777777]">
-                      {summary.startDate === summary.endDate
-                        ? formatDay(summary.endDate)
-                        : `${formatDay(summary.startDate)} – ${formatDay(summary.endDate)}`}
-                      {summary.e1rmChange != null && summary.e1rmChange !== 0 && summary.sessions > 1 && (
-                        <span className={summary.e1rmChange > 0 ? "text-[#2d6a2d]" : ""}>
-                          {" · "}{summary.e1rmChange > 0 ? "+" : "−"}{Math.abs(summary.e1rmChange)}
-                        </span>
-                      )}
-                      <span className="text-[#cccccc]"> ›</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        ))
+      {showing === "cycles" ? (
+        <div className="border-t border-[#e8e8e8] divide-y divide-[#f0f0f0]">
+          {cycleSummaries.map((c) => (
+            <button
+              key={c.cycle}
+              onClick={() => setRecapCycle(c.cycle)}
+              className="w-full flex items-center justify-between py-3 text-left active:opacity-60"
+            >
+              <span>
+                <span className="block text-sm text-[#111111]">Cycle {c.cycle}</span>
+                <span className="block text-xs text-[#aaaaaa] mt-0.5">
+                  {formatDay(c.startDate)} – {formatDay(c.endDate)} · {c.sessions} sessions
+                </span>
+              </span>
+              <span className="text-xs text-[#777777]">
+                {c.anchorStart === c.anchorEnd ? `${c.anchorEnd}kg` : `${c.anchorStart} → ${c.anchorEnd}kg`}
+                <span className="text-[#cccccc]"> ›</span>
+              </span>
+            </button>
+          ))}
+        </div>
       ) : archiveSessions.length === 0 ? (
         <p className="text-sm text-[#aaaaaa] text-center mt-16">No archived sessions yet</p>
       ) : (
@@ -249,41 +191,27 @@ export default function HistoryPage() {
         ))
       )}
 
-      {recap && (
-        <RecapSheetFor
-          target={recap}
-          block={blockFor(recap)}
-          cycle={cycleFor(recap)}
+      {recapSummary && (
+        <CycleRecapSheet
+          summary={recapSummary}
           liftLabel={liftShort}
-          goal={profile?.target ?? null}
+          target={profile?.target ?? null}
           justFinished={false}
-          onClose={() => setRecap(null)}
+          onClose={() => setRecapCycle(null)}
           onShare={() => {
-            setShareRecap(recap)
-            setRecap(null)
+            setShareCycle(recapCycle)
+            setRecapCycle(null)
           }}
-          onOpenBlock={(blockId) => setRecap({ kind: "block", blockId })}
         />
       )}
 
-      {shareBlock && (
+      {shareSummary && (
         <RecapShareModal
-          kind="block"
-          summary={shareBlock}
+          summary={shareSummary}
           liftLabel={getMainLiftLabel(profile)}
           target={profile?.target ?? null}
           bestWeight={getBestWeight(sessions)}
-          onClose={() => setShareRecap(null)}
-        />
-      )}
-      {shareCycle && (
-        <RecapShareModal
-          kind="cycle"
-          summary={shareCycle}
-          liftLabel={getMainLiftLabel(profile)}
-          target={profile?.target ?? null}
-          bestWeight={getBestWeight(sessions)}
-          onClose={() => setShareRecap(null)}
+          onClose={() => setShareCycle(null)}
         />
       )}
 

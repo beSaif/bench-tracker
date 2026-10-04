@@ -4,7 +4,7 @@ import { useCallback, useRef } from "react"
 import RecapShareCard, { RecapShareProps } from "@/components/RecapShareCard"
 import ShareImageSheet from "@/components/ShareImageSheet"
 
-/** Share sheet for a block or cycle recap: the 1080px card rendered offscreen, then captured. */
+/** Share sheet for a cycle recap: the 1080px card rendered offscreen, then captured. */
 export default function RecapShareModal({ onClose, ...card }: RecapShareProps & { onClose: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -21,17 +21,13 @@ export default function RecapShareModal({ onClose, ...card }: RecapShareProps & 
     })
   }, [])
 
-  const name =
-    card.kind === "block"
-      ? `cycle-${card.summary.cycle}-${card.summary.phaseLabel.toLowerCase()}.png`
-      : `cycle-${card.summary.cycle}.png`
 
   return (
     <>
       <ShareImageSheet
-        title={card.kind === "block" ? "share your block" : "share your cycle"}
-        fileName={name}
-        alt={card.kind === "block" ? "Block recap card" : "Cycle recap card"}
+        title="share your cycle"
+        fileName={`cycle-${card.summary.cycle}.png`}
+        alt="Cycle recap card"
         capture={capture}
         onClose={onClose}
       />
