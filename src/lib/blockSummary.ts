@@ -76,7 +76,8 @@ export interface BlockSummary {
   rpeEnd: number | null
   /** What the block handed on to: the block after it, or the one it resumed. */
   next: { phase: BlockPhase; phaseLabel: string; anchor: number; sessions: number; resumed: boolean } | null
-  coachNote: string
+  /** A short note when something needs flagging; null when the block went to plan. */
+  coachNote: string | null
 }
 
 function chrono(a: Session, b: Session): number {
@@ -120,29 +121,21 @@ function endpoint(session: Session, weights: WeightEntry[]): BlockEndpoint {
   }
 }
 
-function buildCoachNote(s: Omit<BlockSummary, "coachNote">): string {
-  const { block, next, avgRPE, rpeStart, rpeEnd, e1rmChange, skipped } = s
+/**
+ * One short line, and only when there's something to act on: the anchor moving or
+ * not, or fatigue. A block that went to plan needs no commentary.
+ */
+function buildCoachNote(s: Omit<BlockSummary, "coachNote">): string | null {
+  const { block, next, avgRPE, rpeEnd } = s
   if (block.phase === "realization" && next) {
-    if (next.anchor <= block.anchorWeight && rpeEnd == null) {
-      return `No RPE on the single, so the anchor holds at ${next.anchor}kg. Log RPE on peak day to earn the bump.`
-    }
-    return next.anchor > block.anchorWeight
-      ? `Peak single moved at RPE 7.5 or under, so the anchor goes up to ${next.anchor}kg. Deload first, then a new cycle.`
-      : `The single wasn't easy enough to raise the anchor. It holds at ${next.anchor}kg: deload, then run the cycle again.`
+    if (next.anchor > block.anchorWeight) return `Anchor up to ${next.anchor}kg.`
+    if (rpeEnd == null) return `No RPE on the single, so the anchor stays at ${next.anchor}kg.`
+    return `Single was above RPE 7.5, so the anchor stays at ${next.anchor}kg.`
   }
-  if (block.phase === "deload") return "Deload done. Fatigue's down, so the next block starts fresh."
-  if (block.phase === "reacclimation") return "Rebuild done. Back to where the block left off."
-  if (avgRPE != null && avgRPE >= 9) {
-    return `RPE averaged ${avgRPE}. That's fatigue piling up, so prioritise sleep and food before the next block.`
-  }
-  if (rpeStart != null && rpeEnd != null && rpeEnd - rpeStart >= 1.5) {
-    return `RPE climbed from ${rpeStart} to ${rpeEnd} as the loads went up. Expected, but watch bar speed.`
-  }
-  if (skipped >= 2) {
-    return `${skipped} sessions skipped the main lift this block. Consistency moves the e1RM more than load does.`
-  }
-  if (e1rmChange != null && e1rmChange > 0) return `e1RM up ${e1rmChange}kg across the block. Keep the setup tight and carry it on.`
-  return "Block banked. Same setup, same leg drive, next block."
+  if (block.phase === "deload" || block.phase === "reacclimation") return null
+  if (rpeEnd != null && rpeEnd >= 9) return `Last session averaged RPE ${rpeEnd}. Watch fatigue.`
+  if (avgRPE != null && avgRPE >= 9) return `RPE averaged ${avgRPE}. Watch fatigue.`
+  return null
 }
 
 /**
@@ -253,7 +246,7 @@ export interface CycleSummary {
   bwEnd: number | null
   avgRPE: number | null
   volume: number
-  coachNote: string
+  coachNote: string | null
 }
 
 function heaviest(sessions: Session[]): number | null {
@@ -344,18 +337,10 @@ export function summarizeCycle(
   return { ...base, coachNote: buildCycleNote(base) }
 }
 
-function buildCycleNote(s: Omit<CycleSummary, "coachNote">): string {
-  const next = s.cycle + 1
-  if (s.anchorEnd > s.anchorStart) {
-    return `Cycle ${next} runs at ${s.anchorEnd}kg, ${round1(s.anchorEnd - s.anchorStart)}kg heavier. Same plan, heavier bar.`
-  }
-  if (s.peak && s.peak.rpe == null) {
-    return `Anchor holds at ${s.anchorEnd}kg: no RPE on the peak single. Log it next time to earn the bump.`
-  }
-  if (s.avgRPE != null && s.avgRPE >= 8.5) {
-    return `Anchor holds at ${s.anchorEnd}kg and RPE ran high. Run it again and let the same loads move faster.`
-  }
-  return `Anchor holds at ${s.anchorEnd}kg. Run the cycle again and make the peak single an RPE 7.`
+function buildCycleNote(s: Omit<CycleSummary, "coachNote">): string | null {
+  if (s.anchorEnd > s.anchorStart) return `Cycle ${s.cycle + 1} starts at ${s.anchorEnd}kg.`
+  if (s.peak && s.peak.rpe == null) return `No RPE on the peak single, so the anchor stays at ${s.anchorEnd}kg.`
+  return `Anchor stays at ${s.anchorEnd}kg.`
 }
 
 /** Every cycle whose Deload is done, newest first. */

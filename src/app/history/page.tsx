@@ -153,7 +153,7 @@ export default function HistoryPage() {
         <p className="text-sm text-[#777777] ml-8">
           {showing === "sessions"
             ? `${archiveSessions.length} session${archiveSessions.length !== 1 ? "s" : ""}`
-            : `${blocks.filter((b) => b.status === "completed").length} finished blocks · ${doneCycles.size} full cycle${doneCycles.size !== 1 ? "s" : ""}`}
+            : `${blocks.filter((b) => b.status === "completed").length} blocks done`}
         </p>
       </header>
 
@@ -175,62 +175,63 @@ export default function HistoryPage() {
 
       {showing === "blocks" ? (
         cycleGroups.map((g) => (
-          <section key={g.cycle} className="mb-5">
-            <div className="flex items-center justify-between mb-2">
+          <section key={g.cycle} className="mb-6">
+            <div className="flex items-baseline justify-between mb-1">
               <h2 className="text-sm font-semibold text-[#111111]">Cycle {g.cycle}</h2>
               {g.complete ? (
                 <button
                   onClick={() => setRecap({ kind: "cycle", cycle: g.cycle })}
-                  className="text-xs font-semibold text-[#1e3a5f] bg-[#eff6ff] rounded-full px-3 py-1 active:opacity-70"
+                  className="text-xs font-semibold text-[#1e3a5f] active:opacity-60"
                 >
-                  Cycle recap ›
+                  Recap ›
                 </button>
               ) : (
                 <span className="text-xs text-[#aaaaaa]">in progress</span>
               )}
             </div>
-            {g.blocks.map((b) => {
-              const style = PHASE_STYLE[b.phase] ?? PHASE_STYLE.accumulation
-              const summary = summarizeBlock(b, blocks, sessions, weights)
-              const total = getBlockLength(b)
-              if (!summary) {
-                return (
-                  <div key={b.id} className={`${style.bg} rounded-xl px-4 py-3 mb-2 flex items-center justify-between opacity-60`}>
-                    <span className="flex items-center gap-2">
-                      <span className={`w-1.5 h-4 rounded-full ${style.bar}`} />
-                      <span className={`text-sm font-semibold ${style.label}`}>{PHASE_SHORT[b.phase]}</span>
-                    </span>
-                    <span className={`text-xs ${style.meta}`}>
-                      {b.status === "active" ? `now · ${b.sessionIds.length}/${total}` : b.status === "interrupted" ? "paused" : "no dated sessions"}
-                    </span>
-                  </div>
+            <div className="border-t border-[#e8e8e8] divide-y divide-[#f0f0f0]">
+              {g.blocks.map((b) => {
+                const style = PHASE_STYLE[b.phase] ?? PHASE_STYLE.accumulation
+                const summary = summarizeBlock(b, blocks, sessions, weights)
+                const name = (
+                  <span className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${style.bar}`} />
+                    <span className="text-sm text-[#111111]">{PHASE_SHORT[b.phase]}</span>
+                    <span className="text-xs text-[#aaaaaa]">{b.anchorWeight}kg</span>
+                  </span>
                 )
-              }
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => setRecap({ kind: "block", blockId: b.id })}
-                  className={`${style.bg} w-full text-left rounded-xl px-4 py-3 mb-2 active:opacity-70`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className={`w-1.5 h-4 rounded-full ${style.bar}`} />
-                      <span className={`text-sm font-semibold ${style.label}`}>✓ {summary.phaseLabel}</span>
-                      <span className={`text-xs ${style.meta}`}>· {b.anchorWeight}kg</span>
+                if (!summary) {
+                  return (
+                    <div key={b.id} className="flex items-center justify-between py-3">
+                      {name}
+                      <span className="text-xs text-[#aaaaaa]">
+                        {b.status === "active" ? `now · ${b.sessionIds.length}/${getBlockLength(b)}` : b.status === "interrupted" ? "paused" : "—"}
+                      </span>
+                    </div>
+                  )
+                }
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => setRecap({ kind: "block", blockId: b.id })}
+                    className="w-full flex items-center justify-between py-3 text-left active:opacity-60"
+                  >
+                    {name}
+                    <span className="text-xs text-[#777777]">
+                      {summary.startDate === summary.endDate
+                        ? formatDay(summary.endDate)
+                        : `${formatDay(summary.startDate)} – ${formatDay(summary.endDate)}`}
+                      {summary.e1rmChange != null && summary.e1rmChange !== 0 && summary.sessions > 1 && (
+                        <span className={summary.e1rmChange > 0 ? "text-[#2d6a2d]" : ""}>
+                          {" · "}{summary.e1rmChange > 0 ? "+" : "−"}{Math.abs(summary.e1rmChange)}
+                        </span>
+                      )}
+                      <span className="text-[#cccccc]"> ›</span>
                     </span>
-                    <span className={`text-xs font-semibold ${style.label}`}>
-                      {summary.e1rmChange != null && summary.sessions > 1
-                        ? `e1RM ${summary.e1rmChange > 0 ? "+" : ""}${summary.e1rmChange}kg`
-                        : `${summary.end.kg}kg × ${summary.end.reps}`}
-                      <span className="opacity-50"> ›</span>
-                    </span>
-                  </div>
-                  <p className={`text-xs mt-1 ml-3.5 ${style.meta}`}>
-                    {formatDay(summary.startDate)} → {formatDay(summary.endDate)} · {summary.sessions}/{summary.plannedSessions} session{summary.plannedSessions !== 1 ? "s" : ""} · {summary.days} day{summary.days !== 1 ? "s" : ""}
-                  </p>
-                </button>
-              )
-            })}
+                  </button>
+                )
+              })}
+            </div>
           </section>
         ))
       ) : archiveSessions.length === 0 ? (

@@ -10,8 +10,6 @@ const FG = "#111111"
 const MUTED = "#777777"
 const MUTED_LIGHT = "#aaaaaa"
 const BORDER = "#e8e8e8"
-const CELL_BG = "#f8f8f8"
-const UP = "#2d6a2d"
 const FONT = '"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 
 const PHASE_COLOR: Record<BlockPhase, string> = {
@@ -33,10 +31,6 @@ function kg(n: number): string {
   return String(Math.round(n * 10) / 10)
 }
 
-function signed(n: number): string {
-  return `${n > 0 ? "+" : n < 0 ? "−" : "±"}${kg(Math.abs(n))}`
-}
-
 function day(key: string): string {
   const [y, m, d] = key.split("-").map(Number)
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(y, m - 1, d))
@@ -50,41 +44,21 @@ function Caps({ children, color = MUTED_LIGHT, size = 20 }: { children: ReactNod
   )
 }
 
-function StatCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Endpoint({ label, value, align }: { label: string; value: string; align: "left" | "right" }) {
   return (
-    <div
-      style={{
-        flex: 1,
-        backgroundColor: CELL_BG,
-        borderRadius: 20,
-        padding: "26px 12px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      <span style={{ fontSize: 44, fontWeight: 700, color: FG, lineHeight: 1 }}>{value}</span>
-      {sub && <span style={{ fontSize: 20, color: MUTED, lineHeight: 1 }}>{sub}</span>}
-      <Caps size={16}>{label}</Caps>
-    </div>
-  )
-}
-
-function Endpoint({ label, value, sub, align }: { label: string; value: string; sub: string; align: "left" | "right" }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: align === "left" ? "flex-start" : "flex-end", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: align === "left" ? "flex-start" : "flex-end", gap: 14 }}>
       <Caps size={18}>{label}</Caps>
-      <span style={{ fontSize: 84, fontWeight: 800, color: ACCENT, letterSpacing: -3, lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 24, color: MUTED, lineHeight: 1 }}>{sub}</span>
+      <span style={{ fontSize: 104, fontWeight: 800, color: ACCENT, letterSpacing: -4, lineHeight: 1 }}>{value}</span>
     </div>
   )
 }
 
-function Pill({ children, color, bg }: { children: ReactNode; color: string; bg: string }) {
+function Line({ items }: { items: Array<string | null> }) {
   return (
-    <div style={{ alignSelf: "center", padding: "14px 30px", borderRadius: 100, backgroundColor: bg }}>
-      <span style={{ fontSize: 30, fontWeight: 700, color }}>{children}</span>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0 28px", marginTop: 44, marginBottom: 48, fontSize: 28, color: MUTED }}>
+      {items.filter(Boolean).map((t, i) => (
+        <span key={i}>{t}</span>
+      ))}
     </div>
   )
 }
@@ -117,81 +91,40 @@ const RecapShareCard = forwardRef<HTMLDivElement, RecapShareProps>(function Reca
           </span>
         </div>
 
-        <span style={{ fontSize: 64, fontWeight: 800, letterSpacing: -2, lineHeight: 1.05, color: FG, marginBottom: 40 }}>
-          {isBlock ? `${props.summary.phaseLabel} block done.` : `Cycle ${props.summary.cycle} done.`}
-        </span>
-
-        {/* Started → finished */}
+        {/* First → last, then a single line of numbers */}
         {props.kind === "block" ? (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-              <Endpoint
-                label="Started"
-                value={`${kg(props.summary.start.kg)}×${props.summary.start.reps}`}
-                sub={props.summary.start.e1rm != null ? `e1RM ${kg(props.summary.start.e1rm)}kg` : ""}
-                align="left"
-              />
-              <span style={{ fontSize: 56, color: "#cccccc" }}>→</span>
-              <Endpoint
-                label="Finished"
-                value={`${kg(props.summary.end.kg)}×${props.summary.end.reps}`}
-                sub={props.summary.end.e1rm != null ? `e1RM ${kg(props.summary.end.e1rm)}kg` : ""}
-                align="right"
-              />
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 }}>
+              <Endpoint label="First" value={`${kg(props.summary.start.kg)}×${props.summary.start.reps}`} align="left" />
+              <span style={{ fontSize: 48, color: "#cccccc", paddingBottom: 8 }}>→</span>
+              <Endpoint label="Last" value={`${kg(props.summary.end.kg)}×${props.summary.end.reps}`} align="right" />
             </div>
-            {props.summary.e1rmChange != null && props.summary.sessions > 1 && (
-              <Pill color={props.summary.e1rmChange > 0 ? UP : MUTED} bg={props.summary.e1rmChange > 0 ? "#f0f7f0" : "#f5f5f5"}>
-                e1RM {signed(props.summary.e1rmChange)}kg
-              </Pill>
-            )}
-            <div style={{ display: "flex", gap: 16, marginTop: 40, marginBottom: 44 }}>
-              <StatCell label="Sessions" value={`${props.summary.sessions}/${props.summary.plannedSessions}`} />
-              <StatCell label="Days" value={String(props.summary.days)} />
-              <StatCell label="Avg RPE" value={props.summary.avgRPE != null ? String(props.summary.avgRPE) : "—"} />
-              <StatCell
-                label="Volume"
-                value={props.summary.volume >= 1000 ? `${kg(props.summary.volume / 1000)}t` : `${props.summary.volume}`}
-              />
-            </div>
+            <Line
+              items={[
+                props.summary.end.e1rm != null
+                  ? `e1RM ${props.summary.sessions > 1 && props.summary.start.e1rm != null ? `${kg(props.summary.start.e1rm)} → ` : ""}${kg(props.summary.end.e1rm)}kg`
+                  : null,
+                `${props.summary.sessions} sessions`,
+                `${props.summary.days} days`,
+                props.summary.avgRPE != null ? `RPE ${props.summary.avgRPE}` : null,
+              ]}
+            />
           </>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-              <Endpoint label="Anchor in" value={`${kg(props.summary.anchorStart)}kg`} sub={props.summary.e1rmStart != null ? `e1RM ${kg(props.summary.e1rmStart)}kg` : ""} align="left" />
-              <span style={{ fontSize: 56, color: "#cccccc" }}>→</span>
-              <Endpoint label="Anchor out" value={`${kg(props.summary.anchorEnd)}kg`} sub={props.summary.e1rmEnd != null ? `e1RM ${kg(props.summary.e1rmEnd)}kg` : ""} align="right" />
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 12 }}>
+              <Endpoint label="Anchor in" value={`${kg(props.summary.anchorStart)}kg`} align="left" />
+              <span style={{ fontSize: 48, color: "#cccccc", paddingBottom: 8 }}>→</span>
+              <Endpoint label="Anchor out" value={`${kg(props.summary.anchorEnd)}kg`} align="right" />
             </div>
-            {props.summary.e1rmStart != null && props.summary.e1rmEnd != null && (
-              <Pill
-                color={props.summary.e1rmEnd > props.summary.e1rmStart ? UP : MUTED}
-                bg={props.summary.e1rmEnd > props.summary.e1rmStart ? "#f0f7f0" : "#f5f5f5"}
-              >
-                e1RM {signed(props.summary.e1rmEnd - props.summary.e1rmStart)}kg this cycle
-              </Pill>
-            )}
-            {/* The four phases */}
-            <div style={{ display: "flex", gap: 12, marginTop: 40 }}>
-              {props.summary.blocks.map((b) => (
-                <div
-                  key={b.block.id}
-                  style={{ flex: 1, borderRadius: 16, padding: "18px 16px", backgroundColor: `${PHASE_COLOR[b.block.phase]}14`, display: "flex", flexDirection: "column", gap: 8 }}
-                >
-                  <span style={{ fontSize: 22, fontWeight: 700, color: PHASE_COLOR[b.block.phase] }}>{b.phaseLabel}</span>
-                  <span style={{ fontSize: 20, color: MUTED }}>
-                    {b.e1rmChange != null && b.sessions > 1 ? `e1RM ${signed(b.e1rmChange)}` : `${kg(b.end.kg)}×${b.end.reps}`}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 16, marginTop: 16, marginBottom: 44 }}>
-              <StatCell label="Sessions" value={String(props.summary.sessions)} />
-              <StatCell label="Weeks" value={String(Math.round((props.summary.days / 7) * 10) / 10)} />
-              <StatCell
-                label="Peak single"
-                value={props.summary.peak ? `${kg(props.summary.peak.kg)}` : "—"}
-                sub={props.summary.peak?.rpe != null ? `RPE ${props.summary.peak.rpe}` : undefined}
-              />
-            </div>
+            <Line
+              items={[
+                props.summary.peak ? `Peak ${kg(props.summary.peak.kg)}×${props.summary.peak.reps}` : null,
+                props.summary.e1rmEnd != null ? `e1RM ${kg(props.summary.e1rmEnd)}kg` : null,
+                `${props.summary.sessions} sessions`,
+                `${Math.round((props.summary.days / 7) * 10) / 10} weeks`,
+              ]}
+            />
           </>
         )}
 

@@ -20,194 +20,135 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n !== 1 ? "s" : ""}`
 }
 
-function Endpoint({ label, kg: load, reps, e1rm, date, align }: {
-  label: string
-  kg: number
-  reps: number
-  e1rm: number | null
-  date: string
-  align: "left" | "right"
-}) {
+function span(a: string, b: string): string {
+  return a === b ? formatDay(a) : `${formatDay(a)} – ${formatDay(b)}`
+}
+
+/** "60.4 → 59.9kg", or just the one number when there's nothing to compare. */
+function change(start: number | null, end: number | null, unit = "kg"): string {
+  if (end == null) return "—"
+  if (start == null || start === end) return `${kg(end)}${unit}`
+  return `${kg(start)} → ${kg(end)}${unit}`
+}
+
+function Header({ dotClass, title, meta, dates }: { dotClass: string; title: string; meta: string; dates: string }) {
   return (
-    <div className={`flex flex-col gap-0.5 ${align === "right" ? "items-end text-right" : "items-start"}`}>
-      <span className="text-[10px] font-medium uppercase tracking-widest text-muted-lighter">{label}</span>
-      <span className="text-xl font-bold leading-tight text-foreground">
-        {kg(load)}<span className="text-sm font-semibold">kg</span>
-        <span className="text-sm font-semibold text-muted-light"> × {reps}</span>
-      </span>
-      <span className="text-[11px] text-muted-light">
-        {e1rm != null ? `e1RM ${kg(e1rm)}kg` : "e1RM —"} · {formatDay(date)}
-      </span>
+    <>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+          <span className="text-base font-semibold text-foreground">{title}</span>
+        </span>
+        <span className="text-xs text-muted-light">{dates}</span>
+      </div>
+      <p className="text-xs text-muted-light mt-0.5 ml-4">{meta}</p>
+    </>
+  )
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between py-2">
+      <span className="text-xs text-muted-light">{label}</span>
+      <span className="text-sm text-foreground">{children}</span>
     </div>
   )
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-[10px] bg-[#f8f8f8] py-2.5 px-1 gap-0.5 min-h-16">
-      <span className="text-base font-semibold leading-none text-foreground">{value}</span>
-      {sub && <span className="text-[10px] leading-none text-muted-light">{sub}</span>}
-      <span className="text-[9px] font-medium uppercase tracking-widest text-muted-lighter mt-0.5">{label}</span>
-    </div>
-  )
+function Note({ text }: { text: string | null }) {
+  return text ? <p className="text-xs text-muted mt-3">{text}</p> : null
 }
 
-function CoachNote({ text }: { text: string }) {
+function ShareLink({ onShare }: { onShare: () => void }) {
   return (
-    <div className="mt-3 rounded-xl bg-accent-bg px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-accent mb-0.5">Coach</p>
-      <p className="text-xs leading-relaxed text-[#1e3a5f]">{text}</p>
-    </div>
-  )
-}
-
-function PRBadge({ e1rm }: { e1rm: number }) {
-  return (
-    <span className="text-[10px] font-semibold rounded-full bg-[#1e3a5f] text-white px-2 py-0.5">
-      New e1RM PR · {kg(e1rm)}kg
-    </span>
-  )
-}
-
-function ShareButton({ onShare, label }: { onShare: () => void; label: string }) {
-  return (
-    <button
-      onClick={onShare}
-      className="mt-3 w-full text-xs font-semibold text-[#1e3a5f] border border-[#1e3a5f] rounded-lg py-2 hover:bg-[#1e3a5f] hover:text-white transition-colors"
-    >
-      {label}
+    <button onClick={onShare} className="mt-3 text-xs font-semibold text-accent active:opacity-60">
+      Share
     </button>
   )
 }
 
-function bodyweightStat(start: number | null, end: number | null) {
-  if (start != null && end != null && start !== end) return { value: kg(end), sub: `${signed(end - start)}kg` }
-  if (end != null) return { value: kg(end), sub: "kg" }
-  return { value: "—", sub: undefined }
-}
-
-/** The end-of-block recap: where the block started, where it finished, and what it took. */
+/** What a block took: first top set against the last, and the few numbers around it. */
 export function BlockRecapCard({
   summary,
   liftLabel,
   onShare,
+  bare = false,
 }: {
   summary: BlockSummary
   liftLabel: string
   onShare?: () => void
+  /** Inside a sheet the card drops its own border. */
+  bare?: boolean
 }) {
   const s = summary
   const style = PHASE_STYLE[s.block.phase] ?? PHASE_STYLE.accumulation
-  const bw = bodyweightStat(s.start.bw, s.end.bw)
 
   return (
-    <div className="rounded-2xl border border-border overflow-hidden bg-white mb-3">
-      <div className={`${style.bg} px-4 pt-3.5 pb-3`}>
-        <div className="flex items-center justify-between mb-1">
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${style.meta}`}>
-            Cycle {s.cycle} · block complete
-          </span>
-          {s.isPR && s.bestE1RM != null && <PRBadge e1rm={s.bestE1RM} />}
+    <div className={bare ? "" : "rounded-xl border border-border bg-white px-4 py-4 mb-3"}>
+      <Header
+        dotClass={style.bar}
+        title={s.phaseLabel}
+        dates={span(s.startDate, s.endDate)}
+        meta={`Cycle ${s.cycle} · ${s.block.anchorWeight}kg anchor · ${plural(s.sessions, "session")} · ${plural(s.days, "day")}`}
+      />
+
+      {/* First top set → last top set */}
+      <div className="mt-5 flex items-end justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-muted-lighter mb-1">First</p>
+          <p className="text-2xl font-semibold text-foreground leading-none">
+            {kg(s.start.kg)}<span className="text-sm font-medium text-muted-light"> × {s.start.reps}</span>
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-1.5 h-5 rounded-full ${style.bar}`} />
-          <span className={`text-lg font-bold ${style.label}`}>{s.phaseLabel}</span>
-          <span className={`text-xs ${style.meta}`}>· {s.block.anchorWeight}kg anchor</span>
+        <span className="text-muted-lighter mb-1">→</span>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-widest text-muted-lighter mb-1">Last</p>
+          <p className="text-2xl font-semibold text-foreground leading-none">
+            {kg(s.end.kg)}<span className="text-sm font-medium text-muted-light"> × {s.end.reps}</span>
+          </p>
         </div>
-        <p className={`text-xs mt-1 ${style.meta}`}>
-          {formatDay(s.startDate)} → {formatDay(s.endDate)} · {plural(s.days, "day")}
-        </p>
       </div>
 
-      <div className="px-4 pt-4 pb-4">
-        {/* Where it started → where it finished */}
-        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-lighter mb-2">{liftLabel} · top set</p>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <Endpoint label="Started" {...s.start} align="left" />
-          <span className="text-muted-lighter text-lg">→</span>
-          <Endpoint label="Finished" {...s.end} align="right" />
-        </div>
-        {s.e1rmChange != null && s.sessions > 1 && (
-          <div
-            className={`mt-3 rounded-xl px-3 py-2 text-center text-xs font-semibold ${
-              s.e1rmChange > 0 ? "bg-[#f0f7f0] text-[#2d6a2d]" : "bg-[#f5f5f5] text-muted"
-            }`}
-          >
-            e1RM {signed(s.e1rmChange)}kg across the block
-          </div>
+      <div className="mt-4 border-t border-border divide-y divide-[#f0f0f0]">
+        <Row label="e1RM">
+          {change(s.sessions > 1 ? s.start.e1rm : null, s.end.e1rm)}
+          {s.e1rmChange != null && s.e1rmChange !== 0 && s.sessions > 1 && (
+            <span className={`ml-1.5 text-xs ${s.e1rmChange > 0 ? "text-[#2d6a2d]" : "text-muted-light"}`}>{signed(s.e1rmChange)}</span>
+          )}
+          {s.isPR && <span className="ml-1.5 text-xs font-semibold text-accent">PR</span>}
+        </Row>
+        {s.avgRPE != null && (
+          <Row label="RPE">
+            {s.sessions > 1 && s.rpeStart != null && s.rpeEnd != null ? `${s.rpeStart} → ${s.rpeEnd}` : s.avgRPE}
+          </Row>
         )}
-
-        {/* What it took */}
-        <div className="grid grid-cols-3 gap-2 mt-3">
-          <Stat
-            label="Sessions"
-            value={`${s.sessions}/${s.plannedSessions}`}
-            sub={s.skipped > 0 ? `+${s.skipped} skipped` : undefined}
-          />
-          <Stat label="Days" value={String(s.days)} sub={s.sessions > 1 ? `${kg(s.days / s.sessions)}/session` : undefined} />
-          <Stat label="Avg RPE" value={s.avgRPE != null ? String(s.avgRPE) : "—"} sub={
-            s.rpeStart != null && s.rpeEnd != null && s.sessions > 1 ? `${s.rpeStart} → ${s.rpeEnd}` : undefined
-          } />
-          <Stat label="Volume" value={s.volume >= 1000 ? `${kg(s.volume / 1000)}t` : `${s.volume}kg`} sub={`${s.workingSets} ${liftLabel.toLowerCase()} sets`} />
-          <Stat label="All sets" value={String(s.totalSets)} sub="incl. accessories" />
-          <Stat label="Bodyweight" value={bw.value} sub={bw.sub} />
-        </div>
-
-        <CoachNote text={s.coachNote} />
-
+        <Row label="Volume">
+          {s.volume >= 1000 ? `${kg(s.volume / 1000)}t` : `${s.volume}kg`}
+          <span className="text-xs text-muted-light"> · {s.workingSets} {liftLabel.toLowerCase()} sets</span>
+        </Row>
+        {s.end.bw != null && <Row label="Bodyweight">{change(s.start.bw, s.end.bw)}</Row>}
+        {s.skipped > 0 && <Row label={`${liftLabel} skipped`}>{plural(s.skipped, "session")}</Row>}
         {s.next && (
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <span className="text-muted-light">{s.next.resumed ? "Resumes" : "Next up"}</span>
-            <span className="font-semibold text-foreground">
-              {s.next.phaseLabel} · {plural(s.next.sessions, "session")} · {s.next.anchor}kg anchor
-              {s.next.anchor !== s.block.anchorWeight && (
-                <span className="text-[#2d6a2d]"> ({signed(s.next.anchor - s.block.anchorWeight)})</span>
-              )}
-            </span>
-          </div>
+          <Row label={s.next.resumed ? "Resumes" : "Next"}>
+            {s.next.phaseLabel} · {s.next.anchor}kg
+          </Row>
         )}
-
-        {onShare && <ShareButton onShare={onShare} label="Share block" />}
       </div>
+
+      <Note text={s.coachNote} />
+      {onShare && <ShareLink onShare={onShare} />}
     </div>
   )
 }
 
-function ChangeRow({ label, start, end, unit = "kg" }: {
-  label: string
-  start: number | null
-  end: number | null
-  unit?: string
-}) {
-  const delta = start != null && end != null ? Math.round((end - start) * 10) / 10 : null
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-[#f0f0f0] last:border-b-0">
-      <span className="text-[11px] font-medium uppercase tracking-widest text-muted-lighter">{label}</span>
-      <span className="flex items-center gap-2">
-        <span className="text-sm text-muted-light">{start != null ? `${kg(start)}` : "—"}</span>
-        <span className="text-muted-lighter text-xs">→</span>
-        <span className="text-sm font-semibold text-foreground">{end != null ? `${kg(end)}${unit}` : "—"}</span>
-        {delta != null && delta !== 0 && (
-          <span
-            className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
-              delta > 0 && unit === "kg" && label !== "Bodyweight" ? "bg-[#f0f7f0] text-[#2d6a2d]" : "bg-[#f5f5f5] text-muted"
-            }`}
-          >
-            {signed(delta)}
-          </span>
-        )}
-      </span>
-    </div>
-  )
-}
-
-/** The end-of-cycle recap: Volume through Deload, start to finish. */
+/** A whole cycle, Volume through Deload: what moved, and the blocks that moved it. */
 export function CycleRecapCard({
   summary,
   liftLabel,
   target,
   onShare,
   onOpenBlock,
+  bare = false,
 }: {
   summary: CycleSummary
   liftLabel: string
@@ -215,132 +156,125 @@ export function CycleRecapCard({
   onShare?: () => void
   /** Tapping a block row opens that block's own recap, when given. */
   onOpenBlock?: (blockId: number) => void
+  bare?: boolean
 }) {
   const s = summary
   const weeks = Math.round((s.days / 7) * 10) / 10
   const pct = s.bestEnd != null && target ? Math.min(100, Math.round((s.bestEnd / target) * 100)) : null
 
   return (
-    <div className="rounded-2xl border border-border overflow-hidden bg-white mb-3">
-      <div className="bg-accent-bg px-4 pt-3.5 pb-3">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#3b5f8a]">
-            Full cycle · complete
-          </span>
-          {s.isPR && s.e1rmEnd != null && <PRBadge e1rm={s.e1rmEnd} />}
-        </div>
-        <span className="text-lg font-bold text-accent">Cycle {s.cycle}</span>
-        <p className="text-xs mt-0.5 text-[#3b5f8a]">
-          {formatDay(s.startDate)} → {formatDay(s.endDate)} · {plural(s.days, "day")} ({weeks} weeks)
-        </p>
-      </div>
+    <div className={bare ? "" : "rounded-xl border border-border bg-white px-4 py-4 mb-3"}>
+      <Header
+        dotClass="bg-[#1e3a5f]"
+        title={`Cycle ${s.cycle}`}
+        dates={span(s.startDate, s.endDate)}
+        meta={`${plural(s.sessions, "session")} · ${weeks} weeks`}
+      />
 
-      <div className="px-4 pt-3 pb-4">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-lighter mb-1">Started → finished</p>
-        <ChangeRow label="Anchor" start={s.anchorStart} end={s.anchorEnd} />
-        <ChangeRow label="Best e1RM" start={s.e1rmStart} end={s.e1rmEnd} />
-        <ChangeRow label={`Best ${liftLabel.toLowerCase()}`} start={s.bestStart} end={s.bestEnd} />
-        <ChangeRow label="Bodyweight" start={s.bwStart} end={s.bwEnd} />
-
+      <div className="mt-4 border-t border-border divide-y divide-[#f0f0f0]">
+        <Row label="Anchor">{change(s.anchorStart, s.anchorEnd)}</Row>
+        <Row label="Best e1RM">
+          {change(s.e1rmStart, s.e1rmEnd)}
+          {s.isPR && <span className="ml-1.5 text-xs font-semibold text-accent">PR</span>}
+        </Row>
+        <Row label={`Best ${liftLabel.toLowerCase()}`}>{change(s.bestStart, s.bestEnd)}</Row>
         {s.peak && (
-          <div className="mt-3 rounded-xl bg-[#eff6ff] px-3 py-2 flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#3b5f8a]">Peak single</span>
-            <span className="text-sm font-bold text-accent">
-              {kg(s.peak.kg)}kg × {s.peak.reps}
-              <span className="text-xs font-medium text-[#3b5f8a]"> · {s.peak.rpe != null ? `RPE ${s.peak.rpe}` : "no RPE"} · {formatDay(s.peak.date)}</span>
-            </span>
-          </div>
+          <Row label="Peak single">
+            {kg(s.peak.kg)}kg × {s.peak.reps}
+            {s.peak.rpe != null && <span className="text-xs text-muted-light"> @ {s.peak.rpe}</span>}
+          </Row>
         )}
-
-        {/* The blocks that made the cycle */}
-        <div className="mt-3 flex flex-col gap-1.5">
-          {s.blocks.map((b) => {
-            const style = PHASE_STYLE[b.block.phase] ?? PHASE_STYLE.accumulation
-            const Row = onOpenBlock ? "button" : "div"
-            return (
-              <Row
-                key={b.block.id}
-                {...(onOpenBlock ? { onClick: () => onOpenBlock(b.block.id) } : {})}
-                className={`${style.bg} rounded-lg px-3 py-2 flex items-center justify-between text-left w-full${onOpenBlock ? " active:opacity-70" : ""}`}
-              >
-                <span className="flex items-center gap-2">
-                  <span className={`w-1 h-3.5 rounded-full ${style.bar}`} />
-                  <span className={`text-xs font-semibold ${style.label}`}>{b.phaseLabel}</span>
-                  <span className={`text-[11px] ${style.meta}`}>
-                    {b.sessions}/{b.plannedSessions} · {plural(b.days, "day")}
-                  </span>
-                </span>
-                <span className={`text-[11px] font-semibold ${style.label}`}>
-                  {b.e1rmChange != null && b.sessions > 1 ? `e1RM ${signed(b.e1rmChange)}` : `${kg(b.end.kg)}kg × ${b.end.reps}`}
-                  {onOpenBlock && <span className="opacity-50"> ›</span>}
-                </span>
-              </Row>
-            )
-          })}
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 mt-3">
-          <Stat label="Sessions" value={String(s.sessions)} sub={s.skipped > 0 ? `+${s.skipped} skipped` : undefined} />
-          <Stat label="Weeks" value={String(weeks)} sub={plural(s.days, "day")} />
-          <Stat label="Avg RPE" value={s.avgRPE != null ? String(s.avgRPE) : "—"} sub="excl. deload" />
-        </div>
-
-        {pct != null && target != null && s.bestEnd != null && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="font-medium uppercase tracking-widest text-muted-lighter">Road to {target}kg</span>
-              <span className="text-muted-light">
-                {kg(s.bestEnd)} / {target}kg · <span className="font-semibold text-accent">{pct}%</span>
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-[#e8e8e8] overflow-hidden">
-              <div className="h-full rounded-full bg-[#1e3a5f]" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-        )}
-
-        <CoachNote text={s.coachNote} />
-
-        {onShare && <ShareButton onShare={onShare} label="Share cycle" />}
+        {s.bwEnd != null && <Row label="Bodyweight">{change(s.bwStart, s.bwEnd)}</Row>}
+        {s.skipped > 0 && <Row label={`${liftLabel} skipped`}>{plural(s.skipped, "session")}</Row>}
       </div>
+
+      {/* The blocks that made the cycle */}
+      <div className="mt-3 border-t border-border divide-y divide-[#f0f0f0]">
+        {s.blocks.map((b) => {
+          const style = PHASE_STYLE[b.block.phase] ?? PHASE_STYLE.accumulation
+          const content = (
+            <>
+              <span className="flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full ${style.bar}`} />
+                <span className="text-sm text-foreground">{b.phaseLabel}</span>
+                <span className="text-xs text-muted-light">{plural(b.sessions, "session")}</span>
+              </span>
+              <span className="text-xs text-muted">
+                {b.e1rmChange != null && b.sessions > 1 ? `e1RM ${signed(b.e1rmChange)}` : `${kg(b.end.kg)} × ${b.end.reps}`}
+                {onOpenBlock && <span className="text-muted-lighter"> ›</span>}
+              </span>
+            </>
+          )
+          return onOpenBlock ? (
+            <button
+              key={b.block.id}
+              onClick={() => onOpenBlock(b.block.id)}
+              className="w-full flex items-center justify-between py-2 text-left active:opacity-60"
+            >
+              {content}
+            </button>
+          ) : (
+            <div key={b.block.id} className="flex items-center justify-between py-2">{content}</div>
+          )
+        })}
+      </div>
+
+      {pct != null && target != null && s.bestEnd != null && (
+        <div className="mt-3">
+          <div className="flex justify-between text-xs text-muted-light mb-1">
+            <span>{kg(s.bestEnd)} / {target}kg</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-[2px] bg-[#e8e8e8]">
+            <div className="h-full bg-[#1e3a5f]" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+
+      <Note text={s.coachNote} />
+      {onShare && <ShareLink onShare={onShare} />}
     </div>
   )
 }
 
 /** Bottom sheet that carries a recap: after the session that ends a block, or from History. */
 export default function RecapSheet({
-  emoji,
-  title,
-  subtitle,
+  label,
   primaryLabel,
   onClose,
+  onShare,
   children,
 }: {
-  emoji?: string
-  title: string
-  subtitle?: string
+  /** Small caption above the card, e.g. "Block complete". */
+  label?: string
   primaryLabel: string
   onClose: () => void
+  onShare: () => void
   children: ReactNode
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 animate-fade-in" onClick={onClose}>
       <div
-        className="bg-white w-full max-w-[393px] rounded-t-2xl px-4 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] max-h-[92dvh] overflow-y-auto animate-slide-up"
+        className="bg-white w-full max-w-[393px] rounded-t-2xl px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] max-h-[92dvh] overflow-y-auto animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-center mb-4">
-          {emoji && <span className="text-4xl inline-block animate-bounce-in select-none">{emoji}</span>}
-          <p className="text-base font-semibold text-foreground mt-1">{title}</p>
-          {subtitle && <p className="text-xs text-muted-light">{subtitle}</p>}
-        </div>
+        <div className="w-9 h-1 bg-[#e0e0e0] rounded-full mx-auto mb-4" />
+        {label && <p className="text-[10px] uppercase tracking-widest text-muted-lighter mb-3">{label}</p>}
         {children}
-        <button
-          onClick={onClose}
-          className="w-full bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors"
-        >
-          {primaryLabel}
-        </button>
+        <div className="flex gap-2 mt-6">
+          <button
+            onClick={onShare}
+            className="px-5 text-sm font-semibold text-[#1e3a5f] border border-border rounded-xl py-3.5 active:bg-[#f5f5f5]"
+          >
+            Share
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl py-3.5 active:bg-[#0f2540] transition-colors"
+          >
+            {primaryLabel}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -363,7 +297,7 @@ export function RecapSheetFor({
   cycle: CycleSummary | null
   liftLabel: string
   goal: number | null
-  /** True straight after logging: celebrates and points at what's next. */
+  /** True straight after logging: says so, and points at what's next. */
   justFinished: boolean
   onClose: () => void
   onShare: () => void
@@ -372,26 +306,24 @@ export function RecapSheetFor({
   if (target.kind === "cycle" && cycle) {
     return (
       <RecapSheet
-        emoji={justFinished ? "🏆" : undefined}
-        title={justFinished ? `Cycle ${cycle.cycle} done` : `Cycle ${cycle.cycle}`}
-        subtitle={`${plural(cycle.sessions, "session")} in ${plural(cycle.days, "day")}`}
+        label={justFinished ? "Cycle complete" : undefined}
         primaryLabel={justFinished ? `Start cycle ${cycle.cycle + 1}` : "Close"}
         onClose={onClose}
+        onShare={onShare}
       >
-        <CycleRecapCard summary={cycle} liftLabel={liftLabel} target={goal} onShare={onShare} onOpenBlock={onOpenBlock} />
+        <CycleRecapCard summary={cycle} liftLabel={liftLabel} target={goal} onOpenBlock={onOpenBlock} bare />
       </RecapSheet>
     )
   }
   if (target.kind === "block" && block) {
     return (
       <RecapSheet
-        emoji={justFinished ? "🏁" : undefined}
-        title={`Cycle ${block.cycle} · ${block.phaseLabel}${justFinished ? " done" : ""}`}
-        subtitle={`${plural(block.sessions, "session")} in ${plural(block.days, "day")}`}
+        label={justFinished ? "Block complete" : undefined}
         primaryLabel={justFinished && block.next ? `On to ${block.next.phaseLabel}` : justFinished ? "Continue" : "Close"}
         onClose={onClose}
+        onShare={onShare}
       >
-        <BlockRecapCard summary={block} liftLabel={liftLabel} onShare={onShare} />
+        <BlockRecapCard summary={block} liftLabel={liftLabel} bare />
       </RecapSheet>
     )
   }
