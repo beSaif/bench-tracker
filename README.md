@@ -93,6 +93,70 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The app deploys to Vercel through the Git integration: every push to `main` ships to
+production, other branches get preview deployments. `vercel.json` only declares the
+reminders cron. Server state lives in Vercel KV; the environment variables above are set
+in the project's Settings → Environment Variables.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Domain
+
+Production is served at `https://workout.codesaif.dev`. `https://bench-tracker.vercel.app`
+keeps working and serves the same deployment. It is not redirected, because the installed
+Home Screen app, push subscriptions and the local cache all belong to one origin (see
+"Moving to a new address" below).
+
+1. Vercel: Project → Settings → Domains → add `workout.codesaif.dev`
+   (`vercel domains add workout.codesaif.dev bench-tracker`). Vercel shows the record to
+   create; for this project it is a project-specific CNAME, not `cname.vercel-dns.com`.
+2. Cloudflare DNS for `codesaif.dev` (the zone is in the same Cloudflare account as
+   [Tally](https://github.com/beSaif/tally), which gets `tally.codesaif.dev` from a Worker
+   route instead):
+
+   | Type | Name | Target | Proxy status | TTL |
+   | --- | --- | --- | --- | --- |
+   | CNAME | `workout` | `92d2ee0b0bc4b2df.vercel-dns-017.com` | DNS only (grey cloud) | Auto |
+
+   Keep it DNS only: Vercel must receive the traffic directly to issue and renew the
+   certificate. `vercel domains verify workout.codesaif.dev --project bench-tracker`
+   confirms the setup.
+3. Google sign-in: the OAuth client behind `AUTH_GOOGLE_ID` needs, next to the existing
+   `*.vercel.app` entries, the authorized redirect URI
+   `https://workout.codesaif.dev/api/auth/callback/google` and the authorized JavaScript
+   origin `https://workout.codesaif.dev`. The callback of every address the app is served
+   from must be listed.
+4. Auth.js v5 takes the host from the request and trusts it on Vercel, so `src/auth.ts`
+   needs nothing. Leave `AUTH_URL` / `NEXTAUTH_URL` unset (or set to the new address); a
+   value pinning the old host would send sign-ins back there.
+
+### Moving to a new address
+
+Everything synced (profile, sessions, blocks, exercises, training days, weights, friends,
+coach links) is in KV and follows the account. What belongs to the old origin is the
+Home Screen app, its push subscription and its `localStorage`. Each user does this once:
+
+1. Open the old address while online and let the home screen load. Saves that never
+   reached the server are marked pending (`lift-tracker-pending-sync`) and re-sent on load.
+2. Open `https://workout.codesaif.dev` and sign in with Google.
+3. Add it to the Home Screen again (Share → Add to Home Screen on iPhone), then delete
+   the old icon.
+4. Turn notifications back on in the new app. The server keeps one subscription per user,
+   so this replaces the old one and the old install stops receiving reminders.
+
+These device-only settings do not carry over and start from their defaults:
+
+| Key | What resets |
+| --- | --- |
+| `lift-tracker-draft` | a session in progress that was not finished |
+| `lift-tracker-mini-player` | the minimised in-progress session bar |
+| `lift-tracker-routine-undo` | the one-week undo of the last applied plan |
+| `lift-tracker-dot` | Dot switched off (comes back on) |
+| `lift-tracker-haptics` | haptics switched off (comes back on) |
+| `lift-tracker-weigh-in-skipped` | "skip this week" on the weigh-in prompt |
+| `lift-tracker-layoff-dismissed` | a dismissed layoff banner |
+| `lift-tracker-whats-new-seen` | the "what's new" sheet shows once more |
+| `installGuideDismissed` | the install guide shows once more |
+
+The remaining keys (`lift-tracker-sessions`, `-blocks`, `-exercises`, `-profile`,
+`-training-days`, `-weights`, `-friends`, `-presences`, `bench_friend_last_active`,
+`lift-tracker-exercises-migration`) are caches of server data and refill on first load;
+`lift-tracker-pending-onboarding` only lives for the length of a sign-in redirect.
