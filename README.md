@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" width="120" alt="Lift Tracker" />
+  <img src="docs/logo.svg" width="120" alt="Lift Tracker" />
 </p>
 
 <h1 align="center">Lift Tracker</h1>
@@ -14,9 +14,10 @@ Dot, the little mascot, plans your next session, nags you about the weigh-in, an
 if you don't show up for five days.
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="200" alt="Home: Dot and the up-next session" />
-  <img src="docs/screenshots/history.png" width="200" alt="Session history and progress" />
-  <img src="docs/screenshots/gymbros.png" width="200" alt="Gym bros" />
+  <img src="docs/screenshots/home.png" width="190" alt="Home: gym bros, bodyweight, road to the target, block timeline" />
+  <img src="docs/screenshots/home-upnext.png" width="190" alt="The up-next session card and logged sessions" />
+  <img src="docs/screenshots/gymbros.png" width="190" alt="Gym bros with a live friend and a message" />
+  <img src="docs/screenshots/plan-review.png" width="190" alt="Plan with Dot: what changes before you apply it" />
 </p>
 
 **Try it:** [workout.codesaif.dev](https://workout.codesaif.dev). Sign in with Google, add it to
