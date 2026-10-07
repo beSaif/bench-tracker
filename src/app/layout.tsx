@@ -16,12 +16,12 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "Lift Tracker",
+  title: "Workout",
   description: "Block periodization for your one main lift.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Lift Tracker",
+    title: "Workout",
   },
 }
 

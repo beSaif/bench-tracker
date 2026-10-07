@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Lift Tracker',
-    short_name: 'Lift',
+    name: 'Workout',
+    short_name: 'Workout',
     description: 'Block periodization for your one main lift.',
     start_url: '/',
     display: 'standalone',

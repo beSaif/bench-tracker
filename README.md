@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.svg" width="120" alt="Lift Tracker" />
+  <img src="docs/logo.svg" width="120" alt="Workout" />
 </p>
 
-<h1 align="center">Lift Tracker</h1>
+<h1 align="center">Workout</h1>
 
 <p align="center">A training log built around the one lift you care about.</p>
 

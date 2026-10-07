@@ -1,6 +1,6 @@
 ---
 name: screenshot
-description: Take phone-sized screenshots of bench-tracker pages with mocked API data, no Google sign-in or Vercel KV needed. Use when asked for screenshots of a UI change, or to check a page visually before pushing.
+description: Take phone-sized screenshots of Workout pages with mocked API data, no Google sign-in or Vercel KV needed. Use when asked for screenshots of a UI change, or to check a page visually before pushing.
 ---
 
 # Screenshot the app

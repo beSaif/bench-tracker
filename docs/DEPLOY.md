@@ -1,6 +1,6 @@
-# Deploying Lift Tracker
+# Deploying Workout
 
-Lift Tracker is a Next.js app made for Vercel: Google sign-in through Auth.js, server state in
+Workout is a Next.js app made for Vercel: Google sign-in through Auth.js, server state in
 Vercel KV, one cron job for the daily reminders. Connect the repo to Vercel through the Git
 integration and every push to `main` ships to production; other branches get preview
 deployments. `vercel.json` only declares the cron.

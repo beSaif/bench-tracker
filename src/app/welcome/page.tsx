@@ -6,7 +6,7 @@ export default function WelcomePage() {
     <main className="min-h-dvh flex flex-col items-center justify-center px-6 bg-white">
       <div className="w-full max-w-[360px] flex flex-col items-center text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#aaaaaa] mb-3">
-          lift tracker
+          workout
         </p>
         <h1 className="text-[34px] font-semibold text-[#111111] tracking-tight leading-tight mb-3">
           best workout tracker.
