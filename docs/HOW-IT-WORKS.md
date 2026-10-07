@@ -1,0 +1,52 @@
+# How the moving parts work
+
+Notes on the pieces that aren't obvious from the screens. Configuration for all of them is in
+[DEPLOY.md](DEPLOY.md).
+
+## Daily reminders
+
+Two push notifications are sent by a single Vercel cron job declared in `vercel.json`, which
+calls `/api/cron/reminders` once a day at 06:00 UTC.
+
+- **Weigh-in reminder**: sent to anyone with daily check-ins switched on who has not logged a
+  bodyweight for the current day. It names the streak once it reaches three days, and says so
+  when a streak broke yesterday.
+- **Time-off nudge**: sent once the last confirmed session is two days behind, then at most
+  weekly until training resumes. Logging a session moves that date forward, which is what
+  cancels the pending nudge.
+
+At most one push goes out per user per day; the time-off nudge takes priority and leaves the
+weigh-in reminder for the following day.
+
+The rules live in `src/lib/reminders.ts` and read only stored data, so they work with the app
+closed. Timers held inside the service worker cannot: the browser evicts an idle worker within
+minutes, so `src/lib/swNotify.ts` is only used for the two-hour unfinished-session nudge.
+
+To see what today would send you without waiting for the cron, open
+`/api/cron/reminders?preview=1` while signed in. Preview never sends and never writes.
+
+The job asks "did you log today" in each user's own calendar day. The browser reports its IANA
+timezone when it registers a push subscription; users who registered before that existed are
+treated as UTC until their next visit.
+
+## Routine planner
+
+`/plan` (linked from the Routine page as "Plan with Dot") replaces the user's training days,
+muscle groups and exercises with a plan written by an LLM. Two ways in, one import path
+(`src/lib/routinePlan.ts`): the plan is parsed and validated, laid over the current routine so
+kept groups, days and exercises keep their ids and history, previewed with a summary of what
+changes, and only saved when applied. Groups the plan drops are retired, not deleted, and the
+previous routine is kept on the device for a week so the switch can be undone.
+
+- **Plan with Dot**: five tap-to-answer questions, then one call to `/api/plan`, which plans
+  from the stored routine with any OpenAI-compatible chat API. Each user gets 5 plans a day
+  (tweaks included); a reply that can't be read gets one free repair attempt. Only the routine
+  and the answers are sent, never the user's name, email or sessions.
+- **Use your own AI**: copies a prompt carrying the routine and the format rules (shared with
+  Dot, in `src/lib/planPrompt.ts`) for the user's own chatbot, and reads the reply pasted back,
+  prose, code fences and curly quotes included.
+
+## Estimated one-rep max
+
+e1RM uses Brzycki: `weight × 36 / (37 − reps)`. It's what the progress charts and the
+prescribed loads are built on.

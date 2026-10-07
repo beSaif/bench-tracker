@@ -67,7 +67,7 @@ self.addEventListener('notificationclick', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Lift Tracker', body: '' }
+  let data = { title: 'Workout', body: '' }
   try { data = event.data.json() } catch { data.body = event.data?.text() ?? '' }
 
   event.waitUntil(
